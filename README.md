@@ -1,8 +1,8 @@
-# DSL Lite - Lightweight Security Data Pipeline Framework
+# DSL Lite - Lightweight Cybersecurity Data Pipeline Framework
 
-**DSL Lite** is a lightweight, self-deployable version of the Databricks Security Lakehouse (DSL) framework. It uses configuration files called "presets" to transform security logs into bronze, silver, and gold layers with OCSF-compliant schemas.
+**DSL Lite** is a lightweight, self-deployable version of the Databricks Security Lakehouse (DSL) framework. It uses configuration files called "presets" to transform cybersecurity logs into bronze, silver, and gold layers with OCSF-compliant schemas.  Blueprint for building E2E Cyber Lakehouse Architecture via an augmented medallion architecture.
 
-This portable version is designed for customers who need to deploy security data pipelines in environments where the full DSL product is not yet available, or where security/compliance requirements mandate self-managed infrastructure.
+This portable version is designed for customers who need to deploy cybersecurity data pipelines in environments where the full DSL product is not yet available, or where security/compliance requirements mandate self-managed infrastructure.
 
 ## Project Structure
 
