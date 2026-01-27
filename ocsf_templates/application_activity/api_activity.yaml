@@ -1,0 +1,70 @@
+# OCSF Gold Mapping Template: api_activity
+# Class UID: 6003 | Category: Application Activity
+#
+# API Activity events capture API calls and responses.
+
+gold:
+  - name: api_activity
+    input: <YOUR_SILVER_TABLE_NAME>
+    fields:
+      - name: activity_id
+        expr: # 1=Create, 2=Read, 3=Update, 4=Delete, 5=Connect
+      - name: activity_name
+        expr: 
+      - name: category_uid
+        literal: 6
+      - name: category_name
+        literal: Application Activity
+      - name: class_uid
+        literal: 6003
+      - name: class_name
+        literal: API Activity
+      - name: severity_id
+        expr: 
+      - name: time
+        from: 
+      - name: type_uid
+        expr: 
+      - name: type_name
+        expr: 
+      - name: api.operation
+        expr: # API operation name
+      - name: api.request.uid
+        expr: # Request ID
+      - name: api.response.code
+        expr: # Response code
+      - name: api.response.message
+        expr: # Response message
+      - name: http_request.http_method
+        expr: # GET, POST, PUT, DELETE
+      - name: http_request.url
+        expr: # API endpoint URL
+      - name: http_request.user_agent
+        expr: 
+      - name: http_response.code
+        expr: # HTTP status code
+      - name: http_response.latency
+        expr: # Response time in ms
+      - name: actor.user.name
+        expr: 
+      - name: actor.user.uid
+        expr: 
+      - name: src_endpoint.ip
+        expr: # Client IP
+      - name: dst_endpoint.ip
+        expr: # API server IP
+      - name: status_id
+        expr: 
+      - name: metadata.product.name
+        literal: 
+      - name: metadata.product.vendor_name
+        literal: 
+      - name: metadata.logged_time
+        from: 
+      - name: metadata.processed_time
+        expr: current_timestamp()
+      - name: metadata.uid
+        expr: 
+      - name: raw_data
+        from: 
+

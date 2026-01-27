@@ -1,0 +1,151 @@
+# OCSF Gold Mapping Template: network_activity
+# Class UID: 4001 | Category: Network Activity
+# 
+# This template provides all available fields for the network_activity OCSF table.
+# Fill in the 'expr', 'from', or 'literal' values for each field you want to populate.
+# Comment out or remove fields you don't need.
+#
+# See: pipelines/zeek/conn/preset.yaml for a complete example
+
+gold:
+  - name: network_activity
+    input: <YOUR_SILVER_TABLE_NAME>  # Replace with your silver table name
+    # Optional: Add filter conditions to select relevant events
+    # filter: |
+    #   event_type IN ('connection', 'network_flow')
+    fields:
+      # Required OCSF fields
+      - name: activity_id
+        expr: # REQUIRED: Activity ID (1=Open, 2=Close, 3=Send, 4=Receive, etc.)
+      - name: activity_name
+        expr: # Activity name (e.g., 'Open', 'Close', 'Send', 'Receive')
+      - name: category_uid
+        literal: 4  # Network Activity
+      - name: category_name
+        literal: Network Activity
+      - name: class_uid
+        literal: 4001  # Network Activity
+      - name: class_name
+        literal: Network Activity
+      - name: severity_id
+        expr: # Severity: 0=Unknown, 1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical
+      - name: time
+        from: # REQUIRED: Event timestamp
+      - name: type_uid
+        expr: # Type UID = class_uid * 100 + activity_id
+      - name: type_name
+        expr: # Type name (e.g., 'Network Activity: Open')
+      
+      # Network-specific fields
+      - name: src_endpoint.ip
+        expr: # Source IP address
+      - name: src_endpoint.port
+        expr: # Source port
+      - name: src_endpoint.hostname
+        expr: # Source hostname
+      - name: src_endpoint.domain
+        expr: # Source domain
+      - name: src_endpoint.mac
+        expr: # Source MAC address
+      - name: src_endpoint.location.city
+        expr: # Source geolocation - city
+      - name: src_endpoint.location.country
+        expr: # Source geolocation - country
+      
+      - name: dst_endpoint.ip
+        expr: # Destination IP address
+      - name: dst_endpoint.port
+        expr: # Destination port
+      - name: dst_endpoint.hostname
+        expr: # Destination hostname
+      - name: dst_endpoint.domain
+        expr: # Destination domain
+      - name: dst_endpoint.mac
+        expr: # Destination MAC address
+      - name: dst_endpoint.location.city
+        expr: # Destination geolocation - city
+      - name: dst_endpoint.location.country
+        expr: # Destination geolocation - country
+      
+      # Connection information
+      - name: connection_info.uid
+        expr: # Connection UID/session ID
+      - name: connection_info.protocol_name
+        expr: # Protocol name (tcp, udp, icmp)
+      - name: connection_info.protocol_num
+        expr: # Protocol number (6=TCP, 17=UDP, 1=ICMP)
+      - name: connection_info.protocol_ver_id
+        expr: # IP version (4 or 6)
+      - name: connection_info.direction_id
+        expr: # Direction: 1=Inbound, 2=Outbound, 3=Lateral, 4=Unknown
+      - name: connection_info.direction
+        expr: # Direction name
+      
+      # Traffic statistics
+      - name: traffic.bytes
+        expr: # Total bytes
+      - name: traffic.bytes_in
+        expr: # Bytes received
+      - name: traffic.bytes_out
+        expr: # Bytes sent
+      - name: traffic.packets
+        expr: # Total packets
+      - name: traffic.packets_in
+        expr: # Packets received
+      - name: traffic.packets_out
+        expr: # Packets sent
+      
+      # Timing
+      - name: start_time
+        expr: # Connection start time
+      - name: end_time
+        expr: # Connection end time
+      - name: timezone_offset
+        expr: # Timezone offset in minutes
+      
+      # Status and disposition
+      - name: status_id
+        expr: # Status: 0=Unknown, 1=Success, 2=Failure, 99=Other
+      - name: status
+        expr: # Status description
+      - name: disposition_id
+        expr: # Disposition: 1=Allowed, 2=Blocked, 99=Other
+      - name: disposition
+        expr: # Disposition description
+      
+      # Metadata
+      - name: metadata.product.name
+        literal: # Product name
+      - name: metadata.product.vendor_name
+        literal: # Vendor name
+      - name: metadata.product.version
+        expr: # Product version
+      - name: metadata.logged_time
+        from: # When the event was logged
+      - name: metadata.processed_time
+        expr: current_timestamp()  # When processed by pipeline
+      - name: metadata.uid
+        expr: # Event unique ID
+      
+      # Optional fields
+      - name: action
+        expr: # Action taken
+      - name: action_id
+        expr: # Action ID
+      - name: message
+        expr: # Human-readable message
+      - name: severity
+        expr: # Severity description
+      
+      # Cloud context (if applicable)
+      # - name: cloud.provider
+      #   literal: # Cloud provider (AWS, Azure, GCP)
+      # - name: cloud.region
+      #   expr: # Cloud region
+      # - name: cloud.account.uid
+      #   expr: # Cloud account ID
+      
+      # Raw data (recommended)
+      - name: raw_data
+        from: # Original event data (variant/JSON)
+

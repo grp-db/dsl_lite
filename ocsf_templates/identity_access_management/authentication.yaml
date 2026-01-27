@@ -1,0 +1,167 @@
+# OCSF Gold Mapping Template: authentication
+# Class UID: 3002 | Category: Identity & Access Management
+#
+# Authentication events capture user login/logout activities.
+# Fields are ordered to match the OCSF schema - DO NOT reorder!
+
+gold:
+  - name: authentication
+    input: <YOUR_SILVER_TABLE_NAME>
+    # preFilter: |
+    #   event_type IN ('login', 'logout', 'login_failed')
+    fields:
+      # Core identification (alphabetical after dsl_id per OCSF)
+      - name: action
+        expr: # 'Allowed', 'Denied'
+      - name: action_id
+        expr: # 0=Unknown, 1=Allowed, 2=Denied, 99=Other
+      - name: activity
+        expr: # 'Logon', 'Logoff'
+      - name: activity_id
+        expr: # 1=Logon, 2=Logoff, 3=Authentication Ticket, 99=Other
+      - name: activity_name
+        expr: # 'Logon', 'Logoff', etc.
+      
+      # Actor (who performed the action)
+      # - name: actor.user.name
+      #   expr: # User who initiated
+      
+      # Authentication-specific fields
+      # - name: auth_factors
+      #   expr: # Array of auth factors used
+      - name: auth_protocol
+        expr: # 'NTLM', 'Kerberos', 'SAML', 'OAuth', etc.
+      - name: auth_protocol_id
+        expr: # 0=Unknown, 1=NTLM, 2=Kerberos, 5=SAML, 6=OAuth, 99=Other
+      
+      # Category & Class
+      - name: category_name
+        literal: Identity & Access Management
+      - name: category_uid
+        expr: CAST(3 AS INT)
+      - name: class_name
+        literal: Authentication
+      - name: class_uid
+        expr: CAST(3002 AS INT)
+      
+      # Cloud context (optional)
+      # - name: cloud.provider
+      #   literal: # AWS, Azure, GCP
+      
+      # Disposition (outcome)
+      - name: disposition
+        expr: # 'Allowed', 'Blocked'
+      - name: disposition_id
+        expr: # 1=Allowed, 2=Blocked
+      
+      # Destination (target system)
+      - name: dst_endpoint.ip
+        expr: # Target system IP
+      - name: dst_endpoint.hostname
+        expr: # Target hostname
+      # - name: dst_endpoint.domain
+      #   expr: # Target domain
+      
+      # Enrichments (optional)
+      # - name: enrichments
+      #   expr: # Threat intel, GeoIP data
+      
+      # Authentication flags
+      - name: is_mfa
+        expr: # CAST(TRUE/FALSE AS BOOLEAN)
+      - name: is_remote
+        expr: # CAST(TRUE/FALSE AS BOOLEAN)
+      
+      # Logon type (Windows-specific)
+      # - name: logon_type
+      #   expr: # 'Interactive', 'Network', 'RemoteInteractive'
+      # - name: logon_type_id
+      #   expr: # 2=Interactive, 3=Network, 10=RemoteInteractive
+      
+      # Message
+      - name: message
+        expr: # Human-readable description
+      
+      # Metadata
+      - name: metadata.version
+        literal: 1.0.0
+      - name: metadata.product.name
+        literal: # Your product name
+      - name: metadata.product.vendor_name
+        literal: # Vendor name
+      - name: metadata.log_provider
+        literal: # Log source name
+      - name: metadata.logged_time
+        from: # Original event timestamp
+      - name: metadata.processed_time
+        expr: CURRENT_TIMESTAMP()
+      - name: metadata.event_code
+        from: # Event code/ID
+      - name: metadata.uid
+        from: # Unique event identifier
+      
+      # Observables (optional)
+      # - name: observables
+      #   expr: # Array of IOCs (IPs, usernames, etc.)
+      
+      # Raw data
+      - name: raw_data
+        expr: # CAST(to_json(named_struct(...)) AS VARIANT)
+      
+      # Severity
+      - name: severity
+        expr: # 'Informational', 'Low', 'Medium', 'High', 'Critical'
+      - name: severity_id
+        expr: # 1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical
+      
+      # Session (optional)
+      # - name: session.uid
+      #   expr: # Session ID
+      # - name: session.is_remote
+      #   expr: # Remote session flag
+      
+      # Source (where login came from)
+      - name: src_endpoint.ip
+        expr: # Source IP address
+      # - name: src_endpoint.hostname
+      #   expr: # Source hostname
+      # - name: src_endpoint.port
+      #   expr: # Source port
+      # - name: src_endpoint.domain
+      #   expr: # Source domain
+      
+      # Status
+      - name: status
+        expr: # 'Success', 'Failure'
+      - name: status_id
+        expr: # 1=Success, 2=Failure
+      # - name: status_code
+      #   expr: # Vendor status code
+      - name: status_detail
+        expr: # Failure reason/details
+      
+      # Time
+      - name: time
+        from: # Event timestamp (REQUIRED)
+      - name: timezone_offset
+        expr: # CAST(NULL AS INT) or offset in minutes
+      
+      # Type
+      - name: type_name
+        expr: # CONCAT('Authentication: ', activity_name)
+      - name: type_uid
+        expr: # CAST(class_uid * 100 + activity_id AS BIGINT)
+      
+      # Unmapped vendor fields
+      - name: unmapped
+        expr: # CAST(to_json(named_struct(...)) AS VARIANT)
+      
+      # User (target user being authenticated)
+      - name: user.name
+        expr: # Username
+      # - name: user.uid
+      #   expr: # User ID/SID
+      # - name: user.type
+      #   expr: # 'User', 'Admin', 'System'
+      # - name: user.type_id
+      #   expr: # 1=User, 2=Admin, 3=System

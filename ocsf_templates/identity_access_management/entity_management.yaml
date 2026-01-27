@@ -1,0 +1,62 @@
+# OCSF Gold Mapping Template: entity_management
+# Class UID: 3004 | Category: Identity & Access Management
+#
+# Entity Management events capture entity (user, group, role) lifecycle.
+
+gold:
+  - name: entity_management
+    input: <YOUR_SILVER_TABLE_NAME>
+    fields:
+      - name: activity_id
+        expr: # 1=Create, 2=Read, 3=Update, 4=Delete, 5=Add, 6=Remove
+      - name: activity_name
+        expr: 
+      - name: category_uid
+        literal: 3
+      - name: category_name
+        literal: Identity & Access Management
+      - name: class_uid
+        literal: 3004
+      - name: class_name
+        literal: Entity Management
+      - name: severity_id
+        expr: 
+      - name: time
+        from: 
+      - name: type_uid
+        expr: 
+      - name: type_name
+        expr: 
+      - name: entity.type
+        expr: # user, group, role, policy, etc.
+      - name: entity.type_id
+        expr: 
+      - name: entity.name
+        expr: # Entity name
+      - name: entity.uid
+        expr: # Entity ID
+      - name: entity_result.name
+        expr: # Resulting entity state
+      - name: entity_result.uid
+        expr: 
+      - name: actor.user.name
+        expr: # Who performed the action
+      - name: actor.user.uid
+        expr: 
+      - name: comment
+        expr: # Change description/reason
+      - name: status_id
+        expr: 
+      - name: metadata.product.name
+        literal: 
+      - name: metadata.product.vendor_name
+        literal: 
+      - name: metadata.logged_time
+        from: 
+      - name: metadata.processed_time
+        expr: current_timestamp()
+      - name: metadata.uid
+        expr: 
+      - name: raw_data
+        from: 
+

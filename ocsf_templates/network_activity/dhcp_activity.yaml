@@ -1,0 +1,64 @@
+# OCSF Gold Mapping Template: dhcp_activity
+# Class UID: 4004 | Category: Network Activity
+#
+# DHCP Activity events capture DHCP requests and assignments.
+
+gold:
+  - name: dhcp_activity
+    input: <YOUR_SILVER_TABLE_NAME>
+    fields:
+      - name: activity_id
+        expr: # 1=Discover, 2=Offer, 3=Request, 4=Decline, 5=Ack, 6=Nak, 7=Release, 8=Inform
+      - name: activity_name
+        expr: 
+      - name: category_uid
+        literal: 4
+      - name: category_name
+        literal: Network Activity
+      - name: class_uid
+        literal: 4004
+      - name: class_name
+        literal: DHCP Activity
+      - name: severity_id
+        expr: 
+      - name: time
+        from: 
+      - name: type_uid
+        expr: 
+      - name: type_name
+        expr: 
+      - name: src_endpoint.ip
+        expr: # Client IP
+      - name: src_endpoint.mac
+        expr: # Client MAC address
+      - name: src_endpoint.hostname
+        expr: # Client hostname
+      - name: dst_endpoint.ip
+        expr: # DHCP server IP
+      - name: dst_endpoint.port
+        expr: # Usually 67 or 68
+      - name: connection_info.protocol_name
+        literal: udp
+      - name: connection_info.protocol_num
+        literal: 17
+      - name: lease_dur
+        expr: # Lease duration in seconds
+      - name: is_renewal
+        expr: # Boolean: true if renewal
+      - name: transaction_uid
+        expr: # DHCP transaction ID
+      - name: status_id
+        expr: 
+      - name: metadata.product.name
+        literal: 
+      - name: metadata.product.vendor_name
+        literal: 
+      - name: metadata.logged_time
+        from: 
+      - name: metadata.processed_time
+        expr: current_timestamp()
+      - name: metadata.uid
+        expr: 
+      - name: raw_data
+        from: 
+

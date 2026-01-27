@@ -1,0 +1,70 @@
+# OCSF Gold Mapping Template: script_activity
+# Class UID: 1008 | Category: System Activity
+#
+# Script Activity events capture script execution (PowerShell, bash, etc.).
+
+gold:
+  - name: script_activity
+    input: <YOUR_SILVER_TABLE_NAME>
+    fields:
+      - name: activity_id
+        expr: # 1=Run, 2=Load
+      - name: activity_name
+        expr: 
+      - name: category_uid
+        literal: 1
+      - name: category_name
+        literal: System Activity
+      - name: class_uid
+        literal: 1008
+      - name: class_name
+        literal: Script Activity
+      - name: severity_id
+        expr: 
+      - name: time
+        from: 
+      - name: type_uid
+        expr: 
+      - name: type_name
+        expr: 
+      - name: script.name
+        expr: # Script name
+      - name: script.uid
+        expr: # Script unique ID
+      - name: script.type
+        expr: # powershell, bash, python, etc.
+      - name: script.type_id
+        expr: 
+      - name: script.file.path
+        expr: # Script file path
+      - name: script.file.name
+        expr: # Script filename
+      - name: script.script_content.value
+        expr: # Script content (if captured)
+      - name: actor.user.name
+        expr: # Who executed the script
+      - name: actor.user.uid
+        expr: 
+      - name: actor.process.pid
+        expr: # Parent process PID
+      - name: actor.process.cmd_line
+        expr: 
+      - name: device.hostname
+        expr: 
+      - name: device.ip
+        expr: 
+      - name: status_id
+        expr: 
+      - name: metadata.product.name
+        literal: 
+      - name: metadata.product.vendor_name
+        literal: 
+      - name: metadata.logged_time
+        from: 
+      - name: metadata.processed_time
+        expr: current_timestamp()
+      - name: metadata.uid
+        expr: 
+      - name: raw_data
+        from: 
+

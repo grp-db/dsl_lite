@@ -1,0 +1,147 @@
+# OCSF Gold Mapping Template: dns_activity
+# Class UID: 4003 | Category: Network Activity
+#
+# DNS query and response events.
+# Fields are ordered to match the OCSF schema - DO NOT reorder!
+
+gold:
+  - name: dns_activity
+    input: <YOUR_SILVER_TABLE_NAME>
+    # preFilter: |
+    #   query_name IS NOT NULL
+    fields:
+      # Core fields
+      - name: activity_id
+        expr: # 1=Query, 2=Response, 6=Traffic
+      - name: activity_name
+        expr: # 'Query', 'Response', 'Traffic'
+      
+      # Answers (for DNS responses)
+      - name: answers
+        expr: # Array of DNS answer records
+      
+      # App name (optional)
+      # - name: app_name
+      #   expr: # Application name
+      
+      # Category & Class
+      - name: category_name
+        literal: Network Activity
+      - name: category_uid
+        expr: CAST(4 AS INT)
+      - name: class_name
+        literal: DNS Activity
+      - name: class_uid
+        expr: CAST(4003 AS INT)
+      
+      # Connection info
+      - name: connection_info.protocol_name
+        expr: # 'udp', 'tcp', 'doh', 'dot'
+      - name: connection_info.protocol_num
+        expr: # 17=UDP, 6=TCP
+      - name: connection_info.direction
+        literal: Unknown
+      - name: connection_info.direction_id
+        expr: CAST(0 AS INT)
+      # - name: connection_info.uid
+      #   expr: # Connection/query ID
+      
+      # Disposition
+      # - name: disposition
+      #   expr: # 'Allowed', 'Blocked', 'Sinkholed'
+      # - name: disposition_id
+      #   expr: # 1=Allowed, 2=Blocked
+      
+      # Destination endpoint (DNS server)
+      - name: dst_endpoint.ip
+        expr: # DNS server IP
+      # - name: dst_endpoint.port
+      #   expr: # Usually 53
+      
+      # Metadata
+      - name: metadata.version
+        literal: 1.0.0
+      - name: metadata.product.name
+        literal: # Product name
+      - name: metadata.product.vendor_name
+        literal: # Vendor name
+      - name: metadata.log_provider
+        literal: # Log source
+      - name: metadata.logged_time
+        from: # Event timestamp
+      - name: metadata.processed_time
+        expr: CURRENT_TIMESTAMP()
+      # - name: metadata.uid
+      #   from: # Event ID
+      
+      # Query details
+      - name: query.hostname
+        from: # FQDN being queried
+      - name: query.type
+        from: # 'A', 'AAAA', 'CNAME', 'MX', 'TXT'
+      - name: query.class
+        literal: IN
+      # - name: query.packet_uid
+      #   expr: # CAST(NULL AS INT) - usually not available
+      - name: query.opcode
+        literal: Query
+      - name: query.opcode_id
+        expr: CAST(0 AS INT)
+      
+      # Response code
+      - name: rcode
+        expr: # 'NoError', 'NXDomain', 'ServFail'
+      - name: rcode_id
+        from: # 0=NoError, 3=NXDomain, 2=ServFail
+      
+      # Raw data
+      - name: raw_data
+        expr: # CAST(to_json(...) AS VARIANT)
+      
+      # Severity
+      - name: severity
+        literal: Informational
+      - name: severity_id
+        expr: CAST(1 AS INT)
+      
+      # Source endpoint (client)
+      - name: src_endpoint.ip
+        from: # Client IP
+      # - name: src_endpoint.port
+      #   from: # Source port
+      
+      # Status
+      # - name: status
+      #   expr: # 'Success', 'Failure'
+      # - name: status_code
+      #   expr: # Response code as string
+      # - name: status_detail
+      #   expr: # Details
+      # - name: status_id
+      #   from: # rcode_id
+      
+      # Time
+      - name: time
+        from: # Query/response timestamp (REQUIRED)
+      - name: timezone_offset
+        expr: # CAST(NULL AS INT)
+      
+      # Traffic (optional)
+      # - name: traffic.bytes_in
+      #   expr: # Query size in bytes
+      
+      # Type
+      - name: type_name
+        expr: # CONCAT('DNS Activity: ', activity_name, ' [', query_type, ']')
+      - name: type_uid
+        expr: # CAST(class_uid * 100 + activity_id AS BIGINT)
+      
+      # Action/Disposition (optional, for security-focused DNS)
+      # - name: action
+      #   expr: # 'Allowed', 'Denied'
+      # - name: action_id
+      #   expr: # 1=Allowed, 2=Denied
+      
+      # Unmapped
+      - name: unmapped
+        expr: # CAST(to_json(...) AS VARIANT)

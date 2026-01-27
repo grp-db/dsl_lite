@@ -1,0 +1,84 @@
+# OCSF Gold Mapping Template: data_security_finding
+# Class UID: 2003 | Category: Findings
+#
+# Data Security Finding events capture data security issues and anomalies.
+
+gold:
+  - name: data_security_finding
+    input: <YOUR_SILVER_TABLE_NAME>
+    fields:
+      - name: activity_id
+        expr: # 1=Create, 2=Update, 3=Close
+      - name: activity_name
+        expr: 
+      - name: category_uid
+        literal: 2
+      - name: category_name
+        literal: Findings
+      - name: class_uid
+        literal: 2003
+      - name: class_name
+        literal: Data Security Finding
+      - name: severity_id
+        expr: 
+      - name: time
+        from: 
+      - name: finding_info.title
+        expr: # Finding title
+      - name: finding_info.desc
+        expr: # Finding description
+      - name: finding_info.uid
+        expr: # Finding unique ID
+      - name: finding_info.created_time
+        expr: 
+      - name: finding_info.first_seen_time
+        expr: 
+      - name: finding_info.last_seen_time
+        expr: 
+      - name: risk_level_id
+        expr: # 1=Info, 2=Low, 3=Medium, 4=High, 5=Critical
+      - name: risk_level
+        expr: 
+      - name: risk_score
+        expr: # Numeric risk score
+      - name: confidence_id
+        expr: # Confidence level
+      - name: confidence_score
+        expr: 
+      - name: database.name
+        expr: # If database-related
+      - name: database.uid
+        expr: 
+      - name: database.type
+        expr: 
+      - name: databucket.name
+        expr: # If storage bucket-related
+      - name: databucket.uid
+        expr: 
+      - name: databucket.is_public
+        expr: 
+      - name: databucket.is_encrypted
+        expr: 
+      - name: file.name
+        expr: # If file-related
+      - name: file.path
+        expr: 
+      - name: table.name
+        expr: # If table-related
+      - name: table.uid
+        expr: 
+      - name: status_id
+        expr: # 1=New, 2=In Progress, 3=Suppressed, 4=Resolved
+      - name: metadata.product.name
+        literal: 
+      - name: metadata.product.vendor_name
+        literal: 
+      - name: metadata.logged_time
+        from: 
+      - name: metadata.processed_time
+        expr: current_timestamp()
+      - name: metadata.uid
+        expr: 
+      - name: raw_data
+        from: 
+

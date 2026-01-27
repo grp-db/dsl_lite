@@ -1,0 +1,76 @@
+# OCSF Gold Mapping Template: datastore_activity
+# Class UID: 4007 | Category: Network Activity
+#
+# Datastore Activity events capture database and data store operations.
+
+gold:
+  - name: datastore_activity
+    input: <YOUR_SILVER_TABLE_NAME>
+    fields:
+      - name: activity_id
+        expr: # 1=Create, 2=Read, 3=Update, 4=Delete, 5=Query, 6=Allocate, 7=Deallocate
+      - name: activity_name
+        expr: 
+      - name: category_uid
+        literal: 4
+      - name: category_name
+        literal: Network Activity
+      - name: class_uid
+        literal: 4007
+      - name: class_name
+        literal: Datastore Activity
+      - name: severity_id
+        expr: 
+      - name: time
+        from: 
+      - name: type_uid
+        expr: 
+      - name: type_name
+        expr: 
+      - name: database.name
+        expr: # Database name
+      - name: database.uid
+        expr: 
+      - name: database.type
+        expr: # mysql, postgres, mongodb, etc.
+      - name: databucket.name
+        expr: # Bucket/container name
+      - name: databucket.uid
+        expr: 
+      - name: table.name
+        expr: # Table name
+      - name: table.uid
+        expr: 
+      - name: api.operation
+        expr: # Operation performed (SELECT, INSERT, etc.)
+      - name: http_request.url
+        expr: # If via HTTP/REST
+      - name: http_request.http_method
+        expr: 
+      - name: http_response.code
+        expr: 
+      - name: actor.user.name
+        expr: 
+      - name: actor.user.uid
+        expr: 
+      - name: src_endpoint.ip
+        expr: # Client IP
+      - name: dst_endpoint.ip
+        expr: # Database server IP
+      - name: dst_endpoint.port
+        expr: # Database port
+      - name: status_id
+        expr: 
+      - name: metadata.product.name
+        literal: 
+      - name: metadata.product.vendor_name
+        literal: 
+      - name: metadata.logged_time
+        from: 
+      - name: metadata.processed_time
+        expr: current_timestamp()
+      - name: metadata.uid
+        expr: 
+      - name: raw_data
+        from: 
+

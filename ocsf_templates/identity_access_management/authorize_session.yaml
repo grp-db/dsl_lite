@@ -1,0 +1,161 @@
+# OCSF Gold Mapping Template: authorize_session
+# Class UID: 3003 | Category: Identity & Access Management
+#
+# Authorization events for session/resource access decisions.
+# Fields are ordered to match the OCSF schema - DO NOT reorder!
+
+gold:
+  - name: authorize_session
+    input: <YOUR_SILVER_TABLE_NAME>
+    # preFilter: |
+    #   event_type IN ('access_allowed', 'access_denied')
+    fields:
+      # Core fields (alphabetical after dsl_id)
+      - name: action
+        expr: # 'Allowed', 'Denied'
+      - name: action_id
+        expr: # 1=Allowed, 2=Denied
+      - name: activity_id
+        expr: # 1=Create, 2=Read, 3=Update, 4=Delete, 99=Other
+      - name: activity_name
+        expr: # 'Create', 'Read', 'Update', 'Delete', 'Other'
+      
+      # Actor (optional)
+      # - name: actor.user.name
+      #   expr: # User who initiated
+      
+      # Category & Class
+      - name: category_name
+        literal: Identity & Access Management
+      - name: category_uid
+        expr: CAST(3 AS INT)
+      - name: class_name
+        literal: Authorize Session
+      - name: class_uid
+        expr: CAST(3003 AS INT)
+      
+      # Cloud context (optional)
+      # - name: cloud.provider
+      #   literal: # AWS, Azure, GCP
+      
+      # Device (optional)
+      # - name: device.hostname
+      #   expr: # Device hostname
+      
+      # Disposition
+      - name: disposition
+        expr: # 'Allowed', 'Blocked'
+      - name: disposition_id
+        expr: # 1=Allowed, 2=Blocked
+      
+      # Destination endpoint (optional)
+      # - name: dst_endpoint.svc_name
+      #   expr: # Service being accessed
+      # - name: dst_endpoint.hostname
+      #   expr: # Target hostname
+      
+      # Enrichments (optional)
+      # - name: enrichments
+      #   expr: # Threat intel data
+      
+      # HTTP request (optional for web-based auth)
+      # - name: http_request.http_method
+      #   expr: # GET, POST, etc.
+      # - name: http_request.url
+      #   expr: # URL being accessed
+      
+      # Message
+      - name: message
+        expr: # Human-readable description
+      
+      # Metadata
+      - name: metadata.version
+        literal: 1.0.0
+      - name: metadata.product.name
+        literal: # Your product name
+      - name: metadata.product.vendor_name
+        literal: # Vendor name
+      - name: metadata.log_provider
+        literal: # Log source name
+      - name: metadata.logged_time
+        from: # Original event timestamp
+      - name: metadata.processed_time
+        expr: CURRENT_TIMESTAMP()
+      - name: metadata.event_code
+        from: # Event code
+      - name: metadata.uid
+        from: # Unique event identifier
+      
+      # Observables (optional)
+      # - name: observables
+      #   expr: # Array of IOCs
+      
+      # Policy (optional)
+      # - name: policy.name
+      #   expr: # Policy name
+      # - name: policy.uid
+      #   expr: # Policy ID
+      
+      # Privileges (optional)
+      # - name: privileges
+      #   expr: # Array of privileges requested/granted
+      
+      # Raw data
+      - name: raw_data
+        expr: # CAST(to_json(named_struct(...)) AS VARIANT)
+      
+      # Resource (optional)
+      # - name: resource.name
+      #   expr: # Resource name
+      # - name: resource.uid
+      #   expr: # Resource ID
+      
+      # Service (optional)
+      # - name: service.name
+      #   expr: # Service name
+      
+      # Session (optional)
+      # - name: session.uid
+      #   expr: # Session ID
+      
+      # Severity
+      - name: severity
+        expr: # 'Informational', 'Low', 'Medium', 'High'
+      - name: severity_id
+        expr: # 1=Informational, 2=Low, 3=Medium, 4=High
+      
+      # Source endpoint (optional)
+      # - name: src_endpoint.ip
+      #   expr: # Source IP
+      
+      # Status
+      - name: status
+        expr: # 'Success', 'Failure'
+      - name: status_code
+        expr: # Vendor status code
+      - name: status_detail
+        expr: # Status details
+      - name: status_id
+        expr: # 1=Success, 2=Failure
+      
+      # Time
+      - name: time
+        from: # Event timestamp (REQUIRED)
+      - name: timezone_offset
+        expr: # CAST(NULL AS INT) or offset in minutes
+      
+      # Type
+      - name: type_name
+        expr: # CONCAT('Authorize Session: ', activity_name)
+      - name: type_uid
+        expr: # CAST(class_uid * 100 + activity_id AS BIGINT)
+      
+      # Unmapped
+      - name: unmapped
+        expr: # CAST(to_json(named_struct(...)) AS VARIANT)
+      
+      # User
+      - name: user.name
+        expr: # Username
+      # - name: user.uid
+      #   expr: # User ID

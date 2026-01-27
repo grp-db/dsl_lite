@@ -1,0 +1,58 @@
+# OCSF Gold Mapping Template: account_change
+# Class UID: 3001 | Category: Identity & Access Management
+#
+# Account change events capture modifications to user accounts.
+
+gold:
+  - name: account_change
+    input: <YOUR_SILVER_TABLE_NAME>
+    fields:
+      - name: activity_id
+        expr: # 1=Create, 2=Enable, 3=Password Change, 4=Disable, 5=Delete, 6=Attach Policy, 7=Detach Policy
+      - name: activity_name
+        expr: 
+      - name: category_uid
+        literal: 3
+      - name: category_name
+        literal: Identity & Access Management
+      - name: class_uid
+        literal: 3001
+      - name: class_name
+        literal: Account Change
+      - name: severity_id
+        expr: 
+      - name: time
+        from: 
+      - name: type_uid
+        expr: 
+      - name: type_name
+        expr: 
+      - name: user.name
+        expr: 
+      - name: user.uid
+        expr: 
+      - name: user.type_id
+        expr: 
+      - name: user_result.name
+        expr: # Resulting user state after change
+      - name: user_result.uid
+        expr: 
+      - name: actor.user.name
+        expr: # Who made the change
+      - name: actor.user.uid
+        expr: 
+      - name: status_id
+        expr: 
+      - name: metadata.product.name
+        literal: 
+      - name: metadata.product.vendor_name
+        literal: 
+      - name: metadata.logged_time
+        from: 
+      - name: metadata.processed_time
+        expr: current_timestamp()
+      - name: metadata.uid
+        expr: 
+      - name: raw_data
+        from: 
+

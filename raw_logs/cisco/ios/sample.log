@@ -1,0 +1,10 @@
+123456: Jan 26 2026 10:15:23: %AAA-5-LOGIN_SUCCESS: Login Success for user alice from 10.0.1.45 (via console) [Source: 10.0.1.45] localport: 22
+123457: Jan 26 2026 10:16:45: %SEC_LOGIN-4-LOGIN_FAILED: Login failed for user bob from 203.0.113.10 on vty0 (Source: 203.0.113.10)
+123458: Jan 26 2026 10:17:12: %SYS-5-LOGOUT: User charlie logged out on vty1 (10.0.2.87)
+123459: Jan 26 2026 10:18:03: %LINK-3-UPDOWN: Interface GigabitEthernet0/1, changed state to up
+123460: Jan 26 2026 10:19:34: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/1, changed state to up
+123461: Jan 26 2026 10:20:15: %LINK-3-UPDOWN: Interface GigabitEthernet0/2, changed state to down
+123462: Jan 26 2026 10:21:47: %AAA-4-CLI_DENIED: User diana attempted to exec CLI command denied by authorization
+123463: Jan 26 2026 10:22:18: %SYS-5-CONFIG_I: Configured from console by eve on vty0 (10.0.5.78)
+123464: Jan 26 2026 10:23:52: %SYS-5-RELOAD: Reload requested by user frank on console. Reload Reason: Software upgrade.
+123465: Jan 26 2026 10:24:29: %CPU-3-CPU_FAILURE: CPU 0 failure detected at slot 1

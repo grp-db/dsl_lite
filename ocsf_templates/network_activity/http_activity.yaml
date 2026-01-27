@@ -1,0 +1,109 @@
+# OCSF Gold Mapping Template: http_activity
+# Class UID: 4002 | Category: Network Activity
+#
+# HTTP Activity events capture HTTP/HTTPS requests and responses.
+
+gold:
+  - name: http_activity
+    input: <YOUR_SILVER_TABLE_NAME>
+    # filter: |
+    #   protocol = 'http' OR protocol = 'https'
+    fields:
+      # Required OCSF fields
+      - name: activity_id
+        expr: # 1=Connect, 6=Traffic
+      - name: activity_name
+        expr: # Activity name
+      - name: category_uid
+        literal: 4
+      - name: category_name
+        literal: Network Activity
+      - name: class_uid
+        literal: 4002
+      - name: class_name
+        literal: HTTP Activity
+      - name: severity_id
+        expr: # 0-6
+      - name: time
+        from: # Event timestamp
+      - name: type_uid
+        expr: # 400201=Connect, 400206=Traffic
+      - name: type_name
+        expr: # 'HTTP Activity: Connect/Traffic'
+      
+      # HTTP request details
+      - name: http_request.http_method
+        expr: # GET, POST, PUT, DELETE, etc.
+      - name: http_request.url
+        expr: # Full URL or path
+      - name: http_request.version
+        expr: # HTTP version (HTTP/1.1, HTTP/2)
+      - name: http_request.user_agent
+        expr: # User agent string
+      - name: http_request.referrer
+        expr: # Referrer URL
+      - name: http_request.length
+        expr: # Request size
+      
+      # HTTP response details
+      - name: http_response.code
+        expr: # HTTP status code (200, 404, 500, etc.)
+      - name: http_response.status
+        expr: # Status message
+      - name: http_response.length
+        expr: # Response size
+      - name: http_response.latency
+        expr: # Response time in milliseconds
+      - name: http_response.content_type
+        expr: # Content-Type header
+      
+      # Endpoints
+      - name: src_endpoint.ip
+        expr: # Client IP
+      - name: src_endpoint.port
+        expr: # Client port
+      - name: dst_endpoint.ip
+        expr: # Server IP
+      - name: dst_endpoint.port
+        expr: # Server port (usually 80 or 443)
+      - name: dst_endpoint.hostname
+        expr: # Server hostname
+      
+      # Traffic stats
+      - name: traffic.bytes
+        expr: # Total bytes
+      - name: traffic.bytes_in
+        expr: # Request bytes
+      - name: traffic.bytes_out
+        expr: # Response bytes
+      
+      # Connection info
+      - name: connection_info.protocol_name
+        expr: # http or https
+      - name: connection_info.direction_id
+        expr: # 1=Inbound, 2=Outbound
+      
+      # Status
+      - name: status_id
+        expr: # 1=Success, 2=Failure
+      - name: status
+        expr: # Status description
+      
+      # Metadata
+      - name: metadata.product.name
+        literal: # Product name
+      - name: metadata.product.vendor_name
+        literal: # Vendor name
+      - name: metadata.logged_time
+        from: # Log time
+      - name: metadata.processed_time
+        expr: current_timestamp()
+      - name: metadata.uid
+        expr: # Event ID
+      
+      # Optional fields
+      - name: message
+        expr: # Description
+      - name: raw_data
+        from: # Original event
+

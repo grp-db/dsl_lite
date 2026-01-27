@@ -1,0 +1,70 @@
+# OCSF Gold Mapping Template: ssh_activity
+# Class UID: 4007 | Category: Network Activity
+#
+# SSH Activity events capture SSH connections and file transfers.
+
+gold:
+  - name: ssh_activity
+    input: <YOUR_SILVER_TABLE_NAME>
+    fields:
+      - name: activity_id
+        expr: # 1=Connect, 2=Disconnect, 3=File Transfer
+      - name: activity_name
+        expr: 
+      - name: category_uid
+        literal: 4
+      - name: category_name
+        literal: Network Activity
+      - name: class_uid
+        literal: 4007
+      - name: class_name
+        literal: SSH Activity
+      - name: severity_id
+        expr: 
+      - name: time
+        from: 
+      - name: type_uid
+        expr: 
+      - name: type_name
+        expr: 
+      - name: src_endpoint.ip
+        expr: # Client IP
+      - name: src_endpoint.port
+        expr: # Client port
+      - name: dst_endpoint.ip
+        expr: # Server IP
+      - name: dst_endpoint.port
+        expr: # Usually 22
+      - name: dst_endpoint.hostname
+        expr: # Server hostname
+      - name: connection_info.protocol_name
+        literal: ssh
+      - name: connection_info.protocol_num
+        literal: 6  # TCP
+      - name: connection_info.direction_id
+        expr: 
+      - name: auth_type
+        expr: # password, publickey, keyboard-interactive
+      - name: auth_type_id
+        expr: 
+      - name: protocol_ver
+        expr: # SSH protocol version (SSH-2.0)
+      - name: file.path
+        expr: # If file transfer (SCP/SFTP)
+      - name: file.name
+        expr: 
+      - name: status_id
+        expr: # 1=Success, 2=Failure
+      - name: metadata.product.name
+        literal: 
+      - name: metadata.product.vendor_name
+        literal: 
+      - name: metadata.logged_time
+        from: 
+      - name: metadata.processed_time
+        expr: current_timestamp()
+      - name: metadata.uid
+        expr: 
+      - name: raw_data
+        from: 
+

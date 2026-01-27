@@ -1,0 +1,48 @@
+# OCSF Gold Mapping Template: kernel_extension_activity
+# Class UID: 1003 | Category: System Activity
+#
+# Kernel Extension Activity events capture kernel module/driver loading and unloading.
+
+gold:
+  - name: kernel_extension_activity
+    input: <YOUR_SILVER_TABLE_NAME>
+    fields:
+      - name: activity_id
+        expr: # 1=Load, 2=Unload
+      - name: activity_name
+        expr: 
+      - name: category_uid
+        literal: 1
+      - name: category_name
+        literal: System Activity
+      - name: class_uid
+        literal: 1003
+      - name: class_name
+        literal: Kernel Extension Activity
+      - name: severity_id
+        expr: 
+      - name: time
+        from: 
+      - name: type_uid
+        expr: 
+      - name: type_name
+        expr: 
+      - name: driver.file.path
+        expr: # Driver/kernel module path
+      - name: driver.file.name
+        expr: # Driver filename
+      - name: actor.process.pid
+        expr: # Process that loaded it
+      - name: actor.process.tid
+        expr: # Thread ID
+      - name: start_time
+        expr: # When module was loaded
+      - name: metadata.product.name
+        literal: 
+      - name: metadata.product.vendor_name
+        literal: 
+      - name: metadata.uid
+        expr: 
+      - name: raw_data
+        from: 
+

@@ -1,0 +1,111 @@
+# OCSF Gold Mapping Template: process_activity
+# Class UID: 1007 | Category: System Activity
+#
+# Process Activity events capture process lifecycle events (launch, terminate, inject, etc.).
+
+gold:
+  - name: process_activity
+    input: <YOUR_SILVER_TABLE_NAME>
+    # filter: |
+    #   event_type IN ('process_create', 'process_terminate', 'process_inject')
+    fields:
+      # Required OCSF fields
+      - name: activity_id
+        expr: # 1=Launch, 2=Terminate, 3=Open, 4=Inject, 5=Set User ID
+      - name: activity_name
+        expr: # Activity name
+      - name: category_uid
+        literal: 1
+      - name: category_name
+        literal: System Activity
+      - name: class_uid
+        literal: 1007
+      - name: class_name
+        literal: Process Activity
+      - name: severity_id
+        expr: # 0-6
+      - name: time
+        from: # Event timestamp
+      - name: type_uid
+        expr: # 100701=Launch, 100702=Terminate
+      - name: type_name
+        expr: # 'Process Activity: Launch/Terminate'
+      
+      # Process information
+      - name: process.name
+        expr: # Process name
+      - name: process.pid
+        expr: # Process ID
+      - name: process.uid
+        expr: # Process unique ID
+      - name: process.cmd_line
+        expr: # Command line
+      - name: process.file.path
+        expr: # Executable path
+      - name: process.file.name
+        expr: # Executable name
+      
+      # Process hashes
+      - name: process.file.hashes
+        expr: # Array of hash objects
+      
+      # Parent process
+      - name: process.parent_process.name
+        expr: # Parent process name
+      - name: process.parent_process.pid
+        expr: # Parent PID
+      - name: process.parent_process.cmd_line
+        expr: # Parent command line
+      
+      # Process user
+      - name: process.user.name
+        expr: # Username
+      - name: process.user.uid
+        expr: # User ID
+      
+      # Session info
+      - name: process.session.uid
+        expr: # Session ID
+      - name: process.session.created_time
+        expr: # Process start time
+      
+      # Actor (for process injection, etc.)
+      - name: actor.process.name
+        expr: # Actor process name
+      - name: actor.process.pid
+        expr: # Actor PID
+      - name: actor.user.name
+        expr: # Actor username
+      
+      # Device
+      - name: device.hostname
+        expr: # Device hostname
+      - name: device.ip
+        expr: # Device IP
+      - name: device.uid
+        expr: # Device ID
+      
+      # Status
+      - name: status_id
+        expr: # 1=Success, 2=Failure
+      - name: status
+        expr: # Status description
+      
+      # Metadata
+      - name: metadata.product.name
+        literal: # Product name
+      - name: metadata.product.vendor_name
+        literal: # Vendor name
+      - name: metadata.logged_time
+        from: # Log time
+      - name: metadata.processed_time
+        expr: current_timestamp()
+      - name: metadata.uid
+        expr: # Event ID
+      
+      # Optional fields
+      - name: message
+        expr: # Description
+      - name: raw_data
+        from: # Original event
+

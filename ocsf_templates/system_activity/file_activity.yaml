@@ -1,0 +1,95 @@
+# OCSF Gold Mapping Template: file_activity
+# Class UID: 1001 | Category: System Activity
+#
+# File System Activity events capture file operations (create, read, update, delete, etc.).
+
+gold:
+  - name: file_activity
+    input: <YOUR_SILVER_TABLE_NAME>
+    # filter: |
+    #   event_type IN ('file_create', 'file_delete', 'file_modify', 'file_rename')
+    fields:
+      # Required OCSF fields
+      - name: activity_id
+        expr: # 1=Create, 2=Read, 3=Update, 4=Delete, 5=Rename, etc.
+      - name: activity_name
+        expr: # Activity name
+      - name: category_uid
+        literal: 1
+      - name: category_name
+        literal: System Activity
+      - name: class_uid
+        literal: 1001
+      - name: class_name
+        literal: File System Activity
+      - name: severity_id
+        expr: # 0-6
+      - name: time
+        from: # Event timestamp
+      - name: type_uid
+        expr: # 100101=Create, 100104=Delete, etc.
+      - name: type_name
+        expr: # 'File System Activity: Create/Delete'
+      
+      # File information
+      - name: file.name
+        expr: # File name
+      - name: file.path
+        expr: # Full file path
+      - name: file.type
+        expr: # File type/extension
+      - name: file.type_id
+        expr: # File type ID
+      - name: file.size
+        expr: # File size in bytes
+      - name: file.uid
+        expr: # File unique ID/inode
+      
+      # File hashes
+      - name: file.hashes
+        expr: # Array of hash objects with algorithm and value
+      
+      # Actor (user/process performing action)
+      - name: actor.user.name
+        expr: # Username
+      - name: actor.user.uid
+        expr: # User ID
+      - name: actor.process.name
+        expr: # Process name
+      - name: actor.process.pid
+        expr: # Process ID
+      - name: actor.process.cmd_line
+        expr: # Command line
+      
+      # Device
+      - name: device.hostname
+        expr: # Device hostname
+      - name: device.ip
+        expr: # Device IP
+      - name: device.uid
+        expr: # Device ID
+      
+      # Status
+      - name: status_id
+        expr: # 1=Success, 2=Failure
+      - name: status
+        expr: # Status description
+      
+      # Metadata
+      - name: metadata.product.name
+        literal: # Product name
+      - name: metadata.product.vendor_name
+        literal: # Vendor name
+      - name: metadata.logged_time
+        from: # Log time
+      - name: metadata.processed_time
+        expr: current_timestamp()
+      - name: metadata.uid
+        expr: # Event ID
+      
+      # Optional fields
+      - name: message
+        expr: # Description
+      - name: raw_data
+        from: # Original event
+
