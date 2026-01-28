@@ -829,6 +829,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.network
   status_id INT COMMENT 'The event status ID: 0=Unknown, 1=Success, 2=Failure, 99=Other',
   time TIMESTAMP COMMENT 'The event occurrence time (typically connection start or log time)',
   timezone_offset INT COMMENT 'The timezone offset in minutes from UTC',
+  tls STRUCT<alert: INT, certificate: STRUCT<created_time: TIMESTAMP, expiration_time: TIMESTAMP, fingerprints: ARRAY<STRUCT<algorithm: STRING, algorithm_id: INT, value: STRING>>, issuer: STRING, serial_number: STRING, subject: STRING, version: STRING>, certificate_chain: ARRAY<STRING>, cipher: STRING, client_ciphers: ARRAY<STRING>, handshake_dur: INT, ja3_hash: STRUCT<algorithm: STRING, algorithm_id: INT, value: STRING>, ja3s_hash: STRUCT<algorithm: STRING, algorithm_id: INT, value: STRING>, key_length: INT, server_ciphers: ARRAY<STRING>, sni: STRING, tls_extension_list: ARRAY<STRUCT<type: STRING, type_id: INT, data: STRING>>, version: STRING> COMMENT 'TLS protocol information including cipher suite, certificate details, JA3/JA3S fingerprints, and Server Name Indication (SNI)',
   traffic STRUCT<bytes: BIGINT, bytes_in: BIGINT, bytes_missed: BIGINT, bytes_out: BIGINT, chunks: BIGINT, chunks_in: BIGINT, chunks_out: BIGINT, packets: BIGINT, packets_in: BIGINT, packets_out: BIGINT> COMMENT 'Traffic statistics: bytes and packets transmitted in both directions',
   type_name STRING,
   type_uid BIGINT,
