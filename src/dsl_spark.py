@@ -17,11 +17,14 @@ import sys
 import os
 
 # Add src directory to Python path for imports
-# Adjust this path to where your src folder is located in your workspace
-src_path = os.path.dirname(os.path.abspath(__file__))  # Gets current directory (src)
+# Update this path to where your src folder is located in your workspace
+src_path = "/Workspace/Users/<your-email>/dsl_lite/src"  # UPDATE THIS PATH
+
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
-    print(f"Added to path: {src_path}")
+    print(f"✓ Added to Python path: {src_path}")
+else:
+    print(f"✓ Path already in sys.path: {src_path}")
 
 # COMMAND ----------
 
