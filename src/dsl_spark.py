@@ -6,6 +6,11 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,install dependencies
+# MAGIC %pip install pyyaml
+
+# COMMAND ----------
+
 # DBTITLE 1,notebook setup
 # MAGIC %load_ext autoreload
 # MAGIC %autoreload 2
