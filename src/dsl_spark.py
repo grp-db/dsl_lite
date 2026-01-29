@@ -12,6 +12,19 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,setup python path
+import sys
+import os
+
+# Add src directory to Python path for imports
+# Adjust this path to where your src folder is located in your workspace
+src_path = os.path.dirname(os.path.abspath(__file__))  # Gets current directory (src)
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+    print(f"Added to path: {src_path}")
+
+# COMMAND ----------
+
 # DBTITLE 1,notebook imports
 import time
 
@@ -22,6 +35,8 @@ from typing import Optional, Dict, Any, List, Union
 
 from dsl import load_config_file, read_bronze_stream, make_silver_table, make_gold_table
 from utils import sanitize_string_for_flow_name
+
+print("✓ DSL modules imported successfully")
 
 # COMMAND ----------
 
@@ -57,6 +72,12 @@ bronze_cluster_by = config_data.get('bronze', {}).get("clusterBy", ["time"])
 
 def start_bronze_flow(input: str, add_opts: Optional[dict] = None):
     df = read_bronze_stream(config_data, input, add_opts)
+    
+    # TESTING: Uncomment to preview bronze data before writing
+    # display(df.limit(10))
+    # df.printSchema()
+    # return None  # Stop here for testing
+    
     writer = df.writeStream \
         .option("checkpointLocation", f"{checkpoints_location}/bronze-{sanitize_string_for_flow_name(input)}") \
         .queryName(f"bronze-{input}")
@@ -94,6 +115,13 @@ def create_silver_table(tr_conf: Dict[str, Any]):
     tbl_name = f"{silver_database}.`{tr_name}`"
     silver_tables[tr_name] = tbl_name
     df = make_silver_table(bronze_table_name, tr_conf)
+    
+    # TESTING: Uncomment to preview silver data before writing
+    # print(f"Silver table: {tr_name}")
+    # display(df.limit(10))
+    # df.printSchema()
+    # return None  # Stop here for testing
+    
     writer = df.writeStream \
         .option("checkpointLocation", f"{checkpoints_location}/silver-{sanitize_string_for_flow_name(tr_name)}") \
         .queryName(f"silver-{tr_name}")
@@ -125,6 +153,13 @@ def create_gold_table(tr_conf: Dict[str, Any]):
     tr_name = tr_conf["name"]
     tbl_name = f"{gold_database}.`{tr_name}`"
     df = make_gold_table(silver_tables[tr_conf['input']], tr_conf)
+    
+    # TESTING: Uncomment to preview gold data before writing
+    # print(f"Gold table: {tr_name}")
+    # display(df.limit(10))
+    # df.printSchema()
+    # return None  # Stop here for testing
+    
     writer = df.writeStream \
         .option("checkpointLocation", f"{checkpoints_location}/gold-{tr_name}") \
         .queryName(f"gold-{tr_name}")
