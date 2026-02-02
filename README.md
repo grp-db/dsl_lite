@@ -124,14 +124,11 @@ Support for streaming sources (Kafka, Event Hubs, Kinesis) can be added based on
 
 **Copyright © Databricks, Inc.**
 
-This accelerator is developed and maintained by Databricks Field Engineering and Professional Services. Databricks retains all intellectual property rights to this software.
+This accelerator is developed and maintained by Databricks Field Engineering and Professional Services.
 
 ### Usage & Distribution
 
-This accelerator is made publicly available to support customers and the broader community in building cybersecurity solutions on the Databricks Lakehouse Platform. You are free to:
-- Use this accelerator in your production environments
-- Modify and extend it to meet your specific requirements
-- Share it within your organization
+This accelerator is available to support customers and the broader community in building cybersecurity solutions on the Databricks.
 
 **Note**: This is a community-supported accelerator. For production support and customization services, please contact your Databricks account team or Professional Services.
 
