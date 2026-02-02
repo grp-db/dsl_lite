@@ -37,7 +37,6 @@ silver_database = 'silver' # or name of vendor oem (i.e. cisco)
 if catalog_name != "hive_metastore":
     spark.sql(f"CREATE CATALOG if not EXISTS `{catalog_name}`")
 
-spark.sql(f"CREATE CATALOG if not EXISTS `{catalog_name}`")
 spark.sql(f"CREATE DATABASE if not EXISTS `{catalog_name}`.`{gold_database}`")
 spark.sql(f"CREATE DATABASE if not EXISTS `{catalog_name}`.`{bronze_database}`")
 spark.sql(f"CREATE DATABASE if not EXISTS `{catalog_name}`.`{silver_database}`")

@@ -2,6 +2,10 @@
 DSL Lite - Utility Functions
 
 Helper functions for table name resolution, secret substitution, and OCSF sink management.
+
+Built with ❤️ by Databricks Field Engineering & Professional Services
+
+Copyright © Databricks, Inc.
 """
 
 from pyspark.sql import SparkSession

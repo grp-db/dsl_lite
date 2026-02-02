@@ -4,8 +4,12 @@
 # Group Management events capture group membership changes.
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.group_management CLUSTER BY (time, group.name)
   - name: group_management
     input: <YOUR_SILVER_TABLE_NAME>
+    # clusterBy: ["time", "group.name"]  # Only works in dsl_spark.py mode
     fields:
       - name: activity_id
         expr: # 1=Add User, 2=Remove User, 3=Create Group, 4=Delete Group, 5=Update Group

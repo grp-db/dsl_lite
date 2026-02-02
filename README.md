@@ -1,8 +1,21 @@
 # DSL Lite - Lightweight Cybersecurity Data Pipeline Framework
 
-**DSL Lite** is a lightweight, self-deployable version of the Databricks Security Lakehouse (DSL) framework. It uses configuration files called "presets" to transform cybersecurity logs into bronze, silver, and gold layers with OCSF-compliant schemas.  Blueprint for building E2E Cyber Lakehouse Architecture via an augmented medallion architecture.
+> **🏗️ Databricks Cybersecurity Accelerator**  
+> Built by Databricks Field Engineering & Professional Services
 
-This portable version is designed for customers who need to deploy cybersecurity data pipelines in environments where the full DSL product is not yet available, or where security/compliance requirements mandate self-managed infrastructure.
+## Overview
+
+**DSL Lite** is a reusable cybersecurity accelerator designed for building end-to-end cyber lakehouse architectures using an augmented medallion approach with [OCSF (Open Cybersecurity Schema Framework)](https://schema.ocsf.io/) compliance.
+
+This lightweight, self-deployable framework uses configuration files called "presets" to transform security logs into bronze, silver, and gold layers with OCSF-compliant schemas. It's designed for customers building complex cybersecurity projects and use cases that require:
+- **Scalable data ingestion** from multiple security log sources
+- **Standardized schema transformation** to OCSF data models
+- **Flexible deployment** in self-managed or restricted environments
+- **Production-ready pipelines** with minimal configuration
+
+### About This Accelerator
+
+This accelerator was developed by the **Databricks Field Engineering and Professional Services teams** to enable customers to rapidly deploy enterprise-grade cybersecurity data pipelines. While Databricks owns the intellectual property, this accelerator is made publicly available to support the broader security community in building robust cyber lakehouse architectures on the Databricks platform.
 
 ## Project Structure
 
@@ -67,9 +80,9 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
 - Create a job with a notebook task referring `src/dsl_spark.py` and with following parameters:
 
   - `preset_file` (required) - should contain a full path to a configuration file that will be used to process data.  Example: `/Workspace/Users/<user@email.com>/dsl_lite/pipelines/cisco/ios/preset.yaml`.
-  - `gold_database` (required) - the name of database containing gold tables - could be specified as `catalog.database`.
   - `bronze_database` (required) - the name of database containing bronze tables - could be specified as `catalog.database`.
   - `silver_database` (required) - the name of database containing silver tables - could be specified as `catalog.database`.
+  - `gold_database` (required) - the name of database containing gold tables - could be specified as `catalog.database`.
   - `checkpoints_location` (required) - the path to storage location (DBFS or Volume) to store checkpoints for specific job.
   - `continuous` (optional, default `False`) - if job should run continuously (`True`) or not (`False`).
 
@@ -104,3 +117,30 @@ DSL Lite uses Databricks Auto Loader to ingest data from file-based sources:
 - **Log Formats**: JSON, JSON Lines, CSV, Parquet, text/syslog
 
 Support for streaming sources (Kafka, Event Hubs, Kinesis) can be added based on customer requirements.
+
+---
+
+## License & Attribution
+
+**Copyright © Databricks, Inc.**
+
+This accelerator is developed and maintained by Databricks Field Engineering and Professional Services. Databricks retains all intellectual property rights to this software.
+
+### Usage & Distribution
+
+This accelerator is made publicly available to support customers and the broader community in building cybersecurity solutions on the Databricks Lakehouse Platform. You are free to:
+- Use this accelerator in your production environments
+- Modify and extend it to meet your specific requirements
+- Share it within your organization
+
+**Note**: This is a community-supported accelerator. For production support and customization services, please contact your Databricks account team or Professional Services.
+
+### Support & Contributions
+
+- **Issues & Questions**: Open an issue in the repository or contact your Databricks representative
+- **Feature Requests**: Reach out to Databricks Field Engineering or Professional Services
+- **Contributions**: Contributions are welcome - please coordinate with the Databricks team
+
+---
+
+**Built with ❤️ by Databricks Field Engineering & Professional Services**

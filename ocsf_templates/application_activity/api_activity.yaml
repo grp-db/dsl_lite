@@ -4,8 +4,12 @@
 # API Activity events capture API calls and responses.
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.api_activity CLUSTER BY (time, api.operation)
   - name: api_activity
     input: <YOUR_SILVER_TABLE_NAME>
+    # clusterBy: ["time", "api.operation"]  # Only works in dsl_spark.py mode
     fields:
       - name: activity_id
         expr: # 1=Create, 2=Read, 3=Update, 4=Delete, 5=Connect

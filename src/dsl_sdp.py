@@ -2,6 +2,10 @@
 DSL Lite - Spark Declarative Pipeline (SDP) Execution
 
 Lightweight security data pipeline framework for processing logs into OCSF-compliant tables.
+
+Built with ❤️ by Databricks Field Engineering & Professional Services
+
+Copyright © Databricks, Inc.
 """
 
 from pyspark import pipelines as sdp

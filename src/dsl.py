@@ -1,24 +1,15 @@
 """
 DSL Lite - Core Logic
 
-Core transformation logic for the DSL Lite security data pipeline framework.
-Handles preset configuration loading, bronze ingestion, silver normalization, and gold OCSF mapping.
+Built with ❤️ by Databricks Field Engineering & Professional Services
+
+Copyright © Databricks, Inc.
 """
 
-from yaml import load, dump
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    from yaml import Loader, Dumper
-
-
-import pyspark.sql.functions as F
-from pyspark.sql.types import StringType
-from pyspark.sql import DataFrame, SparkSession, Column
+from yaml import load, Loader
+from pyspark.sql import DataFrame, SparkSession
 from typing import Optional, Dict, Any, List, Union
-
 from utils import substitute_secrets
-
 
 
 def load_config_file(config_file: str):
@@ -139,7 +130,7 @@ def strip_backticks(c: str) -> str:
 
 
 # TODO: make sure that we handle data in the same order as described in the docs:
-# Databricks Security Lakehouse preset development documentation
+# https://docs.sl.antimatter.io/preset-development/notebook-preset-development-tool#232-order-of-operations
 def make_silver_table(bronze_table_name: str, tr_conf: Dict[str, Any]) -> DataFrame:
     df = SparkSession.getActiveSession().readStream.option("skipChangeCommits", "true").table(bronze_table_name)
     if "filter" in tr_conf:

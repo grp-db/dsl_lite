@@ -4,8 +4,12 @@
 # Scheduled Job Activity events capture scheduled task/cron job events.
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.scheduled_job_activity CLUSTER BY (time, job.name)
   - name: scheduled_job_activity
     input: <YOUR_SILVER_TABLE_NAME>
+    # clusterBy: ["time", "job.name"]  # Only works in dsl_spark.py mode
     fields:
       - name: activity_id
         expr: # 1=Create, 2=Update, 3=Delete, 4=Start, 5=Stop, 6=Complete

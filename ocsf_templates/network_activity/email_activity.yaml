@@ -4,8 +4,12 @@
 # Email Activity events capture email sending, receiving, and filtering.
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.email_activity CLUSTER BY (time, email.from)
   - name: email_activity
     input: <YOUR_SILVER_TABLE_NAME>
+    # clusterBy: ["time", "email.from"]  # Only works in dsl_spark.py mode
     fields:
       - name: activity_id
         expr: # 1=Send, 2=Receive, 3=Quarantine, 4=Drop, 5=Deliver

@@ -5,10 +5,14 @@
 # Fields are ordered to match the OCSF schema - DO NOT reorder!
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.dns_activity CLUSTER BY (time, query.hostname)
   - name: dns_activity
     input: <YOUR_SILVER_TABLE_NAME>
-    # preFilter: |
+    # filter: |
     #   query_name IS NOT NULL
+    # clusterBy: ["time", "query.hostname"]  # Only works in dsl_spark.py mode
     fields:
       # Core fields
       - name: activity_id

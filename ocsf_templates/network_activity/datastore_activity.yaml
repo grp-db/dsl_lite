@@ -4,8 +4,12 @@
 # Datastore Activity events capture database and data store operations.
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.datastore_activity CLUSTER BY (time, dst_endpoint.ip)
   - name: datastore_activity
     input: <YOUR_SILVER_TABLE_NAME>
+    # clusterBy: ["time", "dst_endpoint.ip"]  # Only works in dsl_spark.py mode
     fields:
       - name: activity_id
         expr: # 1=Create, 2=Read, 3=Update, 4=Delete, 5=Query, 6=Allocate, 7=Deallocate

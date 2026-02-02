@@ -4,8 +4,12 @@
 # Kernel Extension Activity events capture kernel module/driver loading and unloading.
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.kernel_extension_activity CLUSTER BY (time, device.hostname)
   - name: kernel_extension_activity
     input: <YOUR_SILVER_TABLE_NAME>
+    # clusterBy: ["time", "device.hostname"]  # Only works in dsl_spark.py mode
     fields:
       - name: activity_id
         expr: # 1=Load, 2=Unload

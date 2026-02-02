@@ -4,8 +4,12 @@
 # File System Activity events capture file operations (create, read, update, delete, etc.).
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.file_activity CLUSTER BY (time, file.path)
   - name: file_activity
     input: <YOUR_SILVER_TABLE_NAME>
+    # clusterBy: ["time", "file.path"]  # Only works in dsl_spark.py mode
     # filter: |
     #   event_type IN ('file_create', 'file_delete', 'file_modify', 'file_rename')
     fields:

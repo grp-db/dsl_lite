@@ -4,8 +4,12 @@
 # Script Activity events capture script execution (PowerShell, bash, etc.).
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.script_activity CLUSTER BY (time, script.name)
   - name: script_activity
     input: <YOUR_SILVER_TABLE_NAME>
+    # clusterBy: ["time", "script.name"]  # Only works in dsl_spark.py mode
     fields:
       - name: activity_id
         expr: # 1=Run, 2=Load

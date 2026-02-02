@@ -3,7 +3,7 @@ description: "Zeek Conn logs"
 title: "Zeek Conn"
 autoloader:
   inputs:
-  - /Volumes/logs/logs/logs/dsl_grp/zeek/conn/ #/Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
+  - /Volumes/logs/logs/logs/dsl_grp/zeek/conn/ # CHANGE ME! /Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
   format: json
 
 bronze:
@@ -41,8 +41,12 @@ silver:
             - data:['id.resp_p']
             - data:['id.orig_p']
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.<table_name> CLUSTER BY (time, <other_fields>)
   - name: network_activity
     input: zeek_conn_silver
+    # clusterBy: ["time", "src_endpoint.ip"]  # Only works in dsl_spark.py mode
     fields:
       - name: activity_id
         expr: |

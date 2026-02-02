@@ -4,8 +4,12 @@
 # HTTP Activity events capture HTTP/HTTPS requests and responses.
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.http_activity CLUSTER BY (time, http_request.url.hostname)
   - name: http_activity
     input: <YOUR_SILVER_TABLE_NAME>
+    # clusterBy: ["time", "http_request.url.hostname"]  # Only works in dsl_spark.py mode
     # filter: |
     #   protocol = 'http' OR protocol = 'https'
     fields:

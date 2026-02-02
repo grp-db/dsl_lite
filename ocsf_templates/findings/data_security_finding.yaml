@@ -4,8 +4,12 @@
 # Data Security Finding events capture data security issues and anomalies.
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.data_security_finding CLUSTER BY (time, finding_info.uid)
   - name: data_security_finding
     input: <YOUR_SILVER_TABLE_NAME>
+    # clusterBy: ["time", "finding_info.uid"]  # Only works in dsl_spark.py mode
     fields:
       - name: activity_id
         expr: # 1=Create, 2=Update, 3=Close

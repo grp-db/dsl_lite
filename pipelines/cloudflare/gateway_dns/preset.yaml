@@ -3,7 +3,7 @@ description: "Cloudflare Gateway DNS logs"
 title: "Cloudflare Gateway DNS"
 autoloader:
   inputs:
-  - /Volumes/logs/logs/logs/dsl_grp/cloudflare/gateway_dns/ #/Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
+  - /Volumes/logs/logs/logs/dsl_grp/cloudflare/gateway_dns/ # CHANGE ME! /Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
   format: json
 
 bronze:
@@ -176,8 +176,12 @@ silver:
         unreferencedColumns:
           preserve: true
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.<table_name> CLUSTER BY (time, <other_fields>)
   - name: dns_activity
     input: cloudflare_gateway_dns_silver
+    # clusterBy: ["time", "query.hostname"]  # Only works in dsl_spark.py mode
     fields:
       - name: answers
         expr: |

@@ -3,7 +3,7 @@ description: "Cisco IOS logs"
 title: "Cisco IOS"
 autoloader:
   inputs:
-  - /Volumes/logs/logs/logs/dsl_grp/cisco/ios/ #/Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
+  - /Volumes/logs/logs/logs/dsl_grp/cisco/ios/ # CHANGE ME! /Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
   format: text
   cloudFiles:
     schemaHints: "value string"
@@ -37,9 +37,13 @@ silver:
         unreferencedColumns:
           preserve: true
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.<table_name> CLUSTER BY (time, <other_fields>)
   - name: authentication
     input: cisco_ios_silver
-    preFilter: (facility IN ('AAA', 'SEC_LOGIN') AND mnemonic LIKE 'LOGIN%') OR (facility = 'SYS' AND mnemonic = 'LOGOUT')
+    filter: (facility IN ('AAA', 'SEC_LOGIN') AND mnemonic LIKE 'LOGIN%') OR (facility = 'SYS' AND mnemonic = 'LOGOUT')
+    # clusterBy: ["time", "user.name"]  # Only works in dsl_spark.py mode
     fields:
       - name: category_uid
         expr: CAST('3' AS INT)
@@ -234,7 +238,7 @@ gold:
           AS VARIANT)
   - name: authorize_session
     input: cisco_ios_silver
-    preFilter: mnemonic IN ('EXEC_FAILED', 'CLI_DENIED', 'ACCESS_DENIED')
+    filter: mnemonic IN ('EXEC_FAILED', 'CLI_DENIED', 'ACCESS_DENIED')
     fields:
       - name: category_uid
         expr: CAST('3' AS INT)
@@ -333,7 +337,7 @@ gold:
           AS VARIANT)
   - name: network_activity
     input: cisco_ios_silver
-    preFilter: facility IN ('LINK', 'LINEPROTO', 'ETHCNTR', 'IFMON', 'DEBUG')
+    filter: facility IN ('LINK', 'LINEPROTO', 'ETHCNTR', 'IFMON', 'DEBUG')
     fields:
       - name: category_uid
         expr: CAST('4' AS INT)
@@ -491,7 +495,7 @@ gold:
           AS VARIANT)
   - name: process_activity
     input: cisco_ios_silver
-    preFilter: facility IN ('SYS', 'CPU', 'MEM', 'ENV')
+    filter: facility IN ('SYS', 'CPU', 'MEM', 'ENV')
     fields:
       - name: category_uid
         expr: CAST('1' AS INT)

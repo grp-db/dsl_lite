@@ -4,8 +4,12 @@
 # Process Activity events capture process lifecycle events (launch, terminate, inject, etc.).
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.process_activity CLUSTER BY (time, process.name)
   - name: process_activity
     input: <YOUR_SILVER_TABLE_NAME>
+    # clusterBy: ["time", "process.name"]  # Only works in dsl_spark.py mode
     # filter: |
     #   event_type IN ('process_create', 'process_terminate', 'process_inject')
     fields:

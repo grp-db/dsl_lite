@@ -8,8 +8,12 @@
 # See: pipelines/zeek/conn/preset.yaml for a complete example
 
 gold:
+  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.network_activity CLUSTER BY (time, src_endpoint.ip)
   - name: network_activity
     input: <YOUR_SILVER_TABLE_NAME>  # Replace with your silver table name
+    # clusterBy: ["time", "src_endpoint.ip"]  # Only works in dsl_spark.py mode
     # Optional: Add filter conditions to select relevant events
     # filter: |
     #   event_type IN ('connection', 'network_flow')
