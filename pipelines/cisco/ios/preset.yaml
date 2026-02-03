@@ -13,7 +13,10 @@ bronze:
   preTransform:
     -
       - "*"
+      - "_metadata.file_path"
       - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
+      - CAST(time AS DATE) as date
+      # - REGEXP_EXTRACT(value, '^([\\w\\-\\.]+):', 1) as host  # Optional: device hostname (if present)
       - CAST('cisco' AS STRING) AS source
       - CAST('ios' AS STRING) AS sourcetype
       - CURRENT_TIMESTAMP() as processed_time
@@ -192,17 +195,23 @@ gold:
             ELSE FALSE 
           END AS BOOLEAN)
       - name: metadata.version
-        literal: 1.0.0
+        literal: "1.7.0"
       - name: metadata.product.name
         literal: IOS
       - name: metadata.product.vendor_name
         literal: Cisco
       - name: metadata.log_provider
-        literal: Cisco IOS
-      - name: metadata.logged_time
-        from: time
+        literal: cisco
+      - name: metadata.log_name
+        literal: ios
+      - name: metadata.log_format
+        literal: syslog
+      - name: metadata.log_version
+        literal: "cisco@ios:version@1.0"
       - name: metadata.processed_time
         expr: CURRENT_TIMESTAMP()
+      - name: metadata.logged_time
+        from: time
       - name: metadata.event_code
         from: mnemonic
       - name: metadata.uid
@@ -301,17 +310,23 @@ gold:
       - name: message
         from: description
       - name: metadata.version
-        literal: 1.0.0
+        literal: "1.7.0"
       - name: metadata.product.name
         literal: IOS
       - name: metadata.product.vendor_name
         literal: Cisco
       - name: metadata.log_provider
-        literal: Cisco IOS
-      - name: metadata.logged_time
-        from: time
+        literal: cisco
+      - name: metadata.log_name
+        literal: ios
+      - name: metadata.log_format
+        literal: syslog
+      - name: metadata.log_version
+        literal: "cisco@ios:version@1.0"
       - name: metadata.processed_time
         expr: CURRENT_TIMESTAMP()
+      - name: metadata.logged_time
+        from: time
       - name: metadata.event_code
         from: mnemonic
       - name: metadata.uid
@@ -457,17 +472,23 @@ gold:
       - name: message
         from: description
       - name: metadata.version
-        literal: 1.0.0
+        literal: "1.7.0"
       - name: metadata.product.name
         literal: IOS
       - name: metadata.product.vendor_name
         literal: Cisco
       - name: metadata.log_provider
-        literal: Cisco IOS
-      - name: metadata.logged_time
-        from: time
+        literal: cisco
+      - name: metadata.log_name
+        literal: ios
+      - name: metadata.log_format
+        literal: syslog
+      - name: metadata.log_version
+        literal: "cisco@ios:version@1.0"
       - name: metadata.processed_time
         expr: CURRENT_TIMESTAMP()
+      - name: metadata.logged_time
+        from: time
       - name: metadata.event_code
         from: mnemonic
       - name: metadata.uid
@@ -593,17 +614,23 @@ gold:
       - name: message
         from: description
       - name: metadata.version
-        literal: 1.0.0
+        literal: "1.7.0"
       - name: metadata.product.name
         literal: IOS
       - name: metadata.product.vendor_name
         literal: Cisco
       - name: metadata.log_provider
-        literal: Cisco IOS
-      - name: metadata.logged_time
-        from: time
+        literal: cisco
+      - name: metadata.log_name
+        literal: ios
+      - name: metadata.log_format
+        literal: syslog
+      - name: metadata.log_version
+        literal: "cisco@ios:version@1.0"
       - name: metadata.processed_time
         expr: CURRENT_TIMESTAMP()
+      - name: metadata.logged_time
+        from: time
       - name: metadata.event_code
         from: mnemonic
       - name: metadata.uid

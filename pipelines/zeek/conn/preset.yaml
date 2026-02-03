@@ -12,9 +12,12 @@ bronze:
   preTransform:
     -
       - "data"
-      - cast(data:ts as timestamp) as time
-      - cast('zeek' AS STRING) AS source
-      - cast('conn' AS STRING) AS sourcetype
+      - "_metadata.file_path"
+      - CAST(data:ts AS TIMESTAMP) as time
+      - CAST(time AS DATE) as date
+      # - CAST(NULL AS STRING) as host  # Optional: no hostname in conn logs
+      - CAST('zeek' AS STRING) AS source
+      - CAST('conn' AS STRING) AS sourcetype
       - CURRENT_TIMESTAMP() as processed_time
 
 silver:
@@ -117,20 +120,26 @@ gold:
           END
       - name: timezone_offset
         expr: CAST(NULL AS INT)
+      - name: metadata.version
+        literal: "1.7.0"
       - name: metadata.product.name
         literal: Zeek Conn
       - name: metadata.product.vendor_name
         literal: Zeek
       - name: metadata.uid
         expr: data:uid::STRING
+      - name: metadata.log_provider
+        literal: zeek
+      - name: metadata.log_name
+        literal: conn
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_version
+        literal: "zeek@conn:version@1.0"
       - name: metadata.processed_time
         expr: current_timestamp()
       - name: metadata.logged_time
         from: time
-      - name: metadata.log_name
-        literal: conn
-      - name: metadata.log_provider
-        literal: zeek
       - name: src_endpoint.ip
         from: id_origin_host
       - name: dst_endpoint.ip

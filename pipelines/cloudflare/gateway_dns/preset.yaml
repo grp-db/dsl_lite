@@ -12,7 +12,10 @@ bronze:
   preTransform:
     -
       - "data"
+      - "_metadata.file_path"
       - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
+      - CAST(time AS DATE) as date
+      - CAST(try_variant_get(data, '$.QueryName', 'STRING') AS STRING) as host
       - CAST('cloudflare' AS STRING) as source
       - CAST('gateway_dns' AS STRING) as sourcetype
       - CURRENT_TIMESTAMP() as processed_time
@@ -259,13 +262,19 @@ gold:
       - name: dst_endpoint.location.country
         expr: element_at(ResolvedIPCountryCodes, 1)
       - name: metadata.version
-        literal: 1.0.0
+        literal: "1.7.0"
       - name: metadata.product.vendor_name
         literal: Cloudflare
       - name: metadata.product.name
         literal: Gateway DNS
       - name: metadata.log_provider
-        literal: Cloudflare Gateway DNS
+        literal: cloudflare
+      - name: metadata.log_name
+        literal: gateway_dns
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_version
+        literal: "cloudflare@gateway_dns:version@1.0"
       - name: query.hostname
         from: QueryName
       - name: query.type
