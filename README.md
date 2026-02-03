@@ -131,7 +131,7 @@ Gold layer tables include an OCSF `metadata` STRUCT that provides critical conte
 | `sourcetype` | `metadata.log_name` | Recommended | The event log name, typically for the consumer of the event | `"conn"`, `"ios"`, `"gateway_dns"` |
 | `processed_time` | `metadata.processed_time` | Optional | Timestamp when the event was processed by DSL Lite | `2026-02-03T14:30:00Z` |
 | OCSF version | `metadata.version` | **Required** | The version of the OCSF schema used | `"1.7.0"` |
-| Schema version | `metadata.log_version` | Optional | Custom schema version tracking for change management | `"zeek@conn:version@1.0"` |
+| Schema version | `metadata.log_version` | Optional | Custom schema version tracking for change management | `"zeek@conn:version@1.0"`, `"cisco@ios:version@1.0"`, `"cloudflare@gateway_dns:version@1.0"`  |
 | Log format | `metadata.log_format` | Optional | The original format of the data | `"JSON"`, `"syslog"`, `"CSV"` |
 
 #### Schema Version Tracking
@@ -145,7 +145,7 @@ The `metadata.log_version` field uses a custom format to track schema changes ov
 **Examples:**
 - `"zeek@conn:version@1.0"` - Zeek connection logs, schema version 1.0
 - `"cisco@ios:version@1.1"` - Cisco IOS logs, schema version 1.1
-- `"cloudflare@gateway_dns:version@1.0"` - Cloudflare Gateway DNS logs, schema version 1.2
+- `"cloudflare@gateway_dns:version@1.2"` - Cloudflare Gateway DNS logs, schema version 1.2
 
 **Use Case:** If you update your OCSF mapping (e.g., add new enrichments or change field mappings), increment the schema version. This enables selective record deletion or reprocessing:
 
