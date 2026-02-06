@@ -5,14 +5,14 @@
 # Fields are ordered to match the OCSF schema - DO NOT reorder!
 
 gold:
-  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # Note: clusterBy is supported in SSS (Spark Structured Streaming) mode but not in SDP mode (sinks don't support it atm)
   # For SDP mode, run ALTER TABLE after pipeline creation:
   #   ALTER TABLE <catalog>.<database>.dns_activity CLUSTER BY (time, query.hostname)
   - name: dns_activity
     input: <YOUR_SILVER_TABLE_NAME>
     # filter: |
     #   query_name IS NOT NULL
-    # clusterBy: ["time", "query.hostname"]  # Only works in dsl_spark.py mode
+    # clusterBy: ["time", "query.hostname"]  # Only works in SSS mode (src/sss_gold.py)
     fields:
       # Core fields
       - name: activity_id
@@ -38,7 +38,6 @@ gold:
       - name: class_uid
         expr: CAST(4003 AS INT)
       
-      # Connection info
       - name: connection_info.protocol_name
         expr: # 'udp', 'tcp', 'doh', 'dot'
       - name: connection_info.protocol_num
@@ -62,21 +61,69 @@ gold:
       # - name: dst_endpoint.port
       #   expr: # Usually 53
       
-      # Metadata
+      - name: action
+        expr: # TODO: Map to your source field
+
+      - name: action_id
+        expr: # TODO: Map to your source field
+
+      - name: activity
+        expr: # TODO: Map to your source field
+
+      - name: app_name
+        expr: # TODO: Map to your source field
+
+      - name: disposition
+        expr: # TODO: Map to your source field
+
+      - name: disposition_id
+        expr: # TODO: Map to your source field
+
+      - name: enrichments
+        expr: # TODO: Map to your source field (VARIANT/ARRAY)
+
+      - name: message
+        expr: # TODO: Map to your source field
+
+      - name: observables
+        expr: # TODO: Map to your source field (VARIANT/ARRAY)
+
+      - name: policy
+        expr: # TODO: Map to your source field
+
+      - name: status
+        expr: # TODO: Map to your source field
+
+      - name: status_code
+        expr: # TODO: Map to your source field
+
+      - name: status_detail
+        expr: # TODO: Map to your source field
+
+      - name: status_id
+        expr: # TODO: Map to your source field
+
+      - name: traffic
+        expr: # TODO: Map to your source field
+      # Metadata (OCSF Standard Fields)
       - name: metadata.version
-        literal: 1.0.0
+        literal: "1.7.0"  # OCSF schema version
       - name: metadata.product.name
-        literal: # Product name
+        literal: # Product name (e.g., "Zeek Conn", "Cisco IOS")
       - name: metadata.product.vendor_name
-        literal: # Vendor name
+        literal: # Vendor name (e.g., "Zeek", "Cisco")
       - name: metadata.log_provider
-        literal: # Log source
-      - name: metadata.logged_time
-        from: # Event timestamp
+        literal: # Log provider/source (e.g., "zeek", "cisco", "cloudflare")
+      - name: metadata.log_name
+        literal: # Log name/sourcetype (e.g., "conn", "ios", "gateway_dns")
+      - name: metadata.log_format
+        literal: # Log format (e.g., "JSON", "syslog", "CSV")
+      - name: metadata.log_version
+        literal: # Schema version format: "source@sourcetype:version@1.0" (e.g., "zeek@conn:version@1.0")
       - name: metadata.processed_time
-        expr: CURRENT_TIMESTAMP()
-      # - name: metadata.uid
-      #   from: # Event ID
+        expr: CURRENT_TIMESTAMP()  # When processed by pipeline
+      - name: metadata.logged_time
+        from: time  # When the event was logged (REQUIRED: map to your time field)
       
       # Query details
       - name: query.hostname

@@ -40,13 +40,13 @@ silver:
         unreferencedColumns:
           preserve: true
 gold:
-  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # Note: clusterBy is supported in SSS (Spark Structured Streaming) mode but not in SDP mode (sinks don't support it atm)
   # For SDP mode, run ALTER TABLE after pipeline creation:
   #   ALTER TABLE <catalog>.<database>.<table_name> CLUSTER BY (time, <other_fields>)
   - name: authentication
     input: cisco_ios_silver
     filter: (facility IN ('AAA', 'SEC_LOGIN') AND mnemonic LIKE 'LOGIN%') OR (facility = 'SYS' AND mnemonic = 'LOGOUT')
-    # clusterBy: ["time", "user.name"]  # Only works in dsl_spark.py mode
+    # clusterBy: ["time", "user.name"]  # Only works in SSS mode (src/sss_gold.py)
     fields:
       - name: category_uid
         expr: CAST('3' AS INT)

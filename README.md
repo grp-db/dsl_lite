@@ -72,8 +72,8 @@ bronze:
     - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time  # Required
     - CAST(time AS DATE) as date  # Optional: for simplified date-based queries
     # - REGEXP_EXTRACT(value, '^([\\w\\-\\.]+):', 1) as host  # Optional: device hostname (if present)
-    - CAST('cisco' AS STRING) AS source  # Recommended
-    - CAST('ios' AS STRING) AS sourcetype  # Recommended
+    - CAST('cisco' AS STRING) as source  # Recommended
+    - CAST('ios' AS STRING) as sourcetype  # Recommended
     - CURRENT_TIMESTAMP() as processed_time  # Recommended
 ```
 - `time`: *(Required)* Extracted from syslog timestamp using regex pattern
@@ -186,14 +186,17 @@ WHERE metadata.log_version = 'zeek@conn:version@1.0';
 ```
 dsl_lite/
 ├── src/                          # All Python source code
-│   ├── dsl_sdp.py               # Entry point for Spark Declarative Pipelines
-│   ├── dsl_spark.py             # Entry point for Spark jobs
 │   ├── dsl.py                   # Core DSL Lite logic
-│   └── utils.py                 # Utility functions
+│   ├── utils.py                 # Utility functions
+│   ├── sdp_medallion.py         # Entry point for SDP pipelines
+│   ├── sss_bronze.py            # Bronze layer task (SSS mode)
+│   ├── sss_silver.py            # Silver layer task (SSS mode)
+│   └── sss_gold.py              # Gold (OCSF) layer task (SSS mode)
 ├── notebooks/                    # Databricks notebooks
 │   └── create_ocsf_tables.py    # Setup notebook for OCSF tables
 ├── pipelines/                    # Configuration presets (Cisco, Zeek, Cloudflare, etc.)
-├── ocsf_templates/              # OCSF mapping templates
+├── ocsf_templates/              # OCSF mapping templates (21 standardized templates)
+├── vault/                       # Maintenance utilities for template management
 ├── raw_logs/                    # Sample logs for testing
 └── README.md                    # Documentation
 ```
@@ -204,7 +207,7 @@ To deploy a new data streaming pipeline you need:
 
 - **Databases**: Bronze, silver, and gold layers with OCSF-compliant tables (create using `notebooks/create_ocsf_tables.py`)
 - **Preset configuration**: YAML files defining data transformations for your log source (located in `pipelines/` directory)
-- **Input location(s)**: Configure data source paths in the preset's `autoloader.inputs` section
+- **Input location(s)**: Configure data source paths in the preset's `autoloader.inputs` section (only required if not skipping bronze layer)
 
 DSL Lite provides starter templates in the `ocsf_templates/` directory for common security log sources.
 
@@ -212,19 +215,22 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
 
 > **Note**: Apache Spark™ includes **declarative pipelines** beginning in Spark 4.1 via the `pyspark.pipelines` module. Databricks Runtime extends these capabilities with additional APIs and integrations.
 
-- Upload the `src` directory containing `dsl_sdp.py`, `dsl.py` and `utils.py` to your workspace.
+- Upload the `src` directory to your workspace.
 - Create `source` and `source_type` folders (i.e. `cisco/ios`) under `pipelines` to your workspace.
-- Create a Lakeflow Spark Declarative Pipeline and specify default catalogs and databases, plus the following required configurations:
+- Create a Lakeflow Spark Declarative Pipeline and reference `src/sdp_medallion.py` as the entry point.
+- Specify default catalogs and databases, plus the following required configurations:
 
   - `dsl_lite.config_file` (required) - should contain a full path to a configuration file that will be used to generate a pipeline.  Example: `/Workspace/Users/<user@email.com>/dsl_lite/pipelines/cisco/ios/preset.yaml`.
-  - `dsl_lite.gold_catalog_name` (required) - the name of UC catalog containing gold tables.
-  - `dsl_lite.gold_database_name` (required) - the name of UC database containing gold tables.
+  - `dsl_lite.gold_catalog_name` (optional) - the name of UC catalog containing gold tables. Used as default if not specified per-table in YAML.
+  - `dsl_lite.gold_database_name` (optional) - the name of UC database containing gold tables. Used as default if not specified per-table in YAML.
   - `dsl_lite.bronze_catalog_name` (optional) - the name of UC catalog containing bronze tables.
-  - `dsl_lite.bronze_database_name` (required) - the name of UC database containing bronze tables.
+  - `dsl_lite.bronze_database_name` (optional) - the name of UC database containing bronze tables. Required if `dsl_lite.skip_bronze` is `false`.
   - `dsl_lite.silver_catalog_name` (optional) - the name of UC catalog containing silver tables.
-  - `dsl_lite.silver_database_name` (required) - the name of UC database containing silver tables.
+  - `dsl_lite.silver_database_name` (required) - the name of UC database containing silver tables. Always required for Gold layer processing.
+  - `dsl_lite.skip_bronze` (optional, default `false`) - Skip bronze ingestion and use existing bronze tables.
+  - `dsl_lite.skip_silver` (optional, default `false`) - Skip silver transformation and use existing silver tables.
 
-**Example configuration JSON:**
+**Example configuration JSON (Full Pipeline):**
 ```json
 {
   "configuration": {
@@ -237,30 +243,227 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
 }
 ```
 
-### Execute as Spark (Python) job
-
-- Upload the `src` directory containing `dsl_spark.py`, `dsl.py` and `utils.py` to your workspace.
-- Create `source` and `source_type` folders (e.g. `cisco/ios`) under `pipelines` to your workspace.
-- Create a job with a notebook task referring `src/dsl_spark.py` and with following parameters:
-
-  - `preset_file` (required) - should contain a full path to a configuration file that will be used to process data.  Example: `/Workspace/Users/<user@email.com>/dsl_lite/pipelines/cisco/ios/preset.yaml`.
-  - `bronze_database` (required) - the name of database containing bronze tables - could be specified as `catalog.database`.
-  - `silver_database` (required) - the name of database containing silver tables - could be specified as `catalog.database`.
-  - `gold_database` (required) - the name of database containing gold tables - could be specified as `catalog.database`.
-  - `checkpoints_location` (required) - the path to storage location (DBFS or Volume) to store checkpoints for specific job.
-  - `continuous` (optional, default `False`) - if job should run continuously (`True`) or not (`False`).
-
-**Example configuration JSON:**
+**Example configuration JSON (Gold Only - Skip Bronze/Silver):**
 ```json
 {
-  "preset_file": "/Workspace/Users/user@email.com/dsl_lite/pipelines/cisco/ios/preset.yaml",
-  "bronze_database": "dsl_lite.cisco",
-  "silver_database": "dsl_lite.cisco",
-  "gold_database": "dsl_lite.ocsf",
-  "checkpoints_location": "/Volumes/dsl_lite/pipelines/checkpoints/cisco-ios",
-  "continuous": "False"
+  "configuration": {
+    "dsl_lite.silver_database_name": "silver",
+    "dsl_lite.config_file": "/Workspace/Users/user@email.com/dsl_lite/pipelines/cisco/ios/preset.yaml",
+    "dsl_lite.skip_bronze": "true",
+    "dsl_lite.skip_silver": "true"
+  }
 }
 ```
+> **Note:** `dsl_lite.gold_database_name` is omitted in this example because all gold tables specify their own `catalog` and `database` in the YAML. If any table omits these, you must provide `dsl_lite.gold_database_name` (and optionally `dsl_lite.gold_catalog_name`) as defaults.
+
+### Execute as Spark Structured Streaming (SSS) Job
+
+- Upload the `src` directory to your workspace.
+- Create `source` and `source_type` folders (e.g. `cisco/ios`) under `pipelines` to your workspace.
+- Create a **multi-task job** with three notebook tasks (Bronze, Silver, Gold) or a single task using the combined approach:
+
+**Option 1: Multi-Task Job (Recommended for Production)**
+- Create a job with 3 separate tasks, each referencing the appropriate notebook:
+  - **Task 1 (Bronze)**: `src/sss_bronze.py`
+  - **Task 2 (Silver)**: `src/sss_silver.py` (depends on Bronze)
+  - **Task 3 (Gold)**: `src/sss_gold.py` (depends on Silver)
+
+**Option 2: Single-Task Job (Legacy)**
+- Create a job with a single notebook task (for backward compatibility, you can create a wrapper that calls all three layers sequentially)
+
+**Task Parameters by Layer:**
+
+**Bronze Task (`src/sss_bronze.py`):**
+  - `bronze_database` (required) - the name of database containing bronze tables - could be specified as `catalog.database`. Bronze does not support per-table catalog/database configuration.
+  - `preset_file` (required) - full path to configuration file. Example: `/Workspace/Users/<user@email.com>/dsl_lite/pipelines/cisco/ios/preset.yaml`.
+  - `checkpoints_location` (required) - path to storage location (DBFS or Volume) for checkpoints. Each input source gets its own checkpoint subdirectory: `{checkpoints_location}/bronze-{sanitized_input_name}`.
+  - `continuous` (optional, default `False`) - run continuously (`True`) or batch mode (`False`).
+
+**Silver Task (`src/sss_silver.py`):**
+  - `bronze_database` (required) - the name of database containing bronze tables (same as Bronze task). Required to read from bronze tables.
+  - `silver_database` (required) - the name of database containing silver tables - could be specified as `catalog.database`. Silver does not support per-table catalog/database configuration.
+  - `preset_file` (required) - full path to configuration file (same as Bronze task).
+  - `checkpoints_location` (required) - path to storage location for checkpoints (can be same or different from Bronze). Each silver table gets its own checkpoint subdirectory: `{checkpoints_location}/silver-{sanitized_table_name}`.
+  - `continuous` (optional, default `False`) - run continuously (`True`) or batch mode (`False`).
+
+**Gold Task (`src/sss_gold.py`):**
+  - `silver_database` (required) - the name of database containing silver tables (same as Silver task). Required to read from silver tables.
+  - `gold_database` (optional) - the name of database containing gold tables - could be specified as `catalog.database`. Used as default if not specified per-table in YAML. **Required only if any table omits `database` in YAML.**
+  - `preset_file` (required) - full path to configuration file (same as Bronze/Silver tasks).
+  - `checkpoints_location` (required) - path to storage location for checkpoints (can be same or different from other tasks). Each gold table gets its own checkpoint subdirectory: `{checkpoints_location}/gold-{table_name}`.
+  - `continuous` (optional, default `False`) - run continuously (`True`) or batch mode (`False`).
+
+**Example Multi-Task Job Configuration JSON:**
+```json
+{
+  "name": "DSL Lite Medallion Pipeline",
+  "tasks": [
+    {
+      "task_key": "bronze",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/user@email.com/dsl_lite/src/sss_bronze",
+        "base_parameters": {
+          "bronze_database": "dsl_lite.cisco",
+          "preset_file": "/Workspace/Users/user@email.com/dsl_lite/pipelines/cisco/ios/preset.yaml",
+          "checkpoints_location": "/Volumes/dsl_lite/checkpoints/bronze",
+          "continuous": "False"
+        }
+      }
+    },
+    {
+      "task_key": "silver",
+      "depends_on": [{"task_key": "bronze"}],
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/user@email.com/dsl_lite/src/sss_silver",
+        "base_parameters": {
+          "bronze_database": "dsl_lite.cisco",
+          "silver_database": "dsl_lite.cisco",
+          "preset_file": "/Workspace/Users/user@email.com/dsl_lite/pipelines/cisco/ios/preset.yaml",
+          "checkpoints_location": "/Volumes/dsl_lite/checkpoints/silver",
+          "continuous": "False"
+        }
+      }
+    },
+    {
+      "task_key": "gold",
+      "depends_on": [{"task_key": "silver"}],
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/user@email.com/dsl_lite/src/sss_gold",
+        "base_parameters": {
+          "silver_database": "dsl_lite.cisco",
+          "gold_database": "dsl_lite.ocsf",
+          "preset_file": "/Workspace/Users/user@email.com/dsl_lite/pipelines/cisco/ios/preset.yaml",
+          "checkpoints_location": "/Volumes/dsl_lite/checkpoints/gold",
+          "continuous": "False"
+        }
+      }
+    }
+  ]
+}
+```
+
+### Skipping Bronze/Silver Layers with Multi-Task Jobs
+
+With the separated notebook approach, skipping layers is done by **not including those tasks** in your job configuration:
+
+**To Skip Bronze:**
+- Remove the Bronze task from your job
+- Silver task will read from existing Bronze tables (ensure `bronze_database` parameter points to existing tables)
+
+**To Skip Silver:**
+- Remove the Silver task from your job
+- Gold task automatically maps existing Silver tables from YAML config (no changes needed)
+- Ensure Silver tables exist and match the names in `silver.transform[].name` in your YAML
+
+**To Skip Both Bronze and Silver (Gold Only):**
+- Only include the Gold task in your job
+- Gold task will use existing Silver tables (mapped from YAML)
+- Example job configuration:
+
+```json
+{
+  "name": "DSL Lite Gold Only",
+  "tasks": [
+    {
+      "task_key": "gold",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/user@email.com/dsl_lite/src/sss_gold",
+        "base_parameters": {
+          "silver_database": "dsl_lite.cisco",
+          "preset_file": "/Workspace/Users/user@email.com/dsl_lite/pipelines/cisco/ios/preset.yaml",
+          "checkpoints_location": "/Volumes/dsl_lite/checkpoints/gold",
+          "continuous": "False"
+        }
+      }
+    }
+  ]
+}
+```
+> **Note:** `gold_database` is omitted in this example because all gold tables specify their own `catalog` and `database` in the YAML. If any table omits these, you must provide `gold_database` as a fallback.
+
+**Note:** The `sss_gold.py` notebook automatically maps existing Silver tables from your YAML's `silver.transform[].name` section, so no additional configuration is needed when skipping Silver.
+
+### Per-Table Catalog/Database Configuration
+
+Both SDP and Spark Job modes support per-table catalog and database configuration in the YAML preset file. This allows you to route different OCSF tables to different catalogs/databases:
+
+```yaml
+gold:
+  # Table 1: Uses per-table catalog/database
+  - name: network_activity
+    input: zeek_conn_silver
+    catalog: my_catalog_1      # Optional: per-table catalog
+    database: my_database_1    # Optional: per-table database
+    fields:
+      - name: activity_id
+        expr: "CASE WHEN conn_state = 'SF' THEN 2 ELSE 6 END"
+      # ... other fields ...
+
+  # Table 2: Falls back to global config (gold_database / dsl_lite.gold_database_name)
+  - name: dns_activity
+    input: zeek_conn_silver
+    # No catalog/database specified - uses global defaults
+    fields:
+      - name: query.hostname
+        from: query_name
+      # ... other fields ...
+```
+
+**How it works:**
+- If `catalog` and/or `database` are specified in YAML → uses those values
+- If omitted → falls back to global config
+
+**Configuration Requirements:**
+
+**For SSS Mode (Spark Structured Streaming):**
+- `gold_database` parameter is **optional** - only required if any table omits `database` in YAML (used as fallback)
+- If **all** tables specify `database` in YAML → you can **omit** `gold_database` parameter
+- If **any** table omits `database` in YAML → you **must** provide `gold_database` parameter as fallback
+- Per-table `database` in YAML overrides the `gold_database` parameter
+- Per-table `catalog` in YAML is optional (if omitted, table uses database only, no catalog)
+
+**For SDP Mode (Spark Declarative Pipeline):**
+- If **all** tables specify both `catalog` and `database` in YAML → you can **omit** `dsl_lite.gold_database_name` and `dsl_lite.gold_catalog_name` from config
+- If **any** table omits `catalog` or `database` in YAML → you **must** provide `dsl_lite.gold_database_name` (and optionally `dsl_lite.gold_catalog_name`) as defaults
+- Note: SDP requires both catalog and database to be specified (either per-table in YAML or via Spark conf defaults)
+
+### Skip Bronze/Silver Layer Processing
+
+Both SDP and Spark Structured Streaming (SSS) modes support skipping Bronze and/or Silver layers to process Gold from existing tables. This is useful for:
+- Migrating existing Silver tables to OCSF Gold format
+- Re-processing Gold after updating OCSF mappings without re-ingesting raw data
+- Using Bronze/Silver tables created outside DSL Lite
+
+**For SDP Mode:**
+Use the `skip_bronze` and `skip_silver` configuration flags as documented in the SDP section above.
+
+**For SSS Multi-Task Jobs:**
+Skip layers by **not including those tasks** in your job configuration:
+
+1. **Full Pipeline** (all 3 tasks):
+   - Include Bronze, Silver, and Gold tasks with dependencies
+   - Bronze → Silver → Gold
+
+2. **Skip Bronze Only** (2 tasks: Silver + Gold):
+   - Remove Bronze task from job
+   - Silver task reads from existing Bronze tables
+   - Silver → Gold
+
+3. **Skip Silver Only** (2 tasks: Bronze + Gold):
+   - Remove Silver task from job
+   - Gold task automatically maps existing Silver tables from YAML
+   - Bronze → Gold (Gold reads from existing Silver)
+
+4. **Gold Only** (1 task: Gold only):
+   - Remove both Bronze and Silver tasks
+   - Gold task automatically maps existing Silver tables from YAML
+   - Gold only
+
+**Note:** When skipping Bronze/Silver:
+- The YAML **does not need** an `autoloader` section (only required for bronze ingestion)
+- The YAML **must** include the `silver.transform[].name` section to map existing Silver table names
+- The `input` field in each `gold` table must match a name from `silver.transform[].name`
+- The `sss_gold.py` notebook automatically handles this mapping
 
 ## Key Features
 
@@ -292,7 +495,7 @@ This accelerator is developed and maintained by Databricks Field Engineering and
 
 ### Usage & Distribution
 
-This accelerator is available to support customers and the broader community in building cybersecurity solutions on the Databricks.
+This accelerator is available to support customers and the broader community in building cybersecurity solutions on Databricks.
 
 **Note**: This is a community-supported accelerator. For production support and customization services, please contact your Databricks account team or Professional Services.
 

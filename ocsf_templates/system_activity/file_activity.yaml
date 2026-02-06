@@ -4,12 +4,12 @@
 # File System Activity events capture file operations (create, read, update, delete, etc.).
 
 gold:
-  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # Note: clusterBy is supported in SSS (Spark Structured Streaming) mode but not in SDP mode (sinks don't support it atm)
   # For SDP mode, run ALTER TABLE after pipeline creation:
   #   ALTER TABLE <catalog>.<database>.file_activity CLUSTER BY (time, file.path)
   - name: file_activity
     input: <YOUR_SILVER_TABLE_NAME>
-    # clusterBy: ["time", "file.path"]  # Only works in dsl_spark.py mode
+    # clusterBy: ["time", "file.path"]  # Only works in SSS mode (src/sss_gold.py)
     # filter: |
     #   event_type IN ('file_create', 'file_delete', 'file_modify', 'file_rename')
     fields:
@@ -18,14 +18,16 @@ gold:
         expr: # 1=Create, 2=Read, 3=Update, 4=Delete, 5=Rename, etc.
       - name: activity_name
         expr: # Activity name
-      - name: category_uid
-        literal: 1
+      # Category & Class
       - name: category_name
         literal: System Activity
-      - name: class_uid
-        literal: 1001
+      - name: category_uid
+        expr: CAST(1 AS INT)
       - name: class_name
         literal: File System Activity
+      - name: class_uid
+        expr: CAST(1001 AS INT)
+      
       - name: severity_id
         expr: # 0-6
       - name: time
@@ -79,17 +81,69 @@ gold:
       - name: status
         expr: # Status description
       
-      # Metadata
+      - name: access_mask
+        expr: # TODO: Map to your source field
+
+      - name: action
+        expr: # TODO: Map to your source field
+
+      - name: action_id
+        expr: # TODO: Map to your source field
+
+      - name: activity
+        expr: # TODO: Map to your source field
+
+      - name: component
+        expr: # TODO: Map to your source field
+
+      - name: disposition
+        expr: # TODO: Map to your source field
+
+      - name: disposition_id
+        expr: # TODO: Map to your source field
+
+      - name: enrichments
+        expr: # TODO: Map to your source field (VARIANT/ARRAY)
+
+      - name: file_diff
+        expr: # TODO: Map to your source field
+
+      - name: observables
+        expr: # TODO: Map to your source field (VARIANT/ARRAY)
+
+      - name: severity
+        expr: # TODO: Map to your source field
+
+      - name: status_code
+        expr: # TODO: Map to your source field
+
+      - name: status_detail
+        expr: # TODO: Map to your source field
+
+      - name: timezone_offset
+        expr: # TODO: Map to your source field (timezone offset in minutes)
+
+      - name: unmapped
+        expr: # TODO: Map to your source field (VARIANT/ARRAY)
+      # Metadata (OCSF Standard Fields)
+      - name: metadata.version
+        literal: "1.7.0"  # OCSF schema version
       - name: metadata.product.name
-        literal: # Product name
+        literal: # Product name (e.g., "Zeek Conn", "Cisco IOS")
       - name: metadata.product.vendor_name
-        literal: # Vendor name
-      - name: metadata.logged_time
-        from: # Log time
+        literal: # Vendor name (e.g., "Zeek", "Cisco")
+      - name: metadata.log_provider
+        literal: # Log provider/source (e.g., "zeek", "cisco", "cloudflare")
+      - name: metadata.log_name
+        literal: # Log name/sourcetype (e.g., "conn", "ios", "gateway_dns")
+      - name: metadata.log_format
+        literal: # Log format (e.g., "JSON", "syslog", "CSV")
+      - name: metadata.log_version
+        literal: # Schema version format: "source@sourcetype:version@1.0" (e.g., "zeek@conn:version@1.0")
       - name: metadata.processed_time
-        expr: current_timestamp()
-      - name: metadata.uid
-        expr: # Event ID
+        expr: CURRENT_TIMESTAMP()  # When processed by pipeline
+      - name: metadata.logged_time
+        from: time  # When the event was logged (REQUIRED: map to your time field)
       
       # Optional fields
       - name: message

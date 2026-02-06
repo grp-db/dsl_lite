@@ -13,9 +13,6 @@ from pyspark.sql import SparkSession
 from typing import Optional, Dict, Any
 import re
 
-NETWORK_TABLE_NAME = "network_activity"
-HTTP_TABLE_NAME = "http_activity"
-
 __catalog_key_name__ = "dsl_lite.{}_catalog_name"
 __database_key_name__ = "dsl_lite.{}_database_name"
 
@@ -87,13 +84,15 @@ def get_normalized_table_name(name: str, catalog: Optional[str] = None, database
     return f"`{catalog}`.`{database}`.`{name}`"
 
 
-def get_ocsf_sink(name: str, spark: Optional[SparkSession] = None) -> str:
+def get_ocsf_sink(name: str, catalog: Optional[str] = None, database: Optional[str] = None, spark: Optional[SparkSession] = None) -> str:
     """Get OCSF sink for gold tables.
     
     Creates a sink to write to OCSF gold tables.
     
     Args:
         name (str): The name of the sink/table.
+        catalog (Optional[str], optional): Catalog name. If not provided, uses Spark conf.
+        database (Optional[str], optional): Database name. If not provided, uses Spark conf.
         spark (Optional[SparkSession], optional): Spark session. Defaults to None.
     
     Returns:
@@ -101,7 +100,7 @@ def get_ocsf_sink(name: str, spark: Optional[SparkSession] = None) -> str:
     """
     from pyspark import pipelines as sdp
     sink_name = name
-    table_name = get_normalized_table_name(name, spark=spark)
+    table_name = get_normalized_table_name(name, catalog=catalog, database=database, spark=spark)
     sdp.create_sink(sink_name, "delta", { "tableName": table_name })
     return sink_name
 

@@ -4,25 +4,27 @@
 # Kernel Extension Activity events capture kernel module/driver loading and unloading.
 
 gold:
-  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # Note: clusterBy is supported in SSS (Spark Structured Streaming) mode but not in SDP mode (sinks don't support it atm)
   # For SDP mode, run ALTER TABLE after pipeline creation:
   #   ALTER TABLE <catalog>.<database>.kernel_extension_activity CLUSTER BY (time, device.hostname)
   - name: kernel_extension_activity
     input: <YOUR_SILVER_TABLE_NAME>
-    # clusterBy: ["time", "device.hostname"]  # Only works in dsl_spark.py mode
+    # clusterBy: ["time", "device.hostname"]  # Only works in SSS mode (src/sss_gold.py)
     fields:
       - name: activity_id
         expr: # 1=Load, 2=Unload
       - name: activity_name
         expr: 
-      - name: category_uid
-        literal: 1
+      # Category & Class
       - name: category_name
         literal: System Activity
-      - name: class_uid
-        literal: 1003
+      - name: category_uid
+        expr: CAST(1 AS INT)
       - name: class_name
         literal: Kernel Extension Activity
+      - name: class_uid
+        expr: CAST(1003 AS INT)
+      
       - name: severity_id
         expr: 
       - name: time
@@ -41,12 +43,28 @@ gold:
         expr: # Thread ID
       - name: start_time
         expr: # When module was loaded
+      - name: severity
+        expr: # TODO: Map to your source field
+      # Metadata (OCSF Standard Fields)
+      - name: metadata.version
+        literal: "1.7.0"  # OCSF schema version
       - name: metadata.product.name
-        literal: 
+        literal: # Product name (e.g., "Zeek Conn", "Cisco IOS")
       - name: metadata.product.vendor_name
-        literal: 
-      - name: metadata.uid
-        expr: 
+        literal: # Vendor name (e.g., "Zeek", "Cisco")
+      - name: metadata.log_provider
+        literal: # Log provider/source (e.g., "zeek", "cisco", "cloudflare")
+      - name: metadata.log_name
+        literal: # Log name/sourcetype (e.g., "conn", "ios", "gateway_dns")
+      - name: metadata.log_format
+        literal: # Log format (e.g., "JSON", "syslog", "CSV")
+      - name: metadata.log_version
+        literal: # Schema version format: "source@sourcetype:version@1.0" (e.g., "zeek@conn:version@1.0")
+      - name: metadata.processed_time
+        expr: CURRENT_TIMESTAMP()  # When processed by pipeline
+      - name: metadata.logged_time
+        from: time  # When the event was logged (REQUIRED: map to your time field)
+      # Raw data
       - name: raw_data
         from: 
 

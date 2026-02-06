@@ -2,6 +2,10 @@
 """
 DSL Lite - OCSF Table Creation
 
+⚠️  WARNING: This notebook will CREATE OR REPLACE all OCSF tables, which will
+   DROP existing tables and all data! Only run this if you intend to recreate
+   the OCSF schema from scratch.
+
 OCSF (Open Cybersecurity Schema Framework) Gold Table Definitions
 Reference: https://schema.ocsf.io/
 
@@ -26,6 +30,34 @@ Common OCSF Field Patterns:
 - raw_data: Original event data (VARIANT for any format)
 - unmapped: Vendor-specific fields not in OCSF schema
 """
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # ⚠️ SAFETY CHECK REQUIRED
+# MAGIC 
+# MAGIC **This notebook will DROP and RECREATE all OCSF tables, deleting all existing data!**
+# MAGIC 
+# MAGIC You must explicitly confirm by setting the `confirm_recreate_tables` widget to `"YES"` below.
+
+# COMMAND ----------
+
+dbutils.widgets.dropdown("confirm_recreate_tables", "NO", ["YES", "NO"], "⚠️ Confirm: Recreate all OCSF tables (will DROP existing data)")
+
+# COMMAND ----------
+
+confirmation = dbutils.widgets.get("confirm_recreate_tables")
+if confirmation != "YES":
+    raise Exception(
+        "❌ SAFETY CHECK FAILED: You must set 'confirm_recreate_tables' widget to 'YES' to proceed.\n"
+        "This notebook will DROP and recreate all OCSF tables, deleting all existing data.\n"
+        "If you did not intend to run this, please STOP NOW."
+    )
+
+print("✅ Confirmation received. Proceeding with OCSF table creation...")
+print("⚠️  WARNING: This will CREATE OR REPLACE all tables, dropping existing data!")
+
+# COMMAND ----------
 
 catalog_name = 'dsl_lite'
 gold_database = 'ocsf'

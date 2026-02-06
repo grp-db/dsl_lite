@@ -8,12 +8,12 @@
 # See: pipelines/zeek/conn/preset.yaml for a complete example
 
 gold:
-  # Note: clusterBy is supported in dsl_spark.py mode but not in SDP mode (sinks don't support it atm)
+  # Note: clusterBy is supported in SSS (Spark Structured Streaming) mode but not in SDP mode (sinks don't support it atm)
   # For SDP mode, run ALTER TABLE after pipeline creation:
   #   ALTER TABLE <catalog>.<database>.network_activity CLUSTER BY (time, src_endpoint.ip)
   - name: network_activity
     input: <YOUR_SILVER_TABLE_NAME>  # Replace with your silver table name
-    # clusterBy: ["time", "src_endpoint.ip"]  # Only works in dsl_spark.py mode
+    # clusterBy: ["time", "src_endpoint.ip"]  # Only works in SSS mode (src/sss_gold.py)
     # Optional: Add filter conditions to select relevant events
     # filter: |
     #   event_type IN ('connection', 'network_flow')
@@ -23,14 +23,16 @@ gold:
         expr: # REQUIRED: Activity ID (1=Open, 2=Close, 3=Send, 4=Receive, etc.)
       - name: activity_name
         expr: # Activity name (e.g., 'Open', 'Close', 'Send', 'Receive')
-      - name: category_uid
-        literal: 4  # Network Activity
+      # Category & Class
       - name: category_name
         literal: Network Activity
-      - name: class_uid
-        literal: 4001  # Network Activity
+      - name: category_uid
+        expr: CAST(4 AS INT)
       - name: class_name
         literal: Network Activity
+      - name: class_uid
+        expr: CAST(4001 AS INT)
+      
       - name: severity_id
         expr: # Severity: 0=Unknown, 1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical
       - name: time
@@ -117,19 +119,54 @@ gold:
       - name: disposition
         expr: # Disposition description
       
-      # Metadata
+      - name: activity
+        expr: # TODO: Map to your source field
+
+      - name: cloud
+        expr: # TODO: Map to your source field
+
+      - name: enrichments
+        expr: # TODO: Map to your source field (VARIANT/ARRAY)
+
+      - name: observables
+        expr: # TODO: Map to your source field (VARIANT/ARRAY)
+
+      - name: policy
+        expr: # TODO: Map to your source field
+
+      - name: status_code
+        expr: # TODO: Map to your source field
+
+      - name: status_detail
+        expr: # TODO: Map to your source field
+
+      - name: tls
+        expr: # TODO: Map to your source field
+
+      - name: unmapped
+        expr: # TODO: Map to your source field (VARIANT/ARRAY)
+
+      - name: url
+        expr: # TODO: Map to your source field
+      # Metadata (OCSF Standard Fields)
+      - name: metadata.version
+        literal: "1.7.0"  # OCSF schema version
       - name: metadata.product.name
-        literal: # Product name
+        literal: # Product name (e.g., "Zeek Conn", "Cisco IOS")
       - name: metadata.product.vendor_name
-        literal: # Vendor name
-      - name: metadata.product.version
-        expr: # Product version
-      - name: metadata.logged_time
-        from: # When the event was logged
+        literal: # Vendor name (e.g., "Zeek", "Cisco")
+      - name: metadata.log_provider
+        literal: # Log provider/source (e.g., "zeek", "cisco", "cloudflare")
+      - name: metadata.log_name
+        literal: # Log name/sourcetype (e.g., "conn", "ios", "gateway_dns")
+      - name: metadata.log_format
+        literal: # Log format (e.g., "JSON", "syslog", "CSV")
+      - name: metadata.log_version
+        literal: # Schema version format: "source@sourcetype:version@1.0" (e.g., "zeek@conn:version@1.0")
       - name: metadata.processed_time
-        expr: current_timestamp()  # When processed by pipeline
-      - name: metadata.uid
-        expr: # Event unique ID
+        expr: CURRENT_TIMESTAMP()  # When processed by pipeline
+      - name: metadata.logged_time
+        from: time  # When the event was logged (REQUIRED: map to your time field)
       
       # Optional fields
       - name: action
