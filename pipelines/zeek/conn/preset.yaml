@@ -49,6 +49,8 @@ gold:
   #   ALTER TABLE <catalog>.<database>.<table_name> CLUSTER BY (time, <other_fields>)
   - name: network_activity
     input: zeek_conn_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
     # clusterBy: ["time", "src_endpoint.ip"]  # Only works in SSS mode (src/sss_gold.py)
     fields:
       - name: activity_id

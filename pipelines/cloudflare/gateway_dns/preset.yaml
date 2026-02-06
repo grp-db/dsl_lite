@@ -184,6 +184,8 @@ gold:
   #   ALTER TABLE <catalog>.<database>.<table_name> CLUSTER BY (time, <other_fields>)
   - name: dns_activity
     input: cloudflare_gateway_dns_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
     # clusterBy: ["time", "query.hostname"]  # Only works in SSS mode (src/sss_gold.py)
     fields:
       - name: answers

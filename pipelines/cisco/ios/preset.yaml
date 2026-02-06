@@ -45,6 +45,8 @@ gold:
   #   ALTER TABLE <catalog>.<database>.<table_name> CLUSTER BY (time, <other_fields>)
   - name: authentication
     input: cisco_ios_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
     filter: (facility IN ('AAA', 'SEC_LOGIN') AND mnemonic LIKE 'LOGIN%') OR (facility = 'SYS' AND mnemonic = 'LOGOUT')
     # clusterBy: ["time", "user.name"]  # Only works in SSS mode (src/sss_gold.py)
     fields:
@@ -247,6 +249,8 @@ gold:
           AS VARIANT)
   - name: authorize_session
     input: cisco_ios_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
     filter: mnemonic IN ('EXEC_FAILED', 'CLI_DENIED', 'ACCESS_DENIED')
     fields:
       - name: category_uid
@@ -352,6 +356,8 @@ gold:
           AS VARIANT)
   - name: network_activity
     input: cisco_ios_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
     filter: facility IN ('LINK', 'LINEPROTO', 'ETHCNTR', 'IFMON', 'DEBUG')
     fields:
       - name: category_uid
@@ -516,6 +522,8 @@ gold:
           AS VARIANT)
   - name: process_activity
     input: cisco_ios_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
     filter: facility IN ('SYS', 'CPU', 'MEM', 'ENV')
     fields:
       - name: category_uid
