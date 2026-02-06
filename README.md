@@ -191,7 +191,8 @@ dsl_lite/
 │   ├── sdp_medallion.py         # Entry point for SDP pipelines
 │   ├── sss_bronze.py            # Bronze layer task (SSS mode)
 │   ├── sss_silver.py            # Silver layer task (SSS mode)
-│   └── sss_gold.py              # Gold (OCSF) layer task (SSS mode)
+│   ├── sss_gold.py              # Gold (OCSF) layer task (SSS mode)
+│   └── sss_medallion.py         # Combined Bronze→Silver→Gold task (SSS mode)
 ├── notebooks/                    # Databricks notebooks
 │   └── create_ocsf_tables.py    # Setup notebook for OCSF tables
 ├── pipelines/                    # Configuration presets (Cisco, Zeek, Cloudflare, etc.)
@@ -260,16 +261,20 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
 
 - Upload the `src` directory to your workspace.
 - Create `source` and `source_type` folders (e.g. `cisco/ios`) under `pipelines` to your workspace.
-- Create a **multi-task job** with three notebook tasks (Bronze, Silver, Gold) or a single task using the combined approach:
+- Choose one of three execution approaches:
 
 **Option 1: Multi-Task Job (Recommended for Production)**
 - Create a job with 3 separate tasks, each referencing the appropriate notebook:
   - **Task 1 (Bronze)**: `src/sss_bronze.py`
   - **Task 2 (Silver)**: `src/sss_silver.py` (depends on Bronze)
   - **Task 3 (Gold)**: `src/sss_gold.py` (depends on Silver)
+- **Benefits**: Better separation of concerns, easier to debug individual layers, can skip layers by removing tasks
 
-**Option 2: Single-Task Job (Legacy)**
-- Create a job with a single notebook task (for backward compatibility, you can create a wrapper that calls all three layers sequentially)
+**Option 2: Single-Task Medallion Job (Recommended for Simplicity)**
+- Create a job with a single notebook task that executes all three layers sequentially:
+  - **Single Task**: `src/sss_medallion.py`
+- **Benefits**: Simpler job configuration, all layers in one place, built-in skip options for Bronze/Silver
+- **Use Cases**: Development, testing, or when you want to run the full pipeline in a single task
 
 **Task Parameters by Layer:**
 
@@ -291,6 +296,16 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
   - `gold_database` (optional) - the name of database containing gold tables - could be specified as `catalog.database`. Used as default if not specified per-table in YAML. **Required only if any table omits `database` in YAML.**
   - `preset_file` (required) - full path to configuration file (same as Bronze/Silver tasks).
   - `checkpoints_location` (required) - path to storage location for checkpoints (can be same or different from other tasks). Each gold table gets its own checkpoint subdirectory: `{checkpoints_location}/gold-{table_name}`.
+  - `continuous` (optional, default `False`) - run continuously (`True`) or batch mode (`False`).
+
+**Medallion Task (`src/sss_medallion.py`) - All Layers Combined:**
+  - `bronze_database` (required if `skip_bronze=False`) - the name of database containing bronze tables - could be specified as `catalog.database`.
+  - `silver_database` (required if `skip_silver=False`) - the name of database containing silver tables - could be specified as `catalog.database`.
+  - `gold_database` (required) - the name of database containing gold tables - could be specified as `catalog.database`. Used as default if not specified per-table in YAML.
+  - `skip_bronze` (optional, default `False`) - skip bronze ingestion and use existing bronze tables (`True`) or create new bronze tables (`False`).
+  - `skip_silver` (optional, default `False`) - skip silver transformation and use existing silver tables (`True`) or create new silver tables (`False`).
+  - `preset_file` (required) - full path to configuration file. Example: `/Workspace/Users/<user@email.com>/dsl_lite/pipelines/cisco/ios/preset.yaml`.
+  - `checkpoints_location` (required) - path to storage location (DBFS or Volume) for checkpoints. Each layer gets its own checkpoint subdirectories: `{checkpoints_location}/bronze-{sanitized_input_name}`, `{checkpoints_location}/silver-{sanitized_table_name}`, `{checkpoints_location}/gold-{table_name}`.
   - `continuous` (optional, default `False`) - run continuously (`True`) or batch mode (`False`).
 
 **Example Multi-Task Job Configuration JSON:**
@@ -342,9 +357,60 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
 }
 ```
 
-### Skipping Bronze/Silver Layers with Multi-Task Jobs
+**Example Single-Task Medallion Job Configuration JSON:**
+```json
+{
+  "name": "DSL Lite Medallion Pipeline (Combined)",
+  "tasks": [
+    {
+      "task_key": "medallion",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/user@email.com/dsl_lite/src/sss_medallion",
+        "base_parameters": {
+          "bronze_database": "dsl_lite.cisco",
+          "silver_database": "dsl_lite.cisco",
+          "gold_database": "dsl_lite.ocsf",
+          "skip_bronze": "False",
+          "skip_silver": "False",
+          "preset_file": "/Workspace/Users/user@email.com/dsl_lite/pipelines/cisco/ios/preset.yaml",
+          "checkpoints_location": "/Volumes/dsl_lite/checkpoints",
+          "continuous": "False"
+        }
+      }
+    }
+  ]
+}
+```
 
-With the separated notebook approach, skipping layers is done by **not including those tasks** in your job configuration:
+**Example Single-Task Medallion Job (Gold Only - Skip Bronze/Silver):**
+```json
+{
+  "name": "DSL Lite Gold Only (Medallion)",
+  "tasks": [
+    {
+      "task_key": "medallion",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/user@email.com/dsl_lite/src/sss_medallion",
+        "base_parameters": {
+          "bronze_database": "dsl_lite.cisco",
+          "silver_database": "dsl_lite.cisco",
+          "gold_database": "dsl_lite.ocsf",
+          "skip_bronze": "True",
+          "skip_silver": "True",
+          "preset_file": "/Workspace/Users/user@email.com/dsl_lite/pipelines/cisco/ios/preset.yaml",
+          "checkpoints_location": "/Volumes/dsl_lite/checkpoints",
+          "continuous": "False"
+        }
+      }
+    }
+  ]
+}
+```
+
+### Skipping Bronze/Silver Layers
+
+**With Multi-Task Jobs:**
+Skipping layers is done by **not including those tasks** in your job configuration:
 
 **To Skip Bronze:**
 - Remove the Bronze task from your job
@@ -382,6 +448,23 @@ With the separated notebook approach, skipping layers is done by **not including
 > **Note:** `gold_database` is omitted in this example because all gold tables specify their own `catalog` and `database` in the YAML. If any table omits these, you must provide `gold_database` as a fallback.
 
 **Note:** The `sss_gold.py` notebook automatically maps existing Silver tables from your YAML's `silver.transform[].name` section, so no additional configuration is needed when skipping Silver.
+
+**With Single-Task Medallion Job (`sss_medallion.py`):**
+Skipping layers is done using the `skip_bronze` and `skip_silver` parameters:
+
+**To Skip Bronze:**
+- Set `skip_bronze: "True"` in job parameters
+- Silver layer will read from existing Bronze tables (ensure `bronze_database` parameter points to existing tables)
+
+**To Skip Silver:**
+- Set `skip_silver: "True"` in job parameters
+- Gold layer automatically maps existing Silver tables from YAML config
+- Ensure Silver tables exist and match the names in `silver.transform[].name` in your YAML
+
+**To Skip Both Bronze and Silver (Gold Only):**
+- Set both `skip_bronze: "True"` and `skip_silver: "True"` in job parameters
+- Gold layer will use existing Silver tables (mapped from YAML)
+- See the "Gold Only" example in the Single-Task Medallion Job section above
 
 ### Per-Table Catalog/Database Configuration
 
@@ -459,11 +542,32 @@ Skip layers by **not including those tasks** in your job configuration:
    - Gold task automatically maps existing Silver tables from YAML
    - Gold only
 
+**For SSS Single-Task Medallion Job (`sss_medallion.py`):**
+Skip layers using the `skip_bronze` and `skip_silver` parameters:
+
+1. **Full Pipeline** (`skip_bronze=False`, `skip_silver=False`):
+   - Executes all three layers sequentially in one task
+   - Bronze → Silver → Gold
+
+2. **Skip Bronze Only** (`skip_bronze=True`, `skip_silver=False`):
+   - Silver layer reads from existing Bronze tables
+   - Silver → Gold
+
+3. **Skip Silver Only** (`skip_bronze=False`, `skip_silver=True`):
+   - Gold layer automatically maps existing Silver tables from YAML
+   - Bronze → Gold (Gold reads from existing Silver)
+
+4. **Gold Only** (`skip_bronze=True`, `skip_silver=True`):
+   - Gold layer automatically maps existing Silver tables from YAML
+   - Gold only
+
 **Note:** When skipping Bronze/Silver:
 - The YAML **does not need** an `autoloader` section (only required for bronze ingestion)
 - The YAML **must** include the `silver.transform[].name` section to map existing Silver table names
 - The `input` field in each `gold` table must match a name from `silver.transform[].name`
-- The `sss_gold.py` notebook automatically handles this mapping
+- Both `sss_gold.py` and `sss_medallion.py` notebooks automatically handle this mapping
+
+### Development & Testing Tool
 
 ## Key Features
 
