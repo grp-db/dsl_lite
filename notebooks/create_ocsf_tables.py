@@ -78,7 +78,7 @@ spark.sql(f"CREATE DATABASE if not EXISTS `{catalog_name}`.`{silver_database}`")
 # Account Change (Class UID: 3001, Category: Identity & Access Management)
 # Tracks user account lifecycle events (create, modify, delete, lock, unlock, password changes)
 # Commonly used for: Active Directory logs, IAM account management, user provisioning/deprovisioning
-# Reference: https://schema.ocsf.io/1.3.0/classes/account_change
+# Reference: https://schema.ocsf.io/1.7.0/classes/account_change
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.account_change (
   dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken on the account change (e.g., Allowed, Denied)',
@@ -182,7 +182,7 @@ TBLPROPERTIES (
 
 # Authentication (Class UID: 3002, Category: Identity & Access Management)
 # Tracks user authentication events (logon, logoff, authentication failures)
-# Reference: https://schema.ocsf.io/1.3.0/classes/authentication
+# Reference: https://schema.ocsf.io/1.7.0/classes/authentication
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.authentication (
   dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken by the system (e.g., Allowed, Denied). See action_id for numeric representation.',
@@ -243,7 +243,7 @@ TBLPROPERTIES (
 # Authorize Session (Class UID: 3003, Category: Identity & Access Management)
 # Tracks authorization and access control decisions (permission grants/denials, role assignments)
 # Commonly used for: IAM policy evaluations, access denied events, privilege escalations, Cisco IOS authorization failures
-# Reference: https://schema.ocsf.io/1.3.0/classes/authorize_session
+# Reference: https://schema.ocsf.io/1.7.0/classes/authorize_session
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.authorize_session (
   dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken on the authorization request (e.g., Allowed, Denied)',
@@ -473,7 +473,7 @@ TBLPROPERTIES (
 # DNS Activity (Class UID: 4003, Category: Network Activity)
 # Tracks DNS query and response events for threat detection and investigation
 # Commonly used for: DNS server logs, DNS firewall logs, Zeek/Suricata DNS logs, Cloudflare Gateway, Pi-hole
-# Reference: https://schema.ocsf.io/1.3.0/classes/dns_activity
+# Reference: https://schema.ocsf.io/1.7.0/classes/dns_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.dns_activity (
   dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken (e.g., Allowed, Blocked for DNS filtering)',
@@ -632,7 +632,7 @@ TBLPROPERTIES (
 # File Activity (Class UID: 1001, Category: System Activity)
 # Tracks file system operations (create, read, write, delete, rename, etc.)
 # Commonly used for: File integrity monitoring (FIM), DLP logs, EDR file events, audit logs
-# Reference: https://schema.ocsf.io/1.3.0/classes/file_activity
+# Reference: https://schema.ocsf.io/1.7.0/classes/file_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.file_activity (
   dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   access_mask INT COMMENT 'The Windows access mask indicating requested file permissions (e.g., READ_DATA, WRITE_DATA, DELETE)',
@@ -737,7 +737,7 @@ TBLPROPERTIES (
 # HTTP Activity (Class UID: 4002, Category: Network Activity)
 # Tracks HTTP/HTTPS requests and responses for web traffic monitoring and API activity
 # Commonly used for: Web proxy logs, API gateway logs, WAF logs, load balancer logs
-# Reference: https://schema.ocsf.io/1.3.0/classes/http_activity
+# Reference: https://schema.ocsf.io/1.7.0/classes/http_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.http_activity (
   dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken on the HTTP request (e.g., Allowed, Blocked, Redirected)',
@@ -826,7 +826,7 @@ TBLPROPERTIES (
 # Network Activity (Class UID: 4001, Category: Network Activity)
 # Tracks network connection and traffic events (open, close, traffic flow, etc.)
 # Commonly used for: Zeek conn logs, firewall logs, VPC flow logs, network device logs
-# Reference: https://schema.ocsf.io/1.3.0/classes/network_activity
+# Reference: https://schema.ocsf.io/1.7.0/classes/network_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.network_activity (
   dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken by the network device (e.g., Allowed, Denied, Dropped)',
@@ -884,7 +884,7 @@ TBLPROPERTIES (
 # Process Activity (Class UID: 1007, Category: System Activity)
 # Tracks process lifecycle events (launch, terminate, injection, etc.)
 # Commonly used for: EDR logs, Windows Security logs, Sysmon, auditd, system monitoring
-# Reference: https://schema.ocsf.io/1.3.0/classes/process_activity
+# Reference: https://schema.ocsf.io/1.7.0/classes/process_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.process_activity (
   dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken on the process (e.g., Allowed, Blocked, Terminated)',
