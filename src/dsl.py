@@ -172,7 +172,12 @@ def make_gold_table(silver_table_name: str, tr_conf: Dict[str, Any]) -> DataFram
 
     new_fields = generate_field_exprs(tr_conf.get("fields", []))
     # print(f"Generating gold table for {tr_name} with fields {new_fields}")
-    ndf = df.selectExpr("dsl_id", *new_fields)
+    # Only include dsl_id if it exists in the source DataFrame (for cases where we skip bronze/silver and source table doesn't have it)
+    select_exprs = []
+    if "dsl_id" in df.columns:
+        select_exprs.append("dsl_id")
+    select_exprs.extend(new_fields)
+    ndf = df.selectExpr(*select_exprs)
     if "postFilter" in tr_conf:
         ndf = ndf.filter(tr_conf['postFilter'])
     
