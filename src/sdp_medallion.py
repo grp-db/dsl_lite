@@ -79,14 +79,25 @@ if not skip_silver:
             table_properties = variant_table_properties,
         )
         def silver_table():
-            return make_silver_table(bronze_table_name, tr_conf)
+            # Support fully qualified table names (catalog.database.table or database.table) in input field
+            # If input is specified and contains dots, treat it as a fully qualified name; otherwise use default bronze_table_name
+            input_table = tr_conf.get("input")
+            if input_table and '.' in input_table:
+                # Fully qualified name - use directly
+                bronze_input = input_table
+            else:
+                # Use default bronze table name (backward compatible)
+                bronze_input = bronze_table_name
+            return make_silver_table(bronze_input, tr_conf)
 
     for tr_conf in sl_conf.get('transform', []):
         create_silver_table(tr_conf)
 else:
     # Map existing Silver tables from YAML config
+    # When skipping silver, we map by silver table name (not input field - that's for bronze reference)
     for tr_conf in sl_conf.get('transform', []):
         tr_name = tr_conf.get("name") or config_data["name"]
+        # Use get_qualified_table_name (backward compatible)
         silver_tables[tr_name] = get_qualified_table_name("silver", tr_name, spark)
 
 # ocsf - gold layer
@@ -97,7 +108,18 @@ def create_gold_table(tr_conf: Dict[str, Any]):
     sink_name = get_ocsf_sink(tr_name, catalog=catalog, database=database, spark=spark)
     @sdp.append_flow(name=tr_name, target=sink_name)
     def gold_table():
-        return make_gold_table(silver_tables[tr_conf['input']], tr_conf)
+        # Support fully qualified table names (catalog.database.table or database.table) in input field
+        # If input contains dots, treat it as a fully qualified name; otherwise look up in silver_tables
+        input_name = tr_conf['input']
+        if '.' in input_name:
+            # Fully qualified name - use directly
+            silver_table_name = input_name
+        else:
+            # Simple name - look up in silver_tables
+            if input_name not in silver_tables:
+                raise Exception(f"Gold table '{tr_name}' references unknown silver table '{input_name}'. Available: {list(silver_tables.keys())}")
+            silver_table_name = silver_tables[input_name]
+        return make_gold_table(silver_table_name, tr_conf)
 
 for gold_table in config_data.get('gold', []):
     create_gold_table(gold_table)

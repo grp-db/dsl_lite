@@ -34,11 +34,8 @@ is_continuous = dbutils.widgets.get("continuous") == "True"
 if preset_file == "" or checkpoints_location == "":
     raise Exception("Please fill in: preset_file, checkpoints_location")
 
-if not skip_bronze and bronze_database == "":
-    raise Exception("Please fill in: bronze_database (or set skip_bronze=True)")
-
-if not skip_silver and silver_database == "":
-    raise Exception("Please fill in: silver_database (or set skip_silver=True)")
+# Note: bronze_database and silver_database validation happens after loading config
+# to check if any table needs them (when using fully qualified paths, they can be omitted)
 
 # Note: gold_database validation happens after loading config to check if any table needs it
 
@@ -56,8 +53,59 @@ config_data = load_config_file(preset_file)
 
 # COMMAND ----------
 
-# Validate gold_database requirement: only needed if any gold table omits 'database' in YAML
+# Validate bronze_database requirement: only needed if any silver table doesn't use fully qualified input
+sl_conf = config_data.get('silver', {})
+if not skip_bronze:
+    # Need bronze_database when creating bronze tables (to know where to WRITE output)
+    # Note: Fully qualified paths in silver.input only specify where to READ FROM, not where to write
+    if bronze_database == "":
+        raise Exception(
+            "bronze_database is required when creating bronze tables (to specify where to write output). "
+            "Fully qualified paths in 'input' fields only specify where to read from. "
+            "Either provide 'bronze_database' parameter, or set 'skip_bronze=True' to use existing bronze tables."
+        )
+elif not skip_silver:
+    # When skipping bronze but creating silver, check if silver tables need bronze_database
+    silver_tables_need_bronze_db = False
+    for tr_conf in sl_conf.get('transform', []):
+        input_table = tr_conf.get("input")
+        if not input_table or '.' not in input_table:
+            silver_tables_need_bronze_db = True
+            break
+    if silver_tables_need_bronze_db and bronze_database == "":
+        raise Exception(
+            "bronze_database is required because at least one silver table doesn't specify a fully qualified 'input' path. "
+            "Either add 'input: catalog.database.table' to each silver table in YAML, or provide 'bronze_database' parameter."
+        )
+
+# Validate silver_database requirement: only needed if any gold table doesn't use fully qualified input
 gold_tables = config_data.get('gold', [])
+if not skip_silver:
+    # Need silver_database when creating silver tables (to know where to WRITE output)
+    # Note: Fully qualified paths in gold.input only specify where to READ FROM, not where to write
+    # Silver tables don't support per-table catalog/database like gold tables do
+    if silver_database == "":
+        raise Exception(
+            "silver_database is required when creating silver tables (to specify where to write output). "
+            "Fully qualified paths in 'input' fields only specify where to read from. "
+            "Silver tables don't support per-table catalog/database configuration like gold tables do. "
+            "Either provide 'silver_database' parameter, or set 'skip_silver=True' to use existing silver tables."
+        )
+else:
+    # When skipping silver, check if gold tables need silver_database
+    gold_tables_need_silver_db = False
+    for tr_conf in gold_tables:
+        input_name = tr_conf.get('input', '')
+        if not input_name or '.' not in input_name:
+            gold_tables_need_silver_db = True
+            break
+    if gold_tables_need_silver_db and silver_database == "":
+        raise Exception(
+            "silver_database is required because at least one gold table doesn't specify a fully qualified 'input' path. "
+            "Either add 'input: catalog.database.table' to each gold table in YAML, or provide 'silver_database' parameter."
+        )
+
+# Validate gold_database requirement: only needed if any gold table omits 'database' in YAML
 if gold_tables:
     tables_missing_database = [t.get("name") for t in gold_tables if not t.get("database")]
     if tables_missing_database and gold_database == "":
@@ -117,8 +165,13 @@ if not skip_bronze:
     print(f"Started {len(bronze_streams)} bronze stream(s)")
 else:
     # Skip bronze - get bronze table name for silver to reference existing bronze
-    bronze_table_name = f"{bronze_database}.`{config_data.get('bronze', {}).get('name') or config_data['name']}`"
-    print(f"Skipping bronze layer, using existing table: {bronze_table_name}")
+    # Only construct if bronze_database was provided (otherwise silver tables must use fully qualified input)
+    if bronze_database:
+        bronze_table_name = f"{bronze_database}.`{config_data.get('bronze', {}).get('name') or config_data['name']}`"
+        print(f"Skipping bronze layer, using existing table: {bronze_table_name}")
+    else:
+        bronze_table_name = None
+        print("Skipping bronze layer - silver tables must use fully qualified 'input' paths")
 
 # COMMAND ----------
 # MAGIC %md
@@ -130,7 +183,20 @@ if not skip_silver:
     def create_silver_table(tr_conf: Dict[str, Any]):
         tr_name = tr_conf.get("name") or config_data["name"]
         tbl_name = f"{silver_database}.`{tr_name}`"
-        df = make_silver_table(bronze_table_name, tr_conf)
+        
+        # Support fully qualified table names (catalog.database.table or database.table) in input field
+        # If input is specified and contains dots, treat it as a fully qualified name; otherwise use default bronze_table_name
+        input_table = tr_conf.get("input")
+        if input_table and '.' in input_table:
+            # Fully qualified name - use directly
+            bronze_input = input_table
+        else:
+            # Use default bronze table name (backward compatible)
+            if not bronze_table_name:
+                raise Exception(f"Silver table '{tr_name}' requires either a fully qualified 'input: catalog.database.table' path, or 'bronze_database' parameter must be provided.")
+            bronze_input = bronze_table_name
+        
+        df = make_silver_table(bronze_input, tr_conf)
         writer = df.writeStream \
             .option("checkpointLocation", f"{checkpoints_location}/silver-{sanitize_string_for_flow_name(tr_name)}") \
             .queryName(f"silver-{sanitize_string_for_flow_name(tr_name)}")
@@ -152,10 +218,21 @@ if not skip_silver:
     print(f"Started {len(silver_streams)} silver stream(s)")
 else:
     # Map existing Silver tables from YAML config
+    # When skipping silver, we map by silver table name (not input field - that's for bronze reference)
+    # If silver_database is provided, construct table names; otherwise gold tables must use fully qualified input paths
     for tr_conf in sl_conf.get('transform', []):
         tr_name = tr_conf.get("name") or config_data["name"]
-        silver_tables[tr_name] = f"{silver_database}.`{tr_name}`"
-    print(f"Skipping silver layer, using existing table(s): {list(silver_tables.values())}")
+        if silver_database:
+            # Construct from silver_database parameter (backward compatible)
+            silver_tables[tr_name] = f"{silver_database}.`{tr_name}`"
+        else:
+            # No silver_database - gold tables must use fully qualified input paths
+            # We still add the name to the dict for error message purposes, but it won't be used
+            silver_tables[tr_name] = tr_name
+    if silver_database:
+        print(f"Skipping silver layer, using existing table(s): {list(silver_tables.values())}")
+    else:
+        print(f"Skipping silver layer - gold tables must use fully qualified 'input' paths")
 
 # COMMAND ----------
 # MAGIC %md
@@ -174,10 +251,19 @@ def create_gold_table(tr_conf: Dict[str, Any]):
     else:
         tbl_name = f"{database}.`{tr_name}`"
     
-    if tr_conf['input'] not in silver_tables:
-        raise Exception(f"Gold table '{tr_name}' references unknown silver table '{tr_conf['input']}'. Available: {list(silver_tables.keys())}")
+    # Support fully qualified table names (catalog.database.table or database.table) in input field
+    # If input contains dots, treat it as a fully qualified name; otherwise look up in silver_tables
+    input_name = tr_conf['input']
+    if '.' in input_name:
+        # Fully qualified name - use directly
+        silver_table_name = input_name
+    else:
+        # Simple name - look up in silver_tables
+        if input_name not in silver_tables:
+            raise Exception(f"Gold table '{tr_name}' references unknown silver table '{input_name}'. Available: {list(silver_tables.keys())}")
+        silver_table_name = silver_tables[input_name]
     
-    df = make_gold_table(silver_tables[tr_conf['input']], tr_conf)
+    df = make_gold_table(silver_table_name, tr_conf)
     writer = df.writeStream \
         .option("checkpointLocation", f"{checkpoints_location}/gold-{sanitize_string_for_flow_name(tr_name)}") \
         .queryName(f"gold-{sanitize_string_for_flow_name(tr_name)}")

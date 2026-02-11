@@ -17,6 +17,30 @@ This lightweight, self-deployable framework uses configuration files called "pre
 
 This accelerator was developed by the **Databricks Field Engineering and Professional Services teams** to enable customers to rapidly deploy enterprise-grade cybersecurity data pipelines. While Databricks owns the intellectual property, this accelerator is made publicly available to support the broader security community in building robust cyber lakehouse architectures on the Databricks platform.
 
+---
+
+## 📑 Table of Contents
+
+- [Overview](#overview)
+- [Cyber Medallion Architecture](#cyber-medallion-architecture-best-practices)
+  - [Layer-by-Layer Architecture](#layer-by-layer-architecture)
+  - [Data Flow Examples](#data-flow-examples-by-format)
+  - [OCSF Metadata Mapping](#ocsf-metadata-field-mapping)
+  - [Performance Optimization](#performance-optimization-guidelines)
+- [Project Structure](#project-structure)
+- [Getting Started](#how-to-use)
+  - [Spark Declarative Pipeline (SDP)](#execute-as-spark-declarative-pipeline-sdp)
+  - [Spark Structured Streaming (SSS)](#execute-as-spark-structured-streaming-sss-job)
+- [Advanced Configuration](#advanced-configuration)
+  - [Skipping Layers](#skipping-bronzesilver-layers)
+  - [Per-Table Catalog/Database](#per-table-catalogdatabase-configuration)
+  - [Fully Qualified Table Paths](#end-to-end-comparison-simple-input-names-vs-fully-qualified-paths)
+- [Key Features](#key-features)
+- [Supported Data Sources](#supported-data-sources)
+- [License & Attribution](#license--attribution)
+
+---
+
 ## Cyber Medallion Architecture Best Practices
 
 DSL Lite implements a three-layer medallion architecture optimized for cybersecurity data pipelines. Each layer serves a specific purpose in the data transformation journey from raw logs to OCSF-compliant analytics-ready tables.
@@ -212,6 +236,8 @@ dsl_lite/
 └── README.md                    # Documentation
 ```
 
+---
+
 ## How to use
 
 To deploy a new data streaming pipeline you need:
@@ -235,9 +261,9 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
   - `dsl_lite.gold_catalog_name` (optional) - the name of UC catalog containing gold tables. Used as default if not specified per-table in YAML.
   - `dsl_lite.gold_database_name` (optional) - the name of UC database containing gold tables. Used as default if not specified per-table in YAML.
   - `dsl_lite.bronze_catalog_name` (optional) - the name of UC catalog containing bronze tables.
-  - `dsl_lite.bronze_database_name` (optional) - the name of UC database containing bronze tables. Required if `dsl_lite.skip_bronze` is `false`.
+  - `dsl_lite.bronze_database_name` (optional) - the name of UC database containing bronze tables. Required if `dsl_lite.skip_bronze` is `false`. **Note:** Can be omitted if silver table YAML uses fully qualified `input: catalog.database.table` paths.
   - `dsl_lite.silver_catalog_name` (optional) - the name of UC catalog containing silver tables.
-  - `dsl_lite.silver_database_name` (required) - the name of UC database containing silver tables. Always required for Gold layer processing.
+  - `dsl_lite.silver_database_name` (required) - the name of UC database containing silver tables. Always required for Gold layer processing. **Note:** Can be omitted if all gold tables use fully qualified `input: catalog.database.table` paths.
   - `dsl_lite.skip_bronze` (optional, default `false`) - Skip bronze ingestion and use existing bronze tables.
   - `dsl_lite.skip_silver` (optional, default `false`) - Skip silver transformation and use existing silver tables.
 
@@ -267,6 +293,8 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
 ```
 > **Note:** `dsl_lite.gold_database_name` is omitted in this example because all gold tables specify their own `catalog` and `database` in the YAML. If any table omits these, you must provide `dsl_lite.gold_database_name` (and optionally `dsl_lite.gold_catalog_name`) as defaults.
 
+---
+
 ### Execute as Spark Structured Streaming (SSS) Job
 
 - Upload the `src` directory to your workspace.
@@ -295,23 +323,23 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
   - `continuous` (optional, default `False`) - run continuously (`True`) or batch mode (`False`).
 
 **Silver Task (`src/sss_silver.py`):**
-  - `bronze_database` (required) - the name of database containing bronze tables (same as Bronze task). Required to read from bronze tables.
+  - `bronze_database` (required) - the name of database containing bronze tables (same as Bronze task). Required to read from bronze tables. **Note:** Can be omitted if silver table YAML uses fully qualified `input: catalog.database.table` paths.
   - `silver_database` (required) - the name of database containing silver tables - could be specified as `catalog.database`. Silver does not support per-table catalog/database configuration.
   - `preset_file` (required) - full path to configuration file (same as Bronze task).
   - `checkpoints_location` (required) - path to storage location for checkpoints (can be same or different from Bronze). Each silver table gets its own checkpoint subdirectory: `{checkpoints_location}/silver-{sanitized_table_name}`.
   - `continuous` (optional, default `False`) - run continuously (`True`) or batch mode (`False`).
 
 **Gold Task (`src/sss_gold.py`):**
-  - `silver_database` (required) - the name of database containing silver tables (same as Silver task). Required to read from silver tables.
+  - `silver_database` (required) - the name of database containing silver tables (same as Silver task). Required to read from silver tables. **Note:** Can be omitted if all gold tables use fully qualified `input: catalog.database.table` paths.
   - `gold_database` (optional) - the name of database containing gold tables - could be specified as `catalog.database`. Used as default if not specified per-table in YAML. **Required only if any table omits `database` in YAML.**
   - `preset_file` (required) - full path to configuration file (same as Bronze/Silver tasks).
   - `checkpoints_location` (required) - path to storage location for checkpoints (can be same or different from other tasks). Each gold table gets its own checkpoint subdirectory: `{checkpoints_location}/gold-{table_name}`.
   - `continuous` (optional, default `False`) - run continuously (`True`) or batch mode (`False`).
 
 **Medallion Task (`src/sss_medallion.py`) - All Layers Combined:**
-  - `bronze_database` (required if `skip_bronze=False`) - the name of database containing bronze tables - could be specified as `catalog.database`.
-  - `silver_database` (required if `skip_silver=False`) - the name of database containing silver tables - could be specified as `catalog.database`.
-  - `gold_database` (required) - the name of database containing gold tables - could be specified as `catalog.database`. Used as default if not specified per-table in YAML.
+  - `bronze_database` (required if `skip_bronze=False`) - the name of database containing bronze tables - could be specified as `catalog.database`. **Note:** Can be omitted if silver table YAML uses fully qualified `input: catalog.database.table` paths.
+  - `silver_database` (required if `skip_silver=False`) - the name of database containing silver tables - could be specified as `catalog.database`. **Note:** Can be omitted if all gold tables use fully qualified `input: catalog.database.table` paths.
+  - `gold_database` (required) - the name of database containing gold tables - could be specified as `catalog.database`. Used as default if not specified per-table in YAML. **Note:** Can be omitted if all gold tables specify `database` in YAML or use fully qualified paths.
   - `skip_bronze` (optional, default `False`) - skip bronze ingestion and use existing bronze tables (`True`) or create new bronze tables (`False`).
   - `skip_silver` (optional, default `False`) - skip silver transformation and use existing silver tables (`True`) or create new silver tables (`False`).
   - `preset_file` (required) - full path to configuration file. Example: `/Workspace/Users/<user@email.com>/dsl_lite/pipelines/cisco/ios/preset.yaml`.
@@ -417,7 +445,13 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
 }
 ```
 
+---
+
+## Advanced Configuration
+
 ### Skipping Bronze/Silver Layers
+
+> **Note:** This section covers skipping layers for both multi-task and single-task jobs. See also the consolidated guide below.
 
 **With Multi-Task Jobs:**
 Skipping layers is done by **not including those tasks** in your job configuration:
@@ -476,9 +510,25 @@ Skipping layers is done using the `skip_bronze` and `skip_silver` parameters:
 - Gold layer will use existing Silver tables (mapped from YAML)
 - See the "Gold Only" example in the Single-Task Medallion Job section above
 
+---
+
 ### Per-Table Catalog/Database Configuration
 
-Both SDP and Spark Job modes support per-table catalog and database configuration in the YAML preset file. This allows you to route different OCSF tables to different catalogs/databases:
+Both SDP and Spark Job modes support per-table catalog and database configuration in the YAML preset file. This allows you to route different OCSF tables to different catalogs/databases.
+
+**Two Approaches for Flexibility:**
+
+1. **Using Config Parameters** (Recommended for most cases):
+   - Specify `bronze_database`, `silver_database`, `gold_database` parameters (or `dsl_lite.*_database_name` for SDP)
+   - Tables are constructed from these parameters + table names from YAML
+   - Simple and portable across environments
+
+2. **Using Fully Qualified Table Paths** (For advanced scenarios):
+   - Specify fully qualified table names directly in YAML `input` fields: `catalog.database.table` or `database.table`
+   - No need for database parameters when all tables use fully qualified paths
+   - Useful for referencing tables from different catalogs/databases or outside the current pipeline
+
+**Example: Per-Table Catalog/Database in YAML**
 
 ```yaml
 gold:
@@ -502,9 +552,210 @@ gold:
       # ... other fields ...
 ```
 
+**Fully Qualified Table Paths:**
+- Silver tables can specify `input: catalog.database.table` to reference bronze tables with fully qualified paths
+- Gold tables can specify `input: catalog.database.table` to reference silver tables with fully qualified paths
+- **Important Distinction:**
+  - **YAML `input` fields:** Specify **where to read from** (source tables)
+  - **Job/Notebook parameters (`bronze_database`, `silver_database`):** Specify **where to write to** (output tables)
+  - **YAML `catalog`/`database` fields (Gold only):** Specify **where to write to** (output tables) - only supported for Gold tables
+- **When creating tables** (not skipping), you still need database **parameters** (`bronze_database`, `silver_database`) to specify where to write output tables
+- **When skipping layers**, database parameters can be omitted if all tables use fully qualified `input` paths
+- **Bronze and Silver tables** don't support `catalog`/`database` fields in YAML (unlike Gold tables) - you must use parameters
+- Useful for referencing tables from different catalogs/databases or outside the current pipeline
+
 **How it works:**
-- If `catalog` and/or `database` are specified in YAML → uses those values
-- If omitted → falls back to global config
+- **For Gold Tables:**
+  - **Input (where to read from):** If `input` contains a dot (`.`) → treated as fully qualified name, used directly. If `input` has no dot → looked up in `silver_tables` dictionary (constructed from `silver_database` parameter)
+  - **Output (where to write to):** If `catalog` and/or `database` are specified in YAML → uses those values for the output table. If omitted → falls back to `gold_database` parameter
+
+- **For Silver Tables:**
+  - **Input (where to read from - YAML field):** If `input` is specified and contains a dot (`.`) → treated as fully qualified bronze table name, used directly. If `input` is omitted or has no dot → uses default `bronze_table_name` (constructed from `bronze_database` parameter)
+  - **Output (where to write to - Job parameter):** Silver tables don't support `catalog`/`database` fields in YAML. Always uses `silver_database` **job parameter** (not a YAML field) to determine where to write output tables
+
+- **For Bronze Tables:**
+  - **Output (where to write to - Job parameter):** Bronze tables don't support `catalog`/`database` fields in YAML. Always uses `bronze_database` **job parameter** (not a YAML field) to determine where to write output tables
+
+**End-to-End Comparison: Simple Input Names vs Fully Qualified Paths**
+
+Here are complete examples showing both approaches:
+
+**Approach 1: Using Simple Input Names (with Database Parameters)**
+
+**YAML (`preset.yaml`):**
+```yaml
+name: cisco_ios
+description: "Cisco IOS logs"
+
+autoloader:
+  inputs:
+    - /Volumes/logs/cisco/ios/
+  format: text
+
+bronze:
+  name: cisco_ios_bronze
+  preTransform:
+    - ["*", "TO_TIMESTAMP(...) as time"]
+
+silver:
+  transform:
+    - name: cisco_ios_silver
+      # No input field - uses bronze_database parameter
+      fields:
+        - name: timestamp
+          expr: "..."
+
+gold:
+  - name: authentication
+    input: cisco_ios_silver  # Simple name - uses silver_database parameter
+    filter: facility IN ('AAA', 'SEC_LOGIN')
+    fields:
+      - name: time
+        expr: CAST(timestamp AS TIMESTAMP)
+```
+
+**Job Parameters (SSS Medallion):**
+```json
+{
+  "bronze_database": "bronze_db",
+  "silver_database": "silver_db",
+  "gold_database": "gold_db",
+  "preset_file": "/path/to/preset.yaml",
+  "checkpoints_location": "/Volumes/checkpoints",
+  "skip_bronze": "False",
+  "skip_silver": "False"
+}
+```
+
+**Resulting Tables:**
+- Bronze: `bronze_db.cisco_ios_bronze`
+- Silver: `silver_db.cisco_ios_silver` (reads from `bronze_db.cisco_ios_bronze`)
+- Gold: `gold_db.authentication` (reads from `silver_db.cisco_ios_silver`)
+
+---
+
+**Approach 2: Using Fully Qualified Paths (Best for Skipping Layers)**
+
+> **Note:** Fully qualified paths are most useful when **skipping layers**. When creating all layers, you still need database parameters to specify where to write tables, so fully qualified paths in `input` fields don't provide much benefit unless you're reading from a different database than where you're writing.
+
+**Use Case 1: Skipping Bronze, Creating Silver (Cross-Database Read)**
+
+**YAML (`preset.yaml`):**
+```yaml
+name: cisco_ios
+description: "Cisco IOS logs"
+
+# No autoloader or bronze sections needed (skipping bronze)
+
+silver:
+  transform:
+    - name: cisco_ios_silver
+      input: prod_catalog.raw_db.cisco_ios_bronze  # Read from existing bronze in different database
+      fields:
+        - name: timestamp
+          expr: "..."
+
+gold:
+  - name: authentication
+    input: cisco_ios_silver  # Simple name - uses silver_database parameter
+    catalog: prod_catalog
+    database: gold_db
+    filter: facility IN ('AAA', 'SEC_LOGIN')
+    fields:
+      - name: time
+        expr: CAST(timestamp AS TIMESTAMP)
+```
+
+**Job Parameters (SSS Medallion):**
+```json
+{
+  "silver_database": "prod_catalog.enriched_db",  // Where to write silver (different from bronze location)
+  "preset_file": "/path/to/preset.yaml",
+  "checkpoints_location": "/Volumes/checkpoints",
+  "skip_bronze": "True",   // Skipping bronze - no bronze_database needed!
+  "skip_silver": "False"
+  // gold_database not needed - specified in YAML
+}
+```
+
+**Result:** Silver reads from `prod_catalog.raw_db.cisco_ios_bronze` (existing) but writes to `prod_catalog.enriched_db.cisco_ios_silver` (new table).
+
+**Use Case 2: Gold Only (Skipping Bronze/Silver) - No Database Parameters Needed**
+
+**YAML (`preset.yaml`):**
+```yaml
+name: cisco_ios
+description: "Cisco IOS logs"
+
+# No autoloader or bronze sections needed
+
+# No silver section needed when using fully qualified paths
+
+gold:
+  - name: authentication
+    input: prod_catalog.enriched_db.cisco_ios_silver  # Fully qualified path (source table)
+    catalog: prod_catalog  # Target catalog where gold table will be written
+    database: gold_db      # Target database where gold table will be written
+    filter: facility IN ('AAA', 'SEC_LOGIN')
+    fields:
+      - name: time
+        expr: CAST(timestamp AS TIMESTAMP)
+```
+
+**Job Parameters (SSS Medallion):**
+```json
+{
+  "preset_file": "/path/to/preset.yaml",
+  "checkpoints_location": "/Volumes/checkpoints",
+  "skip_bronze": "True",
+  "skip_silver": "True"
+  // No database parameters needed - all paths are fully qualified!
+}
+```
+
+**When to Use Each Approach:**
+- **Simple Input Names**: Best for standard pipelines where all tables are in the same catalog/database structure
+- **Fully Qualified Paths**: Best for skipping layers, cross-database references, or when you want to avoid database parameters
+
+**Resulting Tables:**
+- Bronze: `my_catalog.bronze_db.cisco_ios_bronze` (if bronze_database was `my_catalog.bronze_db`)
+- Silver: `my_catalog.silver_db.cisco_ios_silver` (reads from `my_catalog.bronze_db.cisco_ios_bronze`)
+- Gold: `my_catalog.gold_db.authentication` (reads from `my_catalog.silver_db.cisco_ios_silver`)
+
+---
+
+**Skipping Layers Example (Gold Only with Fully Qualified Paths):**
+
+**YAML (`preset.yaml`):**
+```yaml
+name: cisco_ios
+description: "Cisco IOS logs"
+
+# No autoloader or bronze sections needed
+
+# No silver section needed when using fully qualified paths
+
+gold:
+  - name: authentication
+    input: my_catalog.silver_db.cisco_ios_silver  # Fully qualified path
+    catalog: my_catalog
+    database: gold_db
+    filter: facility IN ('AAA', 'SEC_LOGIN')
+    fields:
+      - name: time
+        expr: CAST(timestamp AS TIMESTAMP)
+```
+
+**Job Parameters:**
+```json
+{
+  "preset_file": "/path/to/preset.yaml",
+  "checkpoints_location": "/Volumes/checkpoints",
+  "skip_bronze": "True",
+  "skip_silver": "True"
+  // No database parameters needed!
+}
+```
 
 **Configuration Requirements:**
 
@@ -520,64 +771,11 @@ gold:
 - If **any** table omits `catalog` or `database` in YAML → you **must** provide `dsl_lite.gold_database_name` (and optionally `dsl_lite.gold_catalog_name`) as defaults
 - Note: SDP requires both catalog and database to be specified (either per-table in YAML or via Spark conf defaults)
 
-### Skip Bronze/Silver Layer Processing
-
-Both SDP and Spark Structured Streaming (SSS) modes support skipping Bronze and/or Silver layers to process Gold from existing tables. This is useful for:
-- Migrating existing Silver tables to OCSF Gold format
-- Re-processing Gold after updating OCSF mappings without re-ingesting raw data
-- Using Bronze/Silver tables created outside DSL Lite
-
-**For SDP Mode:**
-Use the `skip_bronze` and `skip_silver` configuration flags as documented in the SDP section above.
-
-**For SSS Multi-Task Jobs:**
-Skip layers by **not including those tasks** in your job configuration:
-
-1. **Full Pipeline** (all 3 tasks):
-   - Include Bronze, Silver, and Gold tasks with dependencies
-   - Bronze → Silver → Gold
-
-2. **Skip Bronze Only** (2 tasks: Silver + Gold):
-   - Remove Bronze task from job
-   - Silver task reads from existing Bronze tables
-   - Silver → Gold
-
-3. **Skip Silver Only** (2 tasks: Bronze + Gold):
-   - Remove Silver task from job
-   - Gold task automatically maps existing Silver tables from YAML
-   - Bronze → Gold (Gold reads from existing Silver)
-
-4. **Gold Only** (1 task: Gold only):
-   - Remove both Bronze and Silver tasks
-   - Gold task automatically maps existing Silver tables from YAML
-   - Gold only
-
-**For SSS Single-Task Medallion Job (`sss_medallion.py`):**
-Skip layers using the `skip_bronze` and `skip_silver` parameters:
-
-1. **Full Pipeline** (`skip_bronze=False`, `skip_silver=False`):
-   - Executes all three layers sequentially in one task
-   - Bronze → Silver → Gold
-
-2. **Skip Bronze Only** (`skip_bronze=True`, `skip_silver=False`):
-   - Silver layer reads from existing Bronze tables
-   - Silver → Gold
-
-3. **Skip Silver Only** (`skip_bronze=False`, `skip_silver=True`):
-   - Gold layer automatically maps existing Silver tables from YAML
-   - Bronze → Gold (Gold reads from existing Silver)
-
-4. **Gold Only** (`skip_bronze=True`, `skip_silver=True`):
-   - Gold layer automatically maps existing Silver tables from YAML
-   - Gold only
-
-**Note:** When skipping Bronze/Silver:
-- The YAML **does not need** an `autoloader` section (only required for bronze ingestion)
-- The YAML **must** include the `silver.transform[].name` section to map existing Silver table names
-- The `input` field in each `gold` table must match a name from `silver.transform[].name`
-- Both `sss_gold.py` and `sss_medallion.py` notebooks automatically handle this mapping
+---
 
 ### Development & Testing Tool
+
+---
 
 ## Key Features
 
@@ -589,6 +787,8 @@ Skip layers using the `skip_bronze` and `skip_silver` parameters:
 - **Streaming or batch**: Run continuously or in batch mode with `availableNow` trigger
 - **High performance**: Optimized `dsl_id` generation (3x faster than UDF-based approach)
 
+---
+
 ## Supported Data Sources
 
 DSL Lite uses Databricks Auto Loader to ingest data from file-based sources:
@@ -598,6 +798,8 @@ DSL Lite uses Databricks Auto Loader to ingest data from file-based sources:
 - **Log Formats**: JSON, JSON Lines, CSV, Parquet, text/syslog
 
 Support for streaming sources (Kafka, Event Hubs, Kinesis) can be added based on customer requirements.
+
+---
 
 ---
 
