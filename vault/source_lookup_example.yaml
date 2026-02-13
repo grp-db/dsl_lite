@@ -1,0 +1,103 @@
+# Example YAML configuration showing how to use source_metadata as a Delta table lookup
+# This example enriches bronze records with vendor metadata based on source and sourcetype
+
+name: example_with_lookup
+description: "Example pipeline with Delta table lookup"
+
+autoloader:
+  inputs:
+    - /Volumes/logs/cisco/ios/
+  format: text
+
+bronze:
+  name: cisco_ios_bronze
+  preTransform:
+    - "*"
+    - "_metadata.file_path"
+    - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
+    - CAST(time AS DATE) as date
+    - CAST('cisco' AS STRING) AS source
+    - CAST('ios' AS STRING) AS sourcetype
+    - CURRENT_TIMESTAMP() as processed_time
+  lookups:
+    - name: source_metadata
+      source:
+        type: table
+        # Fully qualified Delta table name (catalog.database.table)
+        path: dsl_lite.lookups.source_metadata
+        # Alternative: Use CSV file directly (commented out)
+        # type: csv
+        # path: /Volumes/dsl_lite/vault/source_lookup.csv
+        # format: csv
+        # options:
+        #   header: "true"
+        #   inferSchema: "true"
+      join:
+        type: left
+        # Join on both source and sourcetype columns
+        # "main" refers to the bronze DataFrame (cisco_ios_bronze table)
+        # "lookup" refers to the lookup DataFrame (source_metadata table)
+        # So main.source = the "source" column in cisco_ios_bronze
+        # And lookup.source = the "source" column in source_metadata
+        # IMPORTANT: 'on' must be quoted in YAML to avoid being interpreted as boolean True
+        "on":
+          # Simple format: column names match in both tables
+          - source
+          - sourcetype
+          # Alternative explicit format (if column names differ):
+          # - main.source = lookup.source
+          # - main.sourcetype = lookup.sourcetype
+      select:
+        - vendor_name
+        - log_format
+        - default_severity
+        - category
+        - parsing_version
+      prefix: "lookup_"  # Columns will be: lookup_vendor_name, lookup_log_format, etc.
+      broadcast: true     # Recommended for small lookup tables
+
+silver:
+  transform:
+    - name: cisco_ios_silver
+      # Lookup columns from bronze are now available here
+      # You can reference: lookup_vendor_name, lookup_log_format, lookup_default_severity, etc.
+      fields:
+        - name: seq_no
+          expr: REGEXP_EXTRACT(value, '^(\\d+):\\s+(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+):\\s+%(\\w+)-(\\d+)-(\\w+):\\s(.+)$', 1)
+        - name: timestamp
+          expr: REGEXP_EXTRACT(value, '^(\\d+):\\s+(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+):\\s+%(\\w+)-(\\d+)-(\\w+):\\s(.+)$', 2)
+        - name: facility
+          expr: REGEXP_EXTRACT(value, '^(\\d+):\\s+(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+):\\s+%(\\w+)-(\\d+)-(\\w+):\\s(.+)$', 3)
+        - name: severity
+          expr: REGEXP_EXTRACT(value, '^(\\d+):\\s+(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+):\\s+%(\\w+)-(\\d+)-(\\w+):\\s(.+)$', 4)
+        - name: mnemonic
+          expr: REGEXP_EXTRACT(value, '^(\\d+):\\s+(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+):\\s+%(\\w+)-(\\d+)-(\\w+):\\s(.+)$', 5)
+        - name: description
+          expr: REGEXP_EXTRACT(value, '^(\\d+):\\s+(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+):\\s+%(\\w+)-(\\d+)-(\\w+):\\s(.+)$', 6)
+        # Example: Use lookup column in silver transformation
+        - name: vendor_name
+          from: lookup_vendor_name
+        - name: log_category
+          from: lookup_category
+
+gold:
+  - name: authentication
+    input: cisco_ios_silver
+    filter: facility IN ('AAA', 'SEC_LOGIN')
+    fields:
+      - name: time
+        expr: CAST(timestamp AS TIMESTAMP)
+      # Lookup columns are also available in gold
+      - name: metadata.log_provider
+        from: lookup_vendor_name
+      - name: metadata.log_format
+        from: lookup_log_format
+      - name: severity_id
+        # Use lookup default_severity as fallback if severity is missing
+        expr: |
+          COALESCE(
+            CAST(severity AS INT),
+            CAST(lookup_default_severity AS INT),
+            0
+          )
+

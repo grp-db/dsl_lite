@@ -1,0 +1,12 @@
+source,sourcetype,vendor_name,log_format,default_severity,category,parsing_version,notes
+cisco,ios,Cisco Systems,syslog,3,Network Security,1.0,Standard Cisco IOS syslog format
+zeek,conn,Zeek,JSON,2,Network Activity,1.0,Zeek connection logs in JSON format
+cloudflare,gateway_dns,Cloudflare,JSON,2,DNS Activity,1.0,Cloudflare Gateway DNS logs
+cisco,asa,Cisco Systems,syslog,3,Network Security,1.0,Cisco ASA firewall logs
+paloalto,traffic,Palo Alto Networks,syslog,2,Network Activity,1.0,Palo Alto traffic logs
+splunk,search,Splunk,JSON,1,Application Activity,1.0,Splunk search activity logs
+windows,security,Microsoft,EVTX,4,Identity Access Management,1.0,Windows Security Event Logs
+linux,syslog,Linux Foundation,syslog,2,System Activity,1.0,Standard Linux syslog
+aws,cloudtrail,Amazon Web Services,JSON,2,Cloud Activity,1.0,AWS CloudTrail logs
+azure,activity,Microsoft,JSON,2,Cloud Activity,1.0,Azure Activity logs
+

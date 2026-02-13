@@ -8,6 +8,7 @@ Copyright © Databricks, Inc.
 
 from yaml import load, Loader
 from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import broadcast, col as spark_col
 from typing import Optional, Dict, Any, List, Union
 from utils import substitute_secrets
 
@@ -71,6 +72,12 @@ def read_bronze_stream(config: Dict[str, Any], input: str, add_opts: Optional[di
         df = df.selectExpr(*pt)
     
     df = df.selectExpr("*", "lower(concat(hex(unix_millis(current_timestamp())), substring(replace(uuid(), '-', ''), 0, 13))) as dsl_id")
+    
+    # Apply lookups if configured
+    lookups = bronze_conf.get('lookups', [])
+    if lookups:
+        df = apply_lookups(df, lookups)
+    
     return df
 
 
@@ -129,10 +136,199 @@ def strip_backticks(c: str) -> str:
     return c
 
 
+def read_lookup(source_conf: Dict[str, Any]) -> DataFrame:
+    """
+    Read a lookup table or file.
+    
+    Args:
+        source_conf: Configuration dict with 'type', 'path', optionally 'format' and 'options'
+    
+    Returns:
+        DataFrame: The lookup DataFrame (batch read, not streaming)
+    """
+    source_type = source_conf.get('type', 'table')
+    path = source_conf.get('path')
+    
+    if not path:
+        raise Exception("Lookup source must specify 'path'")
+    
+    spark = SparkSession.getActiveSession()
+    
+    if source_type == 'table':
+        # Read as table (supports fully qualified names: catalog.database.table)
+        return spark.read.table(path)
+    elif source_type in ['csv', 'parquet', 'json', 'jsonl']:
+        # Read as file
+        format_type = source_conf.get('format', source_type)
+        options = source_conf.get('options', {})
+        
+        reader = spark.read.format(format_type)
+        if options:
+            reader = reader.options(**options)
+        
+        return reader.load(path)
+    else:
+        raise Exception(f"Unsupported lookup source type: {source_type}")
+
+
+def apply_lookups(df: DataFrame, lookups: List[Dict[str, Any]]) -> DataFrame:
+    """
+    Apply one or more lookup joins to a DataFrame.
+    
+    Args:
+        df: Main DataFrame (streaming or batch)
+        lookups: List of lookup configurations
+    
+    Returns:
+        DataFrame: DataFrame with lookup columns added
+    """
+    result_df = df
+    
+    for lookup_conf in lookups:
+        lookup_name = lookup_conf.get('name', 'unnamed')
+        
+        # Read lookup table/file (batch read)
+        try:
+            lookup_df = read_lookup(lookup_conf['source'])
+        except Exception as e:
+            raise Exception(f"Failed to read lookup '{lookup_name}': {str(e)}")
+        
+        # Build join condition
+        join_conf = lookup_conf.get('join', {})
+        if not join_conf:
+            raise Exception(
+                f"Lookup '{lookup_name}' must specify a 'join' section with 'on' conditions. "
+                f"Available keys in lookup config: {list(lookup_conf.keys())}"
+            )
+        
+        join_type = join_conf.get('type', 'left')
+        
+        # Handle YAML boolean issue: 'on' is interpreted as True in YAML
+        # Try 'on' first (if quoted as "on" in YAML), then True (if unquoted)
+        # Note: Users should quote 'on' as "on" in YAML to avoid this issue
+        join_conditions = join_conf.get('on') or join_conf.get(True) or []
+        
+        # If join_conditions is a list of dicts (from YAML parsing issue), convert to simple format
+        if join_conditions and isinstance(join_conditions, list) and len(join_conditions) > 0:
+            if isinstance(join_conditions[0], dict):
+                # Convert from [{'left': 'source', 'right': 'source'}, ...] format
+                # This happens when YAML parses the list incorrectly
+                # Extract the 'left' or 'right' value (they should be the same for simple format)
+                join_conditions = [item.get('left') or item.get('right') for item in join_conditions if isinstance(item, dict)]
+        
+        if not join_conditions:
+            raise Exception(
+                f"Lookup '{lookup_name}' must specify join conditions in 'join.on'. "
+                f"Note: In YAML, 'on:' must be quoted as '\"on\":' to avoid being interpreted as boolean True. "
+                f"Found join config: {join_conf}"
+            )
+        
+        # Parse join conditions using Spark Column API for better type safety
+        join_exprs = []
+        for condition in join_conditions:
+            if '=' in condition:
+                # Format: "main.column = lookup.column"
+                parts = [p.strip() for p in condition.split('=', 1)]  # Split on first '=' only
+                if len(parts) != 2:
+                    raise Exception(f"Invalid join condition format: {condition}. Expected 'main.column = lookup.column'")
+                
+                main_col_expr = parts[0].replace('main.', '').strip()
+                lookup_col_expr = parts[1].replace('lookup.', '').strip()
+                
+                # Validate columns exist
+                main_col_name = strip_backticks(main_col_expr)
+                lookup_col_name = strip_backticks(lookup_col_expr)
+                
+                if main_col_name not in result_df.columns:
+                    raise Exception(f"Join condition error in lookup '{lookup_name}': column '{main_col_name}' not found in main DataFrame")
+                if lookup_col_name not in lookup_df.columns:
+                    raise Exception(f"Join condition error in lookup '{lookup_name}': column '{lookup_col_name}' not found in lookup DataFrame")
+                
+                # Build Column expression using spark_col() with explicit alias references
+                join_exprs.append(spark_col(f"main.{main_col_name}") == spark_col(f"lookup.{lookup_col_name}"))
+            else:
+                # Simple format: just column name (assumes same name in both tables)
+                col_name = strip_backticks(condition.strip())
+                
+                if col_name not in result_df.columns:
+                    raise Exception(
+                        f"Join condition error in lookup '{lookup_name}': column '{col_name}' not found in main DataFrame. "
+                        f"Available columns: {result_df.columns}"
+                    )
+                if col_name not in lookup_df.columns:
+                    raise Exception(
+                        f"Join condition error in lookup '{lookup_name}': column '{col_name}' not found in lookup DataFrame. "
+                        f"Available columns: {lookup_df.columns}"
+                    )
+                
+                # For same column name, use spark_col() with explicit aliases to avoid ambiguity
+                join_exprs.append(spark_col(f"main.{col_name}") == spark_col(f"lookup.{col_name}"))
+        
+        # Combine multiple conditions with AND
+        if len(join_exprs) == 1:
+            join_expr = join_exprs[0]
+        else:
+            join_expr = join_exprs[0]
+            for expr in join_exprs[1:]:
+                join_expr = join_expr & expr
+        
+        # Determine which lookup columns to include (keep original names for join, prefix after)
+        select_cols = lookup_conf.get('select', [])
+        prefix = lookup_conf.get('prefix', '')
+        
+        # Validate selected columns exist in lookup
+        if select_cols:
+            for col_name in select_cols:
+                if col_name not in lookup_df.columns:
+                    raise Exception(f"Lookup '{lookup_name}': column '{col_name}' not found in lookup DataFrame. Available columns: {lookup_df.columns}")
+            lookup_cols_to_join = select_cols
+        else:
+            # Include all lookup columns
+            lookup_cols_to_join = lookup_df.columns
+        
+        # Apply broadcast hint for small lookups (optional, can be configured)
+        if lookup_conf.get('broadcast', False):
+            lookup_df = broadcast(lookup_df)
+        
+        # Perform join (stream-static join for streaming DataFrames)
+        # Spark automatically handles stream-static joins when joining streaming with batch DataFrame
+        # Use aliases to avoid column name conflicts
+        main_df_alias = result_df.alias("main")
+        lookup_df_alias = lookup_df.alias("lookup")
+        
+        if join_type == 'left':
+            joined_df = main_df_alias.join(lookup_df_alias, join_expr, 'left')
+        elif join_type == 'inner':
+            joined_df = main_df_alias.join(lookup_df_alias, join_expr, 'inner')
+        elif join_type == 'right':
+            joined_df = main_df_alias.join(lookup_df_alias, join_expr, 'right')
+        elif join_type == 'full':
+            joined_df = main_df_alias.join(lookup_df_alias, join_expr, 'full')
+        else:
+            raise Exception(f"Unsupported join type: {join_type}. Must be one of: left, inner, right, full")
+        
+        # After join, select main columns and lookup columns with prefix
+        main_cols = [spark_col(f"main.{col}").alias(col) for col in result_df.columns]
+        if prefix:
+            lookup_cols = [spark_col(f"lookup.{col}").alias(f"{prefix}{col}") for col in lookup_cols_to_join]
+        else:
+            lookup_cols = [spark_col(f"lookup.{col}") for col in lookup_cols_to_join]
+        
+        result_df = joined_df.select(*main_cols, *lookup_cols)
+    
+    return result_df
+
+
 # TODO: make sure that we handle data in the same order as described in the docs:
 # https://docs.sl.antimatter.io/preset-development/notebook-preset-development-tool#232-order-of-operations
 def make_silver_table(bronze_table_name: str, tr_conf: Dict[str, Any]) -> DataFrame:
     df = SparkSession.getActiveSession().readStream.option("skipChangeCommits", "true").table(bronze_table_name)
+    
+    # Apply lookups BEFORE other transformations (so lookup columns are available for field expressions)
+    lookups = tr_conf.get('lookups', [])
+    if lookups:
+        df = apply_lookups(df, lookups)
+    
     if "filter" in tr_conf:
         df = df.filter(tr_conf['filter'])
 
