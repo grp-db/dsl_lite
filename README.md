@@ -36,6 +36,7 @@ This accelerator was developed by the **Databricks Field Engineering and Profess
   - [Per-Table Catalog/Database](#per-table-catalogdatabase-configuration)
   - [Fully Qualified Table Paths](#end-to-end-comparison-simple-input-names-vs-fully-qualified-paths)
   - [Lookup Joins](#lookup-joins)
+- [Development & Testing Tool](#development--testing-tool)
 - [Key Features](#key-features)
 - [Supported Data Sources](#supported-data-sources)
 - [License & Attribution](#license--attribution)
@@ -906,6 +907,15 @@ gold:
 ---
 
 ### Development & Testing Tool
+
+**DASL Preset Tool** provides an interactive development workflow for creating, testing, and iterating on preset configurations before deploying to production with DSL Lite.
+
+- **Interactive Development**: Test preset transformations in real-time using sample log files
+- **Rapid Iteration**: Quickly validate changes to YAML preset configurations
+- **Preview & Debug**: Preview bronze, silver, and gold layer outputs before deployment
+- **Production Deployment**: Once validated, deploy presets via DSL Lite
+
+For more information, see the [DASL Preset Tool repository](https://github.com/grp-db/preset_tool).
 
 ---
 
