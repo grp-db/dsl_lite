@@ -28,6 +28,7 @@ This accelerator was developed by the **Databricks Field Engineering and Profess
   - [OCSF Metadata Mapping](#ocsf-metadata-field-mapping)
   - [Performance Optimization](#performance-optimization-guidelines)
 - [Project Structure](#project-structure)
+- [OCSF documentation](#ocsf-documentation)
 - [Getting Started](#how-to-use)
   - [Spark Declarative Pipeline (SDP)](#execute-as-spark-declarative-pipeline-sdp)
   - [Spark Structured Streaming (SSS)](#execute-as-spark-structured-streaming-sss-job)
@@ -39,6 +40,7 @@ This accelerator was developed by the **Databricks Field Engineering and Profess
 - [Development & Testing Tool](#development--testing-tool)
 - [Key Features](#key-features)
 - [Supported Data Sources](#supported-data-sources)
+- [Limitations](#limitations)
 - [License & Attribution](#license--attribution)
 
 ---
@@ -235,10 +237,22 @@ dsl_lite/
 │   └── create_ocsf_tables.py    # Setup notebook for OCSF tables
 ├── pipelines/                    # Configuration presets (Cisco, Zeek, Cloudflare, etc.)
 ├── ocsf_templates/              # OCSF mapping templates (21 standardized templates)
+├── docs/                         # OCSF reference documentation
+│   ├── ocsf_spark_expressions/  # Gold-layer Spark SQL (CASE WHEN, named_struct)
+│   ├── ocsf_event_categories/   # OCSF table docs by category (network, IAM, system)
+│   └── ocsf_ddl_fields/         # DDL/reference for common structs (metadata, endpoint, ids, etc.)
 ├── vault/                       # Maintenance utilities for template management
 ├── raw_logs/                    # Sample logs for testing
 └── README.md                    # Documentation
 ```
+
+### OCSF documentation
+
+| Folder | Contents |
+|--------|----------|
+| `docs/ocsf_spark_expressions/` | Gold-layer Spark SQL: CASE WHEN templates, named_struct, bold-column field logic. |
+| `docs/ocsf_event_categories/` | OCSF table docs by category: network_activity, identity_access_management, system_activity. |
+| `docs/ocsf_ddl_fields/` | DDL and reference for common structs: metadata, endpoint, ids, cloud, connection_info, traffic, enrichments/observables, IAM (session, user, service). |
 
 ---
 
@@ -942,6 +956,16 @@ DSL Lite uses Databricks Auto Loader to ingest data from file-based sources:
 Support for streaming sources (Kafka, Event Hubs, Kinesis) can be added based on customer requirements.
 
 ---
+
+## Limitations
+
+- **File-based ingestion only.** Ingestion is via Databricks Auto Loader only. There is no built-in support for Kafka, Event Hubs, Kinesis, or other streaming sources; those would require custom integration.
+- **Auto Loader: one stream per path.** Each path in `autoloader.inputs` is a separate stream with its own checkpoint.
+- **SDP (Spark Declarative Pipeline) mode.** With SDP deployment, confirm in your environment whether pipelines support continuous execution or only trigger-based (e.g. “Trigger now”) runs. Behavior may depend on Databricks runtime and Lakeflow configuration.
+- **No interactive `display()` in pipeline execution.** The framework runs as batch/streaming jobs. There is no built-in interactive notebook experience with `df.display()` for ad-hoc preview of pipeline output; use the [DASL Preset Tool](https://github.com/grp-db/preset_tool) or run queries against the tables after the job.
+- **One pipeline per log source.** Each log source (e.g. Cisco IOS, Zeek conn, Cloudflare DNS) is configured as a separate preset and typically a separate pipeline. Multi-source aggregation happens in the gold OCSF tables, not in a single preset.
+- **Lookups are static.** Bronze and silver lookups are batch/static (Delta, CSV, etc.). There is no streaming lookup or real-time enrichment from a changing reference table.
+- **Schema and preset changes.** When a source schema or OCSF mapping changes, preset YAML and possibly gold table DDL need to be updated; there is no automatic schema migration from the preset.
 
 ---
 
