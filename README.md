@@ -831,12 +831,32 @@ bronze:
           - main.src_ip = lookup.ip_address  # Format: "main.<column> = lookup.<column>"
           # OR simple format (if column names match):
           # - ip                      # Joins on main.ip = lookup.ip
+          # For two (or more) columns, list multiple conditions (ANDed together):
+          # - main.source = lookup.source
+          # - main.sourcetype = lookup.sourcetype
+          # Or simple: - source   and   - sourcetype
       select:                        # Optional: which columns to include from lookup
         - country_code
         - city
         - asn
       prefix: "src_geo_"             # Optional: prefix for lookup columns
       broadcast: true                 # Optional: use broadcast join for small lookups
+  # Optional: transform after lookups (e.g. build a struct from lookup columns)
+  postTransform:
+    - "*"   # Keep all columns
+    - "named_struct('country', src_geo_country_code, 'city', src_geo_city) as src_geo_location"
+```
+
+**Bronze order of operations:** `preTransform` → `dsl_id` → lookups → `postTransform` → `drop`. Use `postTransform` to add expressions that use lookup columns (e.g. `named_struct`). Include `"*"` first to keep existing columns, then add new expressions. Use **`drop`** to remove columns by name (e.g. after folding lookup columns into a struct):
+
+```yaml
+bronze:
+  postTransform:
+    - "*"
+    - "named_struct('country', src_geo_country_code, 'city', src_geo_city) as src_geo_location"
+  drop:
+    - src_geo_country_code
+    - src_geo_city
 ```
 
 #### Silver Layer Lookup
@@ -905,7 +925,7 @@ gold:
 | `source.format` | File format (required for file sources) | Same as `type` |
 | `source.options` | File read options (e.g., `header: "true"`, `inferSchema: "true"`) | `{}` |
 | `join.type` | Join type: `left`, `inner`, `right`, `full` | `left` |
-| `join.on` | Join condition(s): `main.<column> = lookup.<column>` or simple column name. **Must be quoted as `"on"` in YAML** to avoid being interpreted as boolean `True` | Required |
+| `join.on` | List of join condition(s); multiple conditions are ANDed. Use `main.<col> = lookup.<col>` or a single column name (same name in both). **Must be quoted as `"on"` in YAML** to avoid being interpreted as boolean `True`. | Required |
 | `select` | Columns to include from lookup (if omitted, all columns included) | All columns |
 | `prefix` | Prefix for lookup columns to avoid conflicts | None |
 | `broadcast` | Use broadcast join for small lookups (< 2GB) | `false` |

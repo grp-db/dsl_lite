@@ -78,6 +78,19 @@ def read_bronze_stream(config: Dict[str, Any], input: str, add_opts: Optional[di
     if lookups:
         df = apply_lookups(df, lookups)
     
+    # Optional: transform after lookups (i.e. build named_struct from lookup columns)
+    post_transforms = bronze_conf.get('postTransform', [])
+    if post_transforms:
+        df = df.selectExpr(*post_transforms)
+    
+    # Optional: drop columns by name (i.e. after building a struct from lookup columns)
+    drop_cols = bronze_conf.get('drop', [])
+    if drop_cols:
+        drop_cols = [strip_backticks(c) for c in drop_cols]
+        existing = [c for c in drop_cols if c in df.columns]
+        if existing:
+            df = df.drop(*existing)
+    
     return df
 
 
