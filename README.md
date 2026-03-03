@@ -24,6 +24,7 @@ This accelerator was developed by the **Databricks Field Engineering and Profess
 - [Overview](#overview)
 - [Cyber Medallion Architecture](#cyber-medallion-architecture-best-practices)
   - [Layer-by-Layer Architecture](#layer-by-layer-architecture)
+  - [Example Pipeline Graph](#example-pipeline-graph)
   - [Data Flow Examples](#data-flow-examples-by-format)
   - [OCSF Metadata Mapping](#ocsf-metadata-field-mapping)
   - [Performance Optimization](#performance-optimization-guidelines)
@@ -64,6 +65,14 @@ DSL Lite implements a three-layer medallion architecture optimized for cybersecu
 | **Gold** | **Map & Normalize** | Maps silver tables to OCSF-compliant schemas. Standardizes field names, data types, and structures across vendors. Includes OCSF `metadata` STRUCT with versioning and lineage tracking. Creates analytics-ready tables for security operations, threat hunting, and compliance reporting. | `activity_id INT`<br/>`activity_name STRING`<br/>`time TIMESTAMP`<br/>`src_endpoint STRUCT<...>`<br/>`dst_endpoint STRUCT<...>`<br/>`connection_info STRUCT<...>`<br/>`metadata STRUCT<...>`<br/>`observables ARRAY<STRUCT<...>>`<br/>`enrichments ARRAY<STRUCT<...>>`<br/>`severity STRING`<br/>`severity_id INT`<br/>`dsl_id STRING` | **Delta Table (Sink)**<br/>- OCSF-compliant schema<br/>- Cross-vendor normalization<br/>- Analytics-ready<br/>- Metadata tracking | `CLUSTER BY (time)`<br/><br/>Enables fast time-range queries for security investigations |
 
 > **Note on Gold Layer Delta Sinks**: In Spark Declarative Pipeline (SDP) mode, gold tables must be Delta Sinks (not streaming tables) because multiple streams from different pipelines write to the same OCSF-compliant gold tables. Since SDP streaming tables are linked to each individual pipeline, Delta Sinks are required to support concurrent writes from multiple pipeline streams, enabling cross-vendor data aggregation in unified OCSF tables.
+
+### Example Pipeline Graph
+
+The following screenshot shows an example pipeline graph (bronze → silver → gold) as rendered in Databricks when using DSL Lite with a preset such as GitHub Audit Logs:
+
+![Example pipeline graph (bronze, silver, gold)](images/pipeline_graph.png)
+
+*Figure: Example DSL Lite pipeline graph showing Auto Loader (bronze), silver transform, and multiple OCSF gold table sinks.*
 
 ### Example Pipeline Outputs
 
@@ -241,6 +250,8 @@ dsl_lite/
 │   ├── ocsf_spark_expressions/  # Gold-layer Spark SQL (CASE WHEN, named_struct)
 │   ├── ocsf_event_categories/   # OCSF table docs by category (network, IAM, system)
 │   └── ocsf_ddl_fields/         # DDL/reference for common structs (metadata, endpoint, ids, etc.)
+├── images/                      # Screenshots and pipeline graph images for documentation
+│   └── pipeline_graph.png      # Example pipeline graph (bronze → silver → gold)
 ├── vault/                       # Maintenance utilities for template management
 ├── raw_logs/                    # Sample logs for testing
 └── README.md                    # Documentation

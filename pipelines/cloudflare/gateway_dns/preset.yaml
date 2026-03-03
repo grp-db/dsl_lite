@@ -505,7 +505,7 @@ gold:
       - name: traffic.bytes_in
         from: QuerySize
       - name: raw_data
-        expr: CAST(to_json(data) AS VARIANT)
+        expr: CAST(to_json(named_struct('value', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
           CAST(

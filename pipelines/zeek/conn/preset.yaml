@@ -346,7 +346,7 @@ gold:
             COALESCE(status_detail, conn_state)
           )
       - name: raw_data
-        from: data
+        expr: CAST(to_json(named_struct('value', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
           CAST(

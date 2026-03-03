@@ -1,0 +1,921 @@
+# GitHub Audit Logs → OCSF IAM (Account Change, Authentication, Authorize Session, User Access, Group Management)
+# Raw logs assumed at volume path; bronze/silver/gold align with notebooks/create_ocsf_tables.py schemas.
+name: github_audit_logs
+description: "GitHub Audit Logs"
+title: "GitHub Audit Logs"
+autoloader:
+  inputs:
+  - /Volumes/logs/logs/logs/dsl_grp/github/audit_logs/  # CHANGE ME: /Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
+  format: json
+
+bronze:
+  name: github_audit_logs_bronze
+  loadAsSingleVariant: true
+  preTransform:
+    -
+      - "data"
+      - "_metadata.file_path"
+      - from_unixtime(try_variant_get(data, '$.created_at', 'BIGINT') / 1000) as time
+      - CAST(time AS DATE) as date
+      - CAST('github' AS STRING) as source
+      - CAST('audit_logs' AS STRING) as sourcetype
+      - CURRENT_TIMESTAMP() as processed_time
+
+silver:
+  transform:
+    - name: github_audit_logs_silver
+      fields:
+        - name: event_id
+          expr: try_variant_get(data, '$.id', 'STRING')
+        - name: action
+          expr: try_variant_get(data, '$.action', 'STRING')
+        - name: created_at_ms
+          expr: try_variant_get(data, '$.created_at', 'LONG')
+        - name: actor
+          expr: try_variant_get(data, '$.actor', 'STRING')
+        - name: user
+          expr: try_variant_get(data, '$.user', 'STRING')
+        - name: organization
+          expr: try_variant_get(data, '$.org', 'STRING')
+        - name: repository
+          expr: try_variant_get(data, '$.repo', 'STRING')
+        - name: actor_country_code
+          expr: try_variant_get(data, '$.actor_location.country_code', 'STRING')
+        - name: actor_country
+          expr: try_variant_get(data, '$.actor_location.country', 'STRING')
+        - name: actor_region
+          expr: try_variant_get(data, '$.actor_location.region', 'STRING')
+        - name: actor_city
+          expr: try_variant_get(data, '$.actor_location.city', 'STRING')
+        - name: actor_ip
+          expr: try_variant_get(data, '$.actor_location.ip', 'STRING')
+        - name: email
+          expr: try_variant_get(data, '$.data.email', 'STRING')
+        - name: ref
+          expr: try_variant_get(data, '$.data.ref', 'STRING')
+        - name: head
+          expr: try_variant_get(data, '$.data.head', 'STRING')
+        - name: base
+          expr: try_variant_get(data, '$.data.base', 'STRING')
+        - name: target_login
+          expr: try_variant_get(data, '$.data.target_login', 'STRING')
+        - name: permission
+          expr: try_variant_get(data, '$.data.permission', 'STRING')
+        - name: team
+          expr: try_variant_get(data, '$.data.team', 'STRING')
+        - name: visibility
+          expr: try_variant_get(data, '$.data.visibility', 'STRING')
+        - name: hook_id
+          expr: try_variant_get(data, '$.data.hook_id', 'INT')
+      utils:
+        unreferencedColumns:
+          preserve: true
+
+gold:
+  # Note: clusterBy is supported in SSS (Spark Structured Streaming) mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.<table_name> CLUSTER BY (time, <other_fields>)
+  # --- Account Change (3001): org.add_member, org.remove_member, org.update_member ---
+  - name: account_change
+    input: github_audit_logs_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
+    # clusterBy: ["time", "actor.user.name"]  # Only works in SSS mode (src/sss_gold.py)
+    filter: "action RLIKE 'org\\.(add_member|remove_member|update_member)'"
+    fields:
+      - name: time
+        from: time
+      - name: category_uid
+        expr: CAST(3 AS INT)
+      - name: category_name
+        literal: Identity & Access Management
+      - name: class_uid
+        expr: CAST(3001 AS INT)
+      - name: class_name
+        literal: Account Change
+      - name: severity_id
+        expr: |
+          CASE
+            WHEN action LIKE '%delete%' OR action LIKE '%suspend%' THEN 4
+            WHEN action LIKE '%create%' OR action LIKE '%update%' THEN 2
+            ELSE 1
+          END
+      - name: severity
+        expr: |
+          CASE WHEN (CASE WHEN action LIKE '%delete%' OR action LIKE '%suspend%' THEN 4 WHEN action LIKE '%create%' OR action LIKE '%update%' THEN 2 ELSE 1 END) = 4 THEN 'High'
+            WHEN (CASE WHEN action LIKE '%delete%' OR action LIKE '%suspend%' THEN 4 WHEN action LIKE '%create%' OR action LIKE '%update%' THEN 2 ELSE 1 END) = 2 THEN 'Low'
+            ELSE 'Informational'
+          END
+      - name: activity_id
+        expr: |
+          CASE
+            WHEN action LIKE '%created' THEN 1
+            WHEN action LIKE '%updated' OR action LIKE '%renamed' THEN 3
+            WHEN action LIKE '%deleted' THEN 4
+            ELSE 99
+          END
+      - name: activity_name
+        expr: |
+          CASE
+            WHEN action LIKE '%created' THEN 'Create'
+            WHEN action LIKE '%updated' OR action LIKE '%renamed' THEN 'Update'
+            WHEN action LIKE '%deleted' THEN 'Delete'
+            ELSE 'Other'
+          END
+      - name: status_id
+        expr: "CASE WHEN action LIKE '%failed%' THEN 2 ELSE 1 END"
+      - name: status
+        expr: "CASE WHEN action LIKE '%failed%' THEN 'Failure' ELSE 'Success' END"
+      - name: activity
+        expr: |
+          CASE
+            WHEN action LIKE '%created' THEN 'Create'
+            WHEN action LIKE '%updated' OR action LIKE '%renamed' THEN 'Update'
+            WHEN action LIKE '%deleted' THEN 'Delete'
+            ELSE 'Other'
+          END
+      - name: action
+        expr: "CASE WHEN action LIKE '%failed%' THEN 'Denied' ELSE 'Allowed' END"
+      - name: action_id
+        expr: "CASE WHEN action LIKE '%failed%' THEN 2 ELSE 1 END"
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      - name: type_uid
+        expr: |
+          CAST(300100 + CASE
+            WHEN action LIKE '%created' THEN 1
+            WHEN action LIKE '%updated' OR action LIKE '%renamed' THEN 3
+            WHEN action LIKE '%deleted' THEN 4
+            ELSE 99
+          END AS BIGINT)
+      - name: type_name
+        expr: |
+          CONCAT('Account Change: ', CASE
+            WHEN action LIKE '%created' THEN 'Create'
+            WHEN action LIKE '%updated' OR action LIKE '%renamed' THEN 'Update'
+            WHEN action LIKE '%deleted' THEN 'Delete'
+            ELSE 'Other'
+          END)
+      - name: message
+        expr: |
+          CONCAT('GitHub member ',
+            CASE
+              WHEN action LIKE '%add_member' THEN 'added to'
+              WHEN action LIKE '%remove_member' THEN 'removed from'
+              WHEN action LIKE '%update_member' THEN 'updated in'
+              ELSE action
+            END,
+            ' ',
+            CASE
+              WHEN action LIKE 'org.%' THEN 'organization'
+              WHEN action LIKE 'team.%' THEN CONCAT('team ', COALESCE(team, 'unknown'))
+              WHEN action LIKE 'repo.%' THEN CONCAT('repository ', COALESCE(repository, 'unknown'))
+              ELSE 'entity'
+            END,
+            ': ', COALESCE(target_login, user, actor)
+          )
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: GitHub
+      - name: metadata.product.vendor_name
+        literal: "GitHub Inc."
+      - name: metadata.uid
+        from: event_id
+      - name: metadata.event_code
+        from: action
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_name
+        literal: audit_logs
+      - name: metadata.log_provider
+        from: source
+      - name: metadata.log_version
+        literal: "github@audit_logs:version@1.0"
+      - name: metadata.logged_time
+        from: processed_time
+      - name: metadata.original_time
+        expr: CAST(created_at_ms AS STRING)
+      - name: actor.user.uid
+        from: actor
+      - name: actor.user.name
+        from: actor
+      - name: actor.user.type
+        literal: User
+      - name: actor.user.type_id
+        expr: CAST(1 AS INT)
+      - name: user.uid
+        expr: COALESCE(target_login, user)
+      - name: user.name
+        expr: COALESCE(target_login, user)
+      - name: user.type
+        literal: User
+      - name: user.type_id
+        expr: CAST(1 AS INT)
+      - name: observables
+        expr: |
+          array(
+            named_struct('name', 'actor', 'type', 'User Name', 'value', actor),
+            named_struct('name', 'target_user', 'type', 'User Name', 'value', COALESCE(target_login, user))
+          )
+      - name: enrichments
+        expr: |
+          array(
+            named_struct('name', 'organization', 'value', organization, 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING)),
+            named_struct('name', 'source', 'value', 'github', 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING))
+          )
+      - name: raw_data
+        expr: CAST(to_json(named_struct('value', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      - name: unmapped
+        expr: |
+          CAST(
+            to_json(
+              named_struct(
+                'raw_data', to_json(data),
+                'event_id', event_id,
+                'action', action,
+                'created_at_ms', created_at_ms,
+                'actor', actor,
+                'user', user,
+                'organization', organization,
+                'repository', repository,
+                'actor_country_code', actor_country_code,
+                'actor_country', actor_country,
+                'actor_region', actor_region,
+                'actor_city', actor_city,
+                'actor_ip', actor_ip,
+                'email', email,
+                'ref', ref,
+                'head', head,
+                'base', base,
+                'target_login', target_login,
+                'permission', permission,
+                'team', team,
+                'visibility', visibility,
+                'hook_id', hook_id
+              )
+            )
+          AS VARIANT)
+
+  # --- Authentication (3002): user.login, user.logout, oauth_authorization.create/destroy ---
+  - name: authentication
+    input: github_audit_logs_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
+    filter: "action RLIKE 'user\\.(login|logout)|oauth_authorization\\.(create|destroy)'"
+    fields:
+      - name: time
+        from: time
+      - name: category_uid
+        expr: CAST(3 AS INT)
+      - name: category_name
+        literal: Identity & Access Management
+      - name: class_uid
+        expr: CAST(3002 AS INT)
+      - name: class_name
+        literal: Authentication
+      - name: severity_id
+        expr: "CASE WHEN action LIKE '%failed%' THEN 4 ELSE 1 END"
+      - name: severity
+        expr: "CASE WHEN action LIKE '%failed%' THEN 'High' ELSE 'Informational' END"
+      - name: activity_id
+        expr: |
+          CASE
+            WHEN action LIKE '%login' OR action = 'oauth_authorization.create' THEN 1
+            WHEN action LIKE '%logout' OR action = 'oauth_authorization.destroy' THEN 2
+            ELSE 99
+          END
+      - name: activity_name
+        expr: |
+          CASE
+            WHEN action LIKE '%login' OR action = 'oauth_authorization.create' THEN 'Logon'
+            WHEN action LIKE '%logout' OR action = 'oauth_authorization.destroy' THEN 'Logoff'
+            ELSE 'Other'
+          END
+      - name: status_id
+        expr: "CASE WHEN action LIKE '%failed%' THEN 2 ELSE 1 END"
+      - name: status
+        expr: "CASE WHEN action LIKE '%failed%' THEN 'Failure' ELSE 'Success' END"
+      - name: activity
+        expr: |
+          CASE
+            WHEN action LIKE '%login' OR action = 'oauth_authorization.create' THEN 'Logon'
+            WHEN action LIKE '%logout' OR action = 'oauth_authorization.destroy' THEN 'Logoff'
+            ELSE 'Other'
+          END
+      - name: action
+        expr: "CASE WHEN action LIKE '%failed%' THEN 'Denied' ELSE 'Allowed' END"
+      - name: action_id
+        expr: "CASE WHEN action LIKE '%failed%' THEN 2 ELSE 1 END"
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      - name: type_uid
+        expr: |
+          CAST(300200 + CASE
+            WHEN action LIKE '%login' OR action = 'oauth_authorization.create' THEN 1
+            WHEN action LIKE '%logout' OR action = 'oauth_authorization.destroy' THEN 2
+            ELSE 99
+          END AS BIGINT)
+      - name: type_name
+        expr: |
+          CONCAT('Authentication: ', CASE
+            WHEN action LIKE '%login' OR action = 'oauth_authorization.create' THEN 'Logon'
+            WHEN action LIKE '%logout' OR action = 'oauth_authorization.destroy' THEN 'Logoff'
+            ELSE 'Other'
+          END)
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: GitHub
+      - name: metadata.product.vendor_name
+        literal: "GitHub Inc."
+      - name: metadata.uid
+        from: event_id
+      - name: metadata.event_code
+        from: action
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_name
+        literal: audit_logs
+      - name: metadata.log_provider
+        from: source
+      - name: metadata.log_version
+        literal: "github@audit_logs:version@1.0"
+      - name: metadata.logged_time
+        from: processed_time
+      - name: metadata.original_time
+        expr: CAST(created_at_ms AS STRING)
+      - name: actor.user.uid
+        from: actor
+      - name: actor.user.name
+        from: actor
+      - name: actor.user.type
+        literal: User
+      - name: actor.user.type_id
+        expr: CAST(1 AS INT)
+      - name: src_endpoint.ip
+        from: actor_ip
+      - name: src_endpoint.location.city
+        from: actor_city
+      - name: src_endpoint.location.country
+        from: actor_country
+      - name: auth_protocol
+        expr: "CASE WHEN action LIKE '%oauth%' THEN 'OAuth' ELSE 'Password' END"
+      - name: auth_protocol_id
+        expr: "CASE WHEN action LIKE '%oauth%' THEN 2 ELSE 1 END"
+      - name: dst_endpoint.hostname
+        literal: github.com
+      - name: dst_endpoint.name
+        literal: GitHub
+      - name: observables
+        expr: |
+          array(
+            named_struct('name', 'actor', 'type', 'User Name', 'value', actor),
+            named_struct('name', 'src_ip', 'type', 'IP Address', 'value', actor_ip)
+          )
+      - name: enrichments
+        expr: |
+          array(
+            named_struct('name', 'organization', 'value', organization, 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING)),
+            named_struct('name', 'source', 'value', 'github', 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING))
+          )
+      - name: raw_data
+        expr: CAST(to_json(named_struct('value', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      - name: unmapped
+        expr: |
+          CAST(
+            to_json(
+              named_struct(
+                'raw_data', to_json(data),
+                'event_id', event_id,
+                'action', action,
+                'created_at_ms', created_at_ms,
+                'actor', actor,
+                'user', user,
+                'organization', organization,
+                'repository', repository,
+                'actor_country_code', actor_country_code,
+                'actor_country', actor_country,
+                'actor_region', actor_region,
+                'actor_city', actor_city,
+                'actor_ip', actor_ip,
+                'email', email,
+                'ref', ref,
+                'head', head,
+                'base', base,
+                'target_login', target_login,
+                'permission', permission,
+                'team', team,
+                'visibility', visibility,
+                'hook_id', hook_id
+              )
+            )
+          AS VARIANT)
+
+  # --- Authorize Session (3003): repo add/remove/update_member, protected_branch create/destroy ---
+  - name: authorize_session
+    input: github_audit_logs_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
+    filter: "action RLIKE 'repo\\.(add_member|remove_member|update_member)|protected_branch\\.(create|destroy)'"
+    fields:
+      - name: time
+        from: time
+      - name: category_uid
+        expr: CAST(3 AS INT)
+      - name: category_name
+        literal: Identity & Access Management
+      - name: class_uid
+        expr: CAST(3003 AS INT)
+      - name: class_name
+        literal: Authorize Session
+      - name: severity_id
+        expr: |
+          CASE
+            WHEN action LIKE '%remove%' THEN 3
+            WHEN action LIKE '%add%' THEN 2
+            ELSE 1
+          END
+      - name: severity
+        expr: |
+          CASE
+            WHEN action LIKE '%remove%' THEN 'Medium'
+            WHEN action LIKE '%add%' THEN 'Low'
+            ELSE 'Informational'
+          END
+      - name: activity_id
+        expr: |
+          CASE
+            WHEN action LIKE '%add%' THEN 5
+            WHEN action LIKE '%remove%' THEN 6
+            ELSE 99
+          END
+      - name: activity_name
+        expr: |
+          CASE
+            WHEN action LIKE '%add%' THEN 'Add'
+            WHEN action LIKE '%remove%' THEN 'Remove'
+            ELSE 'Other'
+          END
+      - name: status_id
+        expr: CAST(1 AS INT)
+      - name: status
+        literal: Success
+      - name: action
+        literal: Allowed
+      - name: action_id
+        expr: CAST(1 AS INT)
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      - name: type_uid
+        expr: |
+          CAST(300300 + CASE
+            WHEN action LIKE '%add%' THEN 5
+            WHEN action LIKE '%remove%' THEN 6
+            ELSE 99
+          END AS BIGINT)
+      - name: type_name
+        expr: |
+          CONCAT('Authorize Session: ', CASE
+            WHEN action LIKE '%add%' THEN 'Add'
+            WHEN action LIKE '%remove%' THEN 'Remove'
+            ELSE 'Other'
+          END)
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: GitHub
+      - name: metadata.product.vendor_name
+        literal: "GitHub Inc."
+      - name: metadata.uid
+        from: event_id
+      - name: metadata.event_code
+        from: action
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_name
+        literal: audit_logs
+      - name: metadata.log_provider
+        from: source
+      - name: metadata.log_version
+        literal: "github@audit_logs:version@1.0"
+      - name: metadata.logged_time
+        from: processed_time
+      - name: metadata.original_time
+        expr: CAST(created_at_ms AS STRING)
+      - name: actor.user.uid
+        from: actor
+      - name: actor.user.name
+        from: actor
+      - name: actor.user.type
+        literal: User
+      - name: actor.user.type_id
+        expr: CAST(1 AS INT)
+      - name: resource.uid
+        expr: COALESCE(repository, organization)
+      - name: resource.name
+        expr: COALESCE(repository, organization)
+      - name: resource.type
+        expr: "CASE WHEN repository IS NOT NULL THEN 'Repository' ELSE 'Organization' END"
+      - name: resource.owner.name
+        from: organization
+      - name: resource.data
+        expr: CAST(to_json(map('ref', ref, 'visibility', visibility)) AS VARIANT)
+      - name: privileges
+        expr: "CASE WHEN permission IS NOT NULL THEN array(permission) ELSE CAST(NULL AS ARRAY<STRING>) END"
+      - name: user.uid
+        from: target_login
+      - name: user.name
+        from: target_login
+      - name: user.type
+        literal: User
+      - name: user.type_id
+        expr: CAST(1 AS INT)
+      - name: observables
+        expr: |
+          array(
+            named_struct('name', 'actor', 'type', 'User Name', 'value', actor),
+            named_struct('name', 'repository', 'type', 'Resource Name', 'value', repository)
+          )
+      - name: enrichments
+        expr: |
+          array(
+            named_struct('name', 'organization', 'value', organization, 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING)),
+            named_struct('name', 'source', 'value', 'github', 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING))
+          )
+      - name: raw_data
+        expr: CAST(to_json(named_struct('value', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      - name: unmapped
+        expr: |
+          CAST(
+            to_json(
+              named_struct(
+                'raw_data', to_json(data),
+                'event_id', event_id,
+                'action', action,
+                'created_at_ms', created_at_ms,
+                'actor', actor,
+                'user', user,
+                'organization', organization,
+                'repository', repository,
+                'actor_country_code', actor_country_code,
+                'actor_country', actor_country,
+                'actor_region', actor_region,
+                'actor_city', actor_city,
+                'actor_ip', actor_ip,
+                'email', email,
+                'ref', ref,
+                'head', head,
+                'base', base,
+                'target_login', target_login,
+                'permission', permission,
+                'team', team,
+                'visibility', visibility,
+                'hook_id', hook_id
+              )
+            )
+          AS VARIANT)
+
+  # --- User Access (3005): org.update_member, org.add_billing_manager ---
+  - name: user_access
+    input: github_audit_logs_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
+    filter: "action RLIKE 'org\\.(update_member|add_billing_manager)'"
+    fields:
+      - name: time
+        from: time
+      - name: category_uid
+        expr: CAST(3 AS INT)
+      - name: category_name
+        literal: Identity & Access Management
+      - name: class_uid
+        expr: CAST(3005 AS INT)
+      - name: class_name
+        literal: "User Access"
+      - name: severity_id
+        expr: |
+          CASE
+            WHEN action LIKE '%remove%' THEN 3
+            WHEN action LIKE '%add%' THEN 2
+            ELSE 1
+          END
+      - name: severity
+        expr: |
+          CASE
+            WHEN action LIKE '%remove%' THEN 'Medium'
+            WHEN action LIKE '%add%' THEN 'Low'
+            ELSE 'Informational'
+          END
+      - name: activity_id
+        expr: |
+          CASE
+            WHEN action LIKE '%add%' THEN 5
+            WHEN action LIKE '%remove%' THEN 6
+            WHEN action LIKE '%update%' THEN 3
+            ELSE 99
+          END
+      - name: activity_name
+        expr: |
+          CASE
+            WHEN action LIKE '%add%' THEN 'Add'
+            WHEN action LIKE '%remove%' THEN 'Remove'
+            WHEN action LIKE '%update%' THEN 'Update'
+            ELSE 'Other'
+          END
+      - name: status_id
+        expr: CAST(1 AS INT)
+      - name: status
+        literal: Success
+      - name: activity
+        expr: |
+          CASE
+            WHEN action LIKE '%add%' THEN 'Add'
+            WHEN action LIKE '%remove%' THEN 'Remove'
+            WHEN action LIKE '%update%' THEN 'Update'
+            ELSE 'Other'
+          END
+      - name: action
+        literal: Allowed
+      - name: action_id
+        expr: CAST(1 AS INT)
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      - name: type_uid
+        expr: |
+          CAST(300500 + CASE
+            WHEN action LIKE '%add%' THEN 5
+            WHEN action LIKE '%remove%' THEN 6
+            WHEN action LIKE '%update%' THEN 3
+            ELSE 99
+          END AS BIGINT)
+      - name: type_name
+        expr: |
+          CONCAT('User Access: ', CASE
+            WHEN action LIKE '%add%' THEN 'Add'
+            WHEN action LIKE '%remove%' THEN 'Remove'
+            WHEN action LIKE '%update%' THEN 'Update'
+            ELSE 'Other'
+          END)
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: GitHub
+      - name: metadata.product.vendor_name
+        literal: "GitHub Inc."
+      - name: metadata.uid
+        from: event_id
+      - name: metadata.event_code
+        from: action
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_name
+        literal: audit_logs
+      - name: metadata.log_provider
+        from: source
+      - name: metadata.log_version
+        literal: "github@audit_logs:version@1.0"
+      - name: metadata.logged_time
+        from: processed_time
+      - name: metadata.original_time
+        expr: CAST(created_at_ms AS STRING)
+      - name: actor.user.uid
+        from: actor
+      - name: actor.user.name
+        from: actor
+      - name: actor.user.type
+        literal: User
+      - name: actor.user.type_id
+        expr: CAST(1 AS INT)
+      - name: user.uid
+        expr: COALESCE(target_login, user)
+      - name: user.name
+        expr: COALESCE(target_login, user)
+      - name: user.type
+        literal: User
+      - name: user.type_id
+        expr: CAST(1 AS INT)
+      - name: resource.uid
+        from: organization
+      - name: resource.name
+        from: organization
+      - name: privileges
+        expr: "CASE WHEN permission IS NOT NULL THEN array(permission) ELSE array('member') END"
+      - name: observables
+        expr: |
+          array(
+            named_struct('name', 'actor', 'type', 'User Name', 'value', actor),
+            named_struct('name', 'target_user', 'type', 'User Name', 'value', COALESCE(target_login, user))
+          )
+      - name: enrichments
+        expr: |
+          array(
+            named_struct('name', 'organization', 'value', organization, 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING)),
+            named_struct('name', 'source', 'value', 'github', 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING))
+          )
+      - name: raw_data
+        expr: CAST(to_json(named_struct('value', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      - name: unmapped
+        expr: |
+          CAST(
+            to_json(
+              named_struct(
+                'raw_data', to_json(data),
+                'event_id', event_id,
+                'action', action,
+                'created_at_ms', created_at_ms,
+                'actor', actor,
+                'user', user,
+                'organization', organization,
+                'repository', repository,
+                'actor_country_code', actor_country_code,
+                'actor_country', actor_country,
+                'actor_region', actor_region,
+                'actor_city', actor_city,
+                'actor_ip', actor_ip,
+                'email', email,
+                'ref', ref,
+                'head', head,
+                'base', base,
+                'target_login', target_login,
+                'permission', permission,
+                'team', team,
+                'visibility', visibility,
+                'hook_id', hook_id
+              )
+            )
+          AS VARIANT)
+
+  # --- Group Management (3006): team.add_member, team.remove_member, team.create, team.destroy ---
+  - name: group_management
+    input: github_audit_logs_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
+    filter: "action RLIKE 'team\\.(add_member|remove_member|create|destroy)'"
+    fields:
+      - name: time
+        from: time
+      - name: category_uid
+        expr: CAST(3 AS INT)
+      - name: category_name
+        literal: Identity & Access Management
+      - name: class_uid
+        expr: CAST(3006 AS INT)
+      - name: class_name
+        literal: "Group Management"
+      - name: severity_id
+        expr: |
+          CASE
+            WHEN action LIKE '%destroy%' THEN 3
+            WHEN action LIKE '%create%' THEN 2
+            ELSE 1
+          END
+      - name: severity
+        expr: |
+          CASE
+            WHEN action LIKE '%destroy%' THEN 'Medium'
+            WHEN action LIKE '%create%' THEN 'Low'
+            ELSE 'Informational'
+          END
+      - name: activity_id
+        expr: |
+          CASE
+            WHEN action LIKE '%create' THEN 1
+            WHEN action LIKE '%destroy' THEN 4
+            WHEN action LIKE '%add_member' THEN 5
+            WHEN action LIKE '%remove_member' THEN 6
+            ELSE 99
+          END
+      - name: activity_name
+        expr: |
+          CASE
+            WHEN action LIKE '%create' THEN 'Create'
+            WHEN action LIKE '%destroy' THEN 'Delete'
+            WHEN action LIKE '%add_member' THEN 'Add'
+            WHEN action LIKE '%remove_member' THEN 'Remove'
+            ELSE 'Other'
+          END
+      - name: status_id
+        expr: CAST(1 AS INT)
+      - name: status
+        literal: Success
+      - name: activity
+        expr: |
+          CASE
+            WHEN action LIKE '%create' THEN 'Create'
+            WHEN action LIKE '%destroy' THEN 'Delete'
+            WHEN action LIKE '%add_member' THEN 'Add'
+            WHEN action LIKE '%remove_member' THEN 'Remove'
+            ELSE 'Other'
+          END
+      - name: action
+        literal: Allowed
+      - name: action_id
+        expr: CAST(1 AS INT)
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      - name: type_uid
+        expr: |
+          CAST(300600 + CASE
+            WHEN action LIKE '%create' THEN 1
+            WHEN action LIKE '%destroy' THEN 4
+            WHEN action LIKE '%add_member' THEN 5
+            WHEN action LIKE '%remove_member' THEN 6
+            ELSE 99
+          END AS BIGINT)
+      - name: type_name
+        expr: |
+          CONCAT('Group Management: ', CASE
+            WHEN action LIKE '%create' THEN 'Create'
+            WHEN action LIKE '%destroy' THEN 'Delete'
+            WHEN action LIKE '%add_member' THEN 'Add'
+            WHEN action LIKE '%remove_member' THEN 'Remove'
+            ELSE 'Other'
+          END)
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: GitHub
+      - name: metadata.product.vendor_name
+        literal: "GitHub Inc."
+      - name: metadata.uid
+        from: event_id
+      - name: metadata.event_code
+        from: action
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_name
+        literal: audit_logs
+      - name: metadata.log_provider
+        from: source
+      - name: metadata.log_version
+        literal: "github@audit_logs:version@1.0"
+      - name: metadata.logged_time
+        from: processed_time
+      - name: metadata.original_time
+        expr: CAST(created_at_ms AS STRING)
+      - name: actor.user.uid
+        from: actor
+      - name: actor.user.name
+        from: actor
+      - name: actor.user.type
+        literal: User
+      - name: actor.user.type_id
+        expr: CAST(1 AS INT)
+      - name: group.uid
+        from: team
+      - name: group.name
+        from: team
+      - name: group.type
+        literal: Team
+      - name: user.uid
+        from: target_login
+      - name: user.name
+        from: target_login
+      - name: user.type
+        literal: User
+      - name: user.type_id
+        expr: CAST(1 AS INT)
+      - name: observables
+        expr: |
+          array(
+            named_struct('name', 'actor', 'type', 'User Name', 'value', actor),
+            named_struct('name', 'team', 'type', 'Group Name', 'value', team)
+          )
+      - name: enrichments
+        expr: |
+          array(
+            named_struct('name', 'organization', 'value', organization, 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING)),
+            named_struct('name', 'source', 'value', 'github', 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING))
+          )
+      - name: raw_data
+        expr: CAST(to_json(named_struct('value', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      - name: unmapped
+        expr: |
+          CAST(
+            to_json(
+              named_struct(
+                'event_id', event_id,
+                'action', action,
+                'created_at_ms', created_at_ms,
+                'actor', actor,
+                'user', user,
+                'organization', organization,
+                'repository', repository,
+                'actor_country_code', actor_country_code,
+                'actor_country', actor_country,
+                'actor_region', actor_region,
+                'actor_city', actor_city,
+                'actor_ip', actor_ip,
+                'email', email,
+                'ref', ref,
+                'head', head,
+                'base', base,
+                'target_login', target_login,
+                'permission', permission,
+                'team', team,
+                'visibility', visibility,
+                'hook_id', hook_id
+              )
+            )
+          AS VARIANT)
