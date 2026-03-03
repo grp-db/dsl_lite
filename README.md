@@ -82,6 +82,7 @@ The following table shows the bronze, silver, and gold table outputs for the exa
 |----------|------------------------|--------------------------|----------------------------|
 | **Cisco IOS** | `cisco_ios_bronze` | `cisco_ios_silver` | `authentication`, `authorize_session`, `network_activity`, `process_activity` |
 | **Cloudflare Gateway DNS** | `cloudflare_gateway_dns_bronze` | `cloudflare_gateway_dns_silver` | `dns_activity` |
+| **GitHub Audit Logs** | `github_audit_logs_bronze` | `github_audit_logs_silver` | `account_change`, `authentication`, `authorize_session`, `user_access`, `group_management` |
 | **Zeek Conn** | `zeek_conn_bronze` | `zeek_conn_silver` | `network_activity` |
 
 ### Spark SQL Metadata Field Examples
@@ -176,11 +177,11 @@ Gold layer tables include an OCSF `metadata` STRUCT that provides critical conte
 
 | DSL Lite Field | OCSF Metadata Field | OCSF Requirement | Description | Example Value |
 |----------------|---------------------|------------------|-------------|---------------|
-| `source` | `metadata.log_provider` | Optional | The logging provider or service that logged the event | `"zeek"`, `"cisco"`, `"cloudflare"` |
-| `sourcetype` | `metadata.log_name` | Recommended | The event log name, typically for the consumer of the event | `"conn"`, `"ios"`, `"gateway_dns"` |
+| `source` | `metadata.log_provider` | Optional | The logging provider or service that logged the event | `"zeek"`, `"cisco"`, `"cloudflare"`, `"github"` |
+| `sourcetype` | `metadata.log_name` | Recommended | The event log name, typically for the consumer of the event | `"conn"`, `"ios"`, `"gateway_dns"`, `"audit_logs"` |
 | `processed_time` | `metadata.processed_time` | Optional | Timestamp when the event was processed by DSL Lite | `2026-02-03T14:30:00Z` |
 | OCSF version | `metadata.version` | **Required** | The version of the OCSF schema used | `"1.7.0"` |
-| Schema version | `metadata.log_version` | Optional | Custom schema version tracking for change management | `"zeek@conn:version@1.0"`, `"cisco@ios:version@1.0"`, `"cloudflare@gateway_dns:version@1.0"`  |
+| Schema version | `metadata.log_version` | Optional | Custom schema version tracking for change management | `"zeek@conn:version@1.0"`, `"cisco@ios:version@1.0"`, `"cloudflare@gateway_dns:version@1.0"`, `"github@audit_logs:version@1.0"` |
 | Log format | `metadata.log_format` | Optional | The original format of the data | `"JSON"`, `"syslog"`, `"CSV"` |
 
 #### Schema Version Tracking
@@ -195,6 +196,7 @@ The `metadata.log_version` field uses a custom format to track schema changes ov
 - `"zeek@conn:version@1.0"` - Zeek connection logs, schema version 1.0
 - `"cisco@ios:version@1.1"` - Cisco IOS logs, schema version 1.1
 - `"cloudflare@gateway_dns:version@1.2"` - Cloudflare Gateway DNS logs, schema version 1.2
+- `"github@audit_logs:version@1.0"` - GitHub audit logs, schema version 1.0
 
 **Use Case:** If you update your OCSF mapping (e.g., add new enrichments or change field mappings), increment the schema version. This enables selective record deletion or reprocessing:
 
@@ -244,7 +246,7 @@ dsl_lite/
 │   └── sss_medallion.py         # Combined Bronze→Silver→Gold task (SSS mode)
 ├── notebooks/                    # Databricks notebooks
 │   └── create_ocsf_tables.py    # Setup notebook for OCSF tables
-├── pipelines/                    # Configuration presets (Cisco, Zeek, Cloudflare, etc.)
+├── pipelines/                    # Configuration presets (Cisco, Zeek, Cloudflare, GitHub, etc.)
 ├── ocsf_templates/              # OCSF mapping templates (21 standardized templates)
 ├── docs/                         # OCSF reference documentation
 │   ├── ocsf_spark_expressions/  # Gold-layer Spark SQL (CASE WHEN, named_struct)
@@ -984,6 +986,8 @@ DSL Lite uses Databricks Auto Loader to ingest data from file-based sources:
 - **DBFS**: Databricks File System
 - **Log Formats**: JSON, JSON Lines, CSV, Parquet, text/syslog
 
+**Example presets** (see [Example Pipeline Outputs](#example-pipeline-outputs)): Cisco IOS, Cloudflare Gateway DNS, GitHub Audit Logs, Zeek Conn.
+
 Support for streaming sources (Kafka, Event Hubs, Kinesis) can be added based on customer requirements.
 
 ---
@@ -994,7 +998,7 @@ Support for streaming sources (Kafka, Event Hubs, Kinesis) can be added based on
 - **Auto Loader: one stream per path.** Each path in `autoloader.inputs` is a separate stream with its own checkpoint.
 - **SDP (Spark Declarative Pipeline) mode.** With SDP deployment, confirm in your environment whether pipelines support continuous execution or only trigger-based (e.g. “Trigger now”) runs. Behavior may depend on Databricks runtime and Lakeflow configuration.
 - **No interactive `display()` in pipeline execution.** The framework runs as batch/streaming jobs. There is no built-in interactive notebook experience with `df.display()` for ad-hoc preview of pipeline output; use the [DASL Preset Tool](https://github.com/grp-db/preset_tool) or run queries against the tables after the job.
-- **One pipeline per log source.** Each log source (e.g. Cisco IOS, Zeek conn, Cloudflare DNS) is configured as a separate preset and typically a separate pipeline. Multi-source aggregation happens in the gold OCSF tables, not in a single preset.
+- **One pipeline per log source.** Each log source (e.g. Cisco IOS, Zeek conn, Cloudflare DNS, GitHub Audit Logs) is configured as a separate preset and typically a separate pipeline. Multi-source aggregation happens in the gold OCSF tables, not in a single preset.
 - **Lookups are static.** Bronze and silver lookups are batch/static (Delta, CSV, etc.). There is no streaming lookup or real-time enrichment from a changing reference table.
 - **Schema and preset changes.** When a source schema or OCSF mapping changes, preset YAML and possibly gold table DDL need to be updated; there is no automatic schema migration from the preset.
 
