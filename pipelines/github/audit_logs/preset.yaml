@@ -380,7 +380,7 @@ gold:
             named_struct('name', 'source', 'value', 'github', 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING))
           )
       - name: raw_data
-        expr: CAST(to_json(named_struct('value', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+        expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
           CAST(
@@ -544,7 +544,7 @@ gold:
             named_struct('name', 'source', 'value', 'github', 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING))
           )
       - name: raw_data
-        expr: CAST(to_json(named_struct('value', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+        expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
           CAST(
@@ -714,7 +714,7 @@ gold:
             named_struct('name', 'source', 'value', 'github', 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING))
           )
       - name: raw_data
-        expr: CAST(to_json(named_struct('value', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+        expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
           CAST(
@@ -889,7 +889,7 @@ gold:
             named_struct('name', 'source', 'value', 'github', 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING))
           )
       - name: raw_data
-        expr: CAST(to_json(named_struct('value', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+        expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
           CAST(

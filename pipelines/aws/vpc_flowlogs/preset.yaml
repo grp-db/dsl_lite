@@ -1,0 +1,245 @@
+name: aws_vpc_flowlogs
+description: "AWS VPC Flowlogs"
+title: "AWS VPC Flowlogs"
+autoloader:
+  inputs:
+  - /Volumes/logs/logs/logs/dsl_grp/aws/vpc_flowlogs/ # CHANGE ME! /Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
+  format: text
+  # format: csv
+  # options:
+  #   header: "false" # skip header (contains special chars)
+  #   skipRows: 1 # skip row with header
+  # schema: "value string" # pack txt log into value field
+  cloudFiles:
+    schemaHints: "value string"
+#ingest/amend
+bronze:
+  name: aws_vpc_flowlogs_bronze
+  clusterBy: [time]
+  preTransform:
+    -
+      - "value" # payload
+      - "_metadata.file_path"
+      - TO_TIMESTAMP(CAST(SPLIT(value, ' ')[10] AS BIGINT)) as time # event_time
+      - CAST(time AS DATE) as date # event_date
+      - CAST('aws' AS STRING) AS source
+      - CAST('vpc_flowlogs' AS STRING) AS sourcetype
+      - CURRENT_TIMESTAMP() as processed_time
+#parse/flatten
+silver:
+  transform:
+    - name: aws_vpc_flowlogs_silver
+      fields:
+        - name: version
+          expr: CAST(NULLIF(SPLIT(value, ' ')[0], '-') AS INT)
+        - name: account_id
+          expr: CAST(NULLIF(SPLIT(value, ' ')[1], '-') AS STRING)
+        - name: interface_id
+          expr: CAST(NULLIF(SPLIT(value, ' ')[2], '-') AS STRING)
+        - name: srcaddr
+          expr: CAST(NULLIF(SPLIT(value, ' ')[3], '-') AS STRING)
+        - name: dstaddr
+          expr: CAST(NULLIF(SPLIT(value, ' ')[4], '-') AS STRING)
+        - name: srcport
+          expr: CAST(NULLIF(SPLIT(value, ' ')[5], '-') AS INT)
+        - name: dstport
+          expr: CAST(NULLIF(SPLIT(value, ' ')[6], '-') AS INT)
+        - name: protocol
+          expr: CAST(NULLIF(SPLIT(value, ' ')[7], '-') AS INT)
+        - name: packets
+          expr: CAST(NULLIF(SPLIT(value, ' ')[8], '-') AS BIGINT)
+        - name: bytes
+          expr: CAST(NULLIF(SPLIT(value, ' ')[9], '-') AS INT)
+        - name: start
+          expr: CAST(NULLIF(SPLIT(value, ' ')[10], '-') AS BIGINT)
+        - name: end
+          expr: CAST(NULLIF(SPLIT(value, ' ')[11], '-') AS BIGINT)
+        - name: action
+          expr: CAST(NULLIF(SPLIT(value, ' ')[12], '-') AS STRING)
+        - name: log_status
+          expr: CAST(NULLIF(SPLIT(value, ' ')[13], '-') AS STRING)
+      utils:
+        unreferencedColumns:
+          preserve: true # carry over brz fields
+#normalize/map
+gold:
+  # Note: clusterBy is supported in SSS (Spark Structured Streaming) mode but not in SDP mode (sinks don't support it atm)
+  # For SDP mode, run ALTER TABLE after pipeline creation:
+  #   ALTER TABLE <catalog>.<database>.<table_name> CLUSTER BY (time, <other_fields>)
+  - name: network_activity
+    input: aws_vpc_flowlogs_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
+    # clusterBy: ["time", "src_endpoint.ip"]  # Only works in SSS mode (src/sss_gold.py)
+    fields:
+      # action fields
+      - name: action_id
+        expr: |
+          CAST(CASE
+            WHEN action = 'ACCEPT' THEN 1
+            WHEN action = 'REJECT' THEN 2
+            ELSE 99
+          END AS INT)
+      - name: action
+        expr: |
+          CASE
+            WHEN action = 'ACCEPT' THEN 'Allowed'
+            WHEN action = 'REJECT' THEN 'Denied'
+            ELSE 'Other'
+          END
+      # activity fields
+      - name: activity_id
+        expr: |
+          CAST(CASE
+            WHEN action = 'ACCEPT' THEN 2
+            WHEN action = 'REJECT' THEN 3
+            ELSE 99
+          END AS INT)
+      - name: activity_name
+        expr: |
+          CASE
+              WHEN action = 'ACCEPT' THEN 'Close'
+              WHEN action = 'REJECT' THEN 'Refuse'
+              ELSE 'Other'
+          END
+      - name: activity
+        expr: |
+          CASE
+              WHEN action = 'ACCEPT' THEN 'Close'
+              WHEN action = 'REJECT' THEN 'Refuse'
+              ELSE 'Other'
+          END
+      # category fields
+      - name: category_uid
+        expr: CAST('4' AS INT)
+      - name: category_name
+        literal: Network Activity
+      # class fields
+      - name: class_uid
+        expr: CAST('4001' AS INT)
+      - name: class_name
+        literal: Network Activity
+      # status fields
+      - name: status_id
+        expr: |
+          CAST(CASE
+            WHEN log_status = 'OK' THEN 1
+            ELSE 2
+          END AS INT)
+      - name: status
+        expr: |
+          CASE
+            WHEN log_status = 'OK' THEN 'Success'
+            ELSE 'Failure'
+          END
+      - name: status_code
+        from: log_status
+      - name: status_detail
+        expr: |
+          CASE
+            WHEN log_status = 'OK' THEN 'Flow log recorded'
+            WHEN log_status = 'NODATA' THEN 'No data'
+            WHEN log_status = 'SKIPDATA' THEN 'Data skipped'
+            ELSE COALESCE(log_status, 'Unknown')
+          END
+      # disposition fields
+      - name: disposition_id
+        expr: |
+          CAST(CASE
+            WHEN action = 'ACCEPT' THEN 1
+            WHEN action = 'REJECT' THEN 2
+            ELSE 0
+          END AS INT)
+      - name: disposition
+        expr: |
+          CASE
+            WHEN action = 'ACCEPT' THEN 'Allowed'
+            WHEN action = 'REJECT' THEN 'Blocked'
+            ELSE 'Unknown'
+          END
+      # src fields
+      - name: src_endpoint.ip
+        from: srcaddr
+      - name: src_endpoint.port
+        from: srcport
+      # dst fields
+      - name: dst_endpoint.ip
+        from: dstaddr
+      - name: dst_endpoint.port
+        from: dstport
+      # connection_info fields
+      - name: connection_info.direction_id
+        expr: CAST('O' AS INT)
+      - name: connection_info.protocol_num
+        from: protocol
+      # Deterministic flow UID: SHA256 of interface + 4-tuple + protocol + start time (no placeholders in output)
+      - name: connection_info.uid
+        expr: |
+          SHA2(
+            CONCAT_WS('|',
+              COALESCE(interface_id, '0'),
+              CASE WHEN TRIM(COALESCE(srcaddr, '')) IN ('', '-') THEN '0' ELSE TRIM(srcaddr) END,
+              COALESCE(CAST(srcport AS STRING), '0'),
+              CASE WHEN TRIM(COALESCE(dstaddr, '')) IN ('', '-') THEN '0' ELSE TRIM(dstaddr) END,
+              COALESCE(CAST(dstport AS STRING), '0'),
+              COALESCE(CAST(protocol AS STRING), '0'),
+              COALESCE(CAST(start AS STRING), '0')
+            ),
+            256
+          )
+      # time fields
+      - name: time
+        from: time
+      - name: start_time
+        expr: TO_TIMESTAMP(start)
+      - name: end_time
+        expr: TO_TIMESTAMP(end)
+      # traffic fields
+      - name: traffic.bytes
+        from: bytes
+      - name: traffic.packets
+        from: packets
+      # message fields
+      - name: message
+        expr: |
+          CONCAT(
+            'VPC FlowLog ', COALESCE(action, ''), ' ',
+            COALESCE(srcaddr, ''), ':', COALESCE(CAST(srcport AS STRING), ''),
+            ' --> ',
+            COALESCE(dstaddr, ''), ':', COALESCE(CAST(dstport AS STRING), '')
+          )
+      # metadata fields
+      - name: metadata.version
+        literal: "1.7.0" # OCSF SCHEMA VERSION
+      - name: metadata.product.name
+        literal: AWS VPC FlowLogs (v2)
+      - name: metadata.product.vendor_name
+        literal: AWS
+      - name: metadata.log_provider
+        literal: aws # SOURCE
+      - name: metadata.log_name
+        literal: vpc_flowlogs # SOURCE_TYPE
+      - name: metadata.log_format
+        literal: TEXT # FORMAT
+      - name: metadata.processed_time
+        expr: CURRENT_TIMESTAMP()
+      - name: metadata.logged_time
+        from: time
+      - name: metadata.uid
+        from: connection_info.uid
+      - name: metadata.log_version
+        literal: "aws@vpc_flowlogs:version@1.0"
+      # raw fields
+      - name: raw_data
+        expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      # unmapped fields
+      - name: unmapped
+        expr: |
+          CAST(
+            to_json(
+              named_struct(
+                'account_id', account_id,
+                'interface_id', interface_id
+              )
+            )
+          AS VARIANT)

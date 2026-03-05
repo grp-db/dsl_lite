@@ -233,7 +233,7 @@ gold:
       - name: src_endpoint.port
         expr: TRY_CAST(REGEXP_EXTRACT(description, 'localport:\\s*(\\d+)', 1) AS INT)
       - name: raw_data
-        expr: CAST(to_json(named_struct('value', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+        expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
           CAST(
@@ -340,7 +340,7 @@ gold:
       - name: dst_endpoint.svc_name
         expr: REGEXP_EXTRACT(description, 'attempted to\\s+(\\w+)', 1)
       - name: raw_data
-        expr: CAST(to_json(named_struct('value', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+        expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
           CAST(
@@ -506,7 +506,7 @@ gold:
       - name: dst_endpoint.interface_name
         expr: REGEXP_EXTRACT(description, 'Interface\\s+([^,]+)', 1)
       - name: raw_data
-        expr: CAST(to_json(named_struct('value', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+        expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
           CAST(
@@ -651,7 +651,7 @@ gold:
             ELSE NULL
           END
       - name: raw_data
-        expr: CAST(to_json(named_struct('value', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+        expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
           CAST(

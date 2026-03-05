@@ -199,21 +199,21 @@ Fill `location` with a nested named_struct when GeoIP (or similar) is available.
 
 ### raw_data (VARIANT)
 
-Use a consistent struct so downstream consumers can read the original payload and lineage. Cast to VARIANT for the OCSF `raw_data` column.
+Use a consistent struct so downstream consumers can read the original payload and lineage. The key for the raw content is always **`payload`**. Cast to VARIANT for the OCSF `raw_data` column.
 
-**Text-based (syslog, text, CSV line):** bronze/silver have a `value` (STRING) column. Use key `value`:
+**Text-based (syslog, text, CSV line):** bronze/silver have a `value` (STRING) column:
 
 ```sql
-CAST(to_json(named_struct('value', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT) AS raw_data
+CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT) AS raw_data
 ```
 
-**JSON:** bronze/silver have a `data` (VARIANT/STRUCT) column. Use key `payload`:
+**JSON:** bronze/silver have a `data` (VARIANT/STRUCT) column:
 
 ```sql
 CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT) AS raw_data
 ```
 
-Keep `source` and `sourcetype` in the struct for lineage; use `value` for text-based and `payload` for JSON.
+Always include `source` and `sourcetype` in the struct for lineage.
 
 ### unmapped (VARIANT)
 
