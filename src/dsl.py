@@ -71,7 +71,14 @@ def read_bronze_stream(config: Dict[str, Any], input: str, add_opts: Optional[di
     for pt in pre_transforms:
         df = df.selectExpr(*pt)
     
-    df = df.selectExpr("*", "lower(concat(hex(unix_millis(current_timestamp())), substring(replace(uuid(), '-', ''), 0, 13))) as dsl_id")
+    # dsl_id: unique per row. Use monotonically_increasing_id() so streaming micro-batches don't
+    # repeat the same uuid()/timestamp for every row (which would produce duplicate dsl_ids).
+    # Revert to old algo if needed (can produce duplicate dsl_ids in streaming):
+    #   "lower(concat(hex(unix_millis(current_timestamp())), substring(replace(uuid(), '-', ''), 0, 13))) as dsl_id"
+    df = df.selectExpr(
+        "*",
+        "lower(concat(hex(unix_millis(current_timestamp())), '_', hex(monotonically_increasing_id()))) as dsl_id"
+    )
     
     # Apply lookups if configured
     lookups = bronze_conf.get('lookups', [])
