@@ -8,7 +8,7 @@ Copyright © Databricks, Inc.
 
 from yaml import load, Loader
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import broadcast, col as spark_col
+from pyspark.sql.functions import broadcast, col as spark_col, explode_outer
 from typing import Optional, Dict, Any, List, Union
 from utils import substitute_secrets
 
@@ -386,8 +386,14 @@ def make_gold_table(silver_table_name: str, tr_conf: Dict[str, Any]) -> DataFram
     if "filter" in tr_conf:
         df = df.filter(tr_conf['filter'])
 
+    # Optional: explode an array (or variant array) column so each element becomes a row.
+    # Use when one silver row has an array of items (e.g. DNS queries) and you want one gold row per item.
+    # Field expressions can reference the exploded element as "_exploded" (e.g. try_variant_get(_exploded, '$.hostname', 'STRING')).
+    explode_col = tr_conf.get("explode")
+    if explode_col:
+        df = df.withColumn("_exploded", explode_outer(spark_col(explode_col)))
+
     new_fields = generate_field_exprs(tr_conf.get("fields", []))
-    # print(f"Generating gold table for {tr_name} with fields {new_fields}")
     # Only include dsl_id if it exists in the source DataFrame (for cases where we skip bronze/silver and source table doesn't have it)
     select_exprs = []
     if "dsl_id" in df.columns:

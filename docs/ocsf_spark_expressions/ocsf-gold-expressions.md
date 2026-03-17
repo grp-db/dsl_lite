@@ -233,6 +233,31 @@ AS VARIANT) AS unmapped
 
 Replace keys/values with your silver columns.
 
+### Exploding an array column in gold
+
+When one silver row contains an **array** (e.g. DNS queries, answers, or a VARIANT array), you can explode it so each element becomes a separate gold row and map OCSF fields from each element.
+
+In the gold table config, set **`explode`** to the name of the silver column that holds the array (or variant array):
+
+```yaml
+gold:
+  - name: dns_activity
+    input: my_silver
+    explode: query_array    # silver column: ARRAY or VARIANT array
+    fields:
+      - name: query.hostname
+        expr: try_variant_get(_exploded, '$.hostname', 'STRING')
+      - name: query.type
+        expr: try_variant_get(_exploded, '$.type', 'STRING')
+      # ... other OCSF fields; use _exploded for per-element fields, or from: for event-level silver columns
+```
+
+- **`explode`**: Silver column to explode (one gold row per array element). Use `explode_outer` so rows with null/empty arrays still produce one row (with `_exploded` null).
+- **`_exploded`**: The current array element in each row. In field expressions use `_exploded` (e.g. `try_variant_get(_exploded, '$.field', 'STRING')` for VARIANT, or `_exploded.field` if the element is a struct).
+- Event-level columns (e.g. `time`, `metadata`, `dsl_id`) remain available from the silver row; map them with `from:` as usual.
+
+The silver column must be an array type (e.g. `ARRAY<STRUCT<...>>` or `ARRAY<VARIANT>`). If it is a VARIANT that holds a JSON array, normalize it to an array in silver (e.g. `expr: try_variant_get(data, '$.Queries', 'ARRAY<VARIANT>')`) so gold can explode it.
+
 ### observables (one element)
 
 ```sql
