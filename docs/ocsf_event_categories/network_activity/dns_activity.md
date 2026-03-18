@@ -81,7 +81,7 @@ Gold uses `TRANSFORM` to map the entire array to `answers` in one pass. One gold
 - name: answers
   expr: |
     TRANSFORM(
-      variant_to_array(dnsRecords),
+      CAST(dnsRecords AS ARRAY<VARIANT>),
       r -> NAMED_STRUCT(
         'class',      'IN',
         'flag_ids',   FILTER(
@@ -341,7 +341,7 @@ silver:
             TRANSFORM(
               ARRAY_DISTINCT(
                 TRANSFORM(
-                  variant_to_array(dnsRecords),
+                  CAST(dnsRecords AS ARRAY<VARIANT>),
                   r -> try_variant_get(r, '$.dnsQName', 'STRING')
                 )
               ),
@@ -349,13 +349,13 @@ silver:
                 'hostname',  qname,
                 'rcode_id',  CAST(try_variant_get(
                                element_at(
-                                 FILTER(variant_to_array(dnsRecords),
+                                 FILTER(CAST(dnsRecords AS ARRAY<VARIANT>),
                                    r -> try_variant_get(r, '$.dnsQName', 'STRING') = qname
                                  ), 1
                                ), '$.dnsRCode', 'INT') AS INT),
                 'answers',   TRANSFORM(
                               FILTER(
-                                variant_to_array(dnsRecords),
+                                CAST(dnsRecords AS ARRAY<VARIANT>),
                                 r -> try_variant_get(r, '$.dnsQName', 'STRING') = qname
                               ),
                               r -> NAMED_STRUCT(
