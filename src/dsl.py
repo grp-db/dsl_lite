@@ -8,7 +8,7 @@ Copyright © Databricks, Inc.
 
 from yaml import load, Loader
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import broadcast, col as spark_col, explode_outer
+from pyspark.sql.functions import broadcast, col as spark_col, explode_outer, from_json, to_json, expr
 from typing import Optional, Dict, Any, List, Union
 from utils import substitute_secrets
 
@@ -381,6 +381,14 @@ def make_silver_table(bronze_table_name: str, tr_conf: Dict[str, Any]) -> DataFr
     return ndf
 
 
+def _explode_variant_fallback(df: DataFrame, explode_col: str) -> DataFrame:
+    """Fallback when variant_explode_outer/lateralJoin are not available: convert VARIANT array via to_json/from_json/explode/parse_json."""
+    df = df.withColumn("_arr", from_json(to_json(spark_col(explode_col)), "array<string>"))
+    df = df.withColumn("_exploded", explode_outer(spark_col("_arr")))
+    df = df.withColumn("_exploded", expr("parse_json(_exploded)")).drop("_arr")
+    return df
+
+
 def make_gold_table(silver_table_name: str, tr_conf: Dict[str, Any]) -> DataFrame:
     df = SparkSession.getActiveSession().readStream.option("skipChangeCommits", "true").table(silver_table_name)
     if "filter" in tr_conf:
@@ -391,7 +399,26 @@ def make_gold_table(silver_table_name: str, tr_conf: Dict[str, Any]) -> DataFram
     # Field expressions can reference the exploded element as "_exploded" (e.g. try_variant_get(_exploded, '$.hostname', 'STRING')).
     explode_col = tr_conf.get("explode")
     if explode_col:
-        df = df.withColumn("_exploded", explode_outer(spark_col(explode_col)))
+        # explode_outer() requires ARRAY or MAP; VARIANT columns use variant_explode_outer when available, else a conversion.
+        field = next((f for f in df.schema.fields if f.name == explode_col), None)
+        is_variant = field is not None and "variant" in str(field.dataType).lower()
+        if is_variant:
+            # Prefer variant_explode_outer + lateralJoin (Spark 4 / DBR 16.1+). TVF returns pos, key, value; we expose value as _exploded.
+            spark_session = SparkSession.getActiveSession()
+            tvf = getattr(getattr(spark_session, "tvf", None), "variant_explode_outer", None)
+            lateral_join = getattr(df, "lateralJoin", None)
+            if tvf is not None and lateral_join is not None:
+                try:
+                    exploded_tbl = tvf(spark_col(explode_col))
+                    df = df.lateralJoin(exploded_tbl, how="left_outer")
+                    df = df.withColumnRenamed("value", "_exploded").drop("pos", "key")
+                except Exception:
+                    # Fallback if TVF/lateralJoin fails (e.g. runtime mismatch)
+                    df = _explode_variant_fallback(df, explode_col)
+            else:
+                df = _explode_variant_fallback(df, explode_col)
+        else:
+            df = df.withColumn("_exploded", explode_outer(spark_col(explode_col)))
 
     new_fields = generate_field_exprs(tr_conf.get("fields", []))
     # Only include dsl_id if it exists in the source DataFrame (for cases where we skip bronze/silver and source table doesn't have it)

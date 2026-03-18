@@ -256,7 +256,11 @@ gold:
 - **`_exploded`**: The current array element in each row. In field expressions use `_exploded` (e.g. `try_variant_get(_exploded, '$.field', 'STRING')` for VARIANT, or `_exploded.field` if the element is a struct).
 - Event-level columns (e.g. `time`, `metadata`, `dsl_id`) remain available from the silver row; map them with `from:` as usual.
 
-The silver column must be an array type (e.g. `ARRAY<STRUCT<...>>` or `ARRAY<VARIANT>`). If it is a VARIANT that holds a JSON array, normalize it to an array in silver (e.g. `expr: try_variant_get(data, '$.Queries', 'ARRAY<VARIANT>')`) so gold can explode it.
+The exploded column can be **ARRAY**, **MAP**, or **VARIANT**. For a **VARIANT** column that holds a JSON array:
+- **Spark 4 / DBR 16.1+:** The pipeline uses **`variant_explode_outer`** with **`lateralJoin`** so each array element becomes a row; the TVF’s `value` is exposed as **`_exploded`** (VARIANT).
+- **Older runtimes:** The pipeline falls back to a conversion (to_json → from_json as `array<string>` → explode → parse_json) so `_exploded` is VARIANT. Requires Databricks (for `parse_json`).
+
+In both cases use `try_variant_get(_exploded, '$.field', 'STRING')` in field expressions.
 
 ### observables (one element)
 
