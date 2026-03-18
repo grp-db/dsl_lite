@@ -84,9 +84,19 @@ Gold uses `TRANSFORM` to map the entire array to `answers` in one pass. One gold
       variant_to_array(dnsRecords),
       r -> NAMED_STRUCT(
         'class',      'IN',
-        'flag_ids',   CAST(NULL AS ARRAY<INT>),
-        'flags',      CAST(NULL AS ARRAY<STRING>),
-        'packet_uid', CAST(NULL AS INT),
+        'flag_ids',   FILTER(
+                        ARRAY(
+                          CASE WHEN try_variant_get(r, '$.dnsAuthoritative', 'BOOLEAN') THEN 1 ELSE NULL END
+                        ),
+                        x -> x IS NOT NULL
+                      ),
+        'flags',      FILTER(
+                        ARRAY(
+                          CASE WHEN try_variant_get(r, '$.dnsAuthoritative', 'BOOLEAN') THEN 'Authoritative' ELSE NULL END
+                        ),
+                        x -> x IS NOT NULL
+                      ),
+        'packet_uid', try_variant_get(r, '$.dnsID', 'INT'),
         'rdata',      COALESCE(
                         try_variant_get(r, '$.A', 'STRING'),
                         try_variant_get(r, '$.AAAA', 'STRING'),
@@ -95,10 +105,84 @@ Gold uses `TRANSFORM` to map the entire array to `answers` in one pass. One gold
                         try_variant_get(r, '$.NS', 'STRING'),
                         try_variant_get(r, '$.PTR', 'STRING'),
                         try_variant_get(r, '$.TXT', 'STRING'),
-                        try_variant_get(r, '$.dnsSOARName', 'STRING')
+                        try_variant_get(r, '$.SOA', 'STRING'),
+                        try_variant_get(r, '$.dnsSOARName', 'STRING'),
+                        try_variant_get(r, '$.SRV', 'STRING'),
+                        try_variant_get(r, '$.CAA', 'STRING'),
+                        try_variant_get(r, '$.NAPTR', 'STRING'),
+                        try_variant_get(r, '$.DNAME', 'STRING'),
+                        try_variant_get(r, '$.SSHFP', 'STRING'),
+                        try_variant_get(r, '$.TLSA', 'STRING'),
+                        try_variant_get(r, '$.DS', 'STRING'),
+                        try_variant_get(r, '$.DNSKEY', 'STRING'),
+                        try_variant_get(r, '$.RRSIG', 'STRING'),
+                        try_variant_get(r, '$.NSEC', 'STRING'),
+                        try_variant_get(r, '$.HINFO', 'STRING'),
+                        try_variant_get(r, '$.LOC', 'STRING'),
+                        try_variant_get(r, '$.SPF', 'STRING'),
+                        try_variant_get(r, '$.CERT', 'STRING'),
+                        try_variant_get(r, '$.IPSECKEY', 'STRING'),
+                        try_variant_get(r, '$.KX', 'STRING'),
+                        try_variant_get(r, '$.RP', 'STRING'),
+                        try_variant_get(r, '$.AFSDB', 'STRING'),
+                        try_variant_get(r, '$.APL', 'STRING'),
+                        try_variant_get(r, '$.DHCID', 'STRING')
                       ),
-        'ttl',        TRY_CAST(try_variant_get(r, '$.dnsTTL', 'STRING') AS INT),
-        'type',       try_variant_get(r, '$.dnsQRType', 'STRING')
+        'ttl',        try_variant_get(r, '$.dnsTTL', 'INT'),
+        'type',       CASE CAST(try_variant_get(r, '$.dnsQRType', 'INT') AS INT)
+                        WHEN 1   THEN 'A'
+                        WHEN 2   THEN 'NS'
+                        WHEN 5   THEN 'CNAME'
+                        WHEN 6   THEN 'SOA'
+                        WHEN 12  THEN 'PTR'
+                        WHEN 13  THEN 'HINFO'
+                        WHEN 15  THEN 'MX'
+                        WHEN 16  THEN 'TXT'
+                        WHEN 17  THEN 'RP'
+                        WHEN 18  THEN 'AFSDB'
+                        WHEN 24  THEN 'SIG'
+                        WHEN 25  THEN 'KEY'
+                        WHEN 26  THEN 'PX'
+                        WHEN 28  THEN 'AAAA'
+                        WHEN 29  THEN 'LOC'
+                        WHEN 33  THEN 'SRV'
+                        WHEN 35  THEN 'NAPTR'
+                        WHEN 36  THEN 'KX'
+                        WHEN 37  THEN 'CERT'
+                        WHEN 39  THEN 'DNAME'
+                        WHEN 42  THEN 'APL'
+                        WHEN 43  THEN 'DS'
+                        WHEN 44  THEN 'SSHFP'
+                        WHEN 45  THEN 'IPSECKEY'
+                        WHEN 46  THEN 'RRSIG'
+                        WHEN 47  THEN 'NSEC'
+                        WHEN 48  THEN 'DNSKEY'
+                        WHEN 49  THEN 'DHCID'
+                        WHEN 50  THEN 'NSEC3'
+                        WHEN 51  THEN 'NSEC3PARAM'
+                        WHEN 52  THEN 'TLSA'
+                        WHEN 53  THEN 'SMIMEA'
+                        WHEN 55  THEN 'HIP'
+                        WHEN 59  THEN 'CDS'
+                        WHEN 60  THEN 'CDNSKEY'
+                        WHEN 61  THEN 'OPENPGPKEY'
+                        WHEN 62  THEN 'CSYNC'
+                        WHEN 63  THEN 'ZONEMD'
+                        WHEN 64  THEN 'SVCB'
+                        WHEN 65  THEN 'HTTPS'
+                        WHEN 99  THEN 'SPF'
+                        WHEN 108 THEN 'EUI48'
+                        WHEN 109 THEN 'EUI64'
+                        WHEN 249 THEN 'TKEY'
+                        WHEN 250 THEN 'TSIG'
+                        WHEN 255 THEN 'ANY'
+                        WHEN 256 THEN 'URI'
+                        WHEN 257 THEN 'CAA'
+                        WHEN 260 THEN 'AMTRELAY'
+                        WHEN 32768 THEN 'TA'
+                        WHEN 32769 THEN 'DLV'
+                        ELSE try_variant_get(r, '$.dnsQRType', 'STRING')
+                      END
       )
     )
 ```
@@ -129,9 +213,19 @@ gold:
         expr: |
           ARRAY(NAMED_STRUCT(
             'class',      'IN',
-            'flag_ids',   CAST(NULL AS ARRAY<INT>),
-            'flags',      CAST(NULL AS ARRAY<STRING>),
-            'packet_uid', CAST(NULL AS INT),
+            'flag_ids',   FILTER(
+                            ARRAY(
+                              CASE WHEN try_variant_get(_exploded, '$.dnsAuthoritative', 'BOOLEAN') THEN 1 ELSE NULL END
+                            ),
+                            x -> x IS NOT NULL
+                          ),
+            'flags',      FILTER(
+                            ARRAY(
+                              CASE WHEN try_variant_get(_exploded, '$.dnsAuthoritative', 'BOOLEAN') THEN 'Authoritative' ELSE NULL END
+                            ),
+                            x -> x IS NOT NULL
+                          ),
+            'packet_uid', try_variant_get(_exploded, '$.dnsID', 'INT'),
             'rdata',      COALESCE(
                             try_variant_get(_exploded, '$.A', 'STRING'),
                             try_variant_get(_exploded, '$.AAAA', 'STRING'),
@@ -140,10 +234,84 @@ gold:
                             try_variant_get(_exploded, '$.NS', 'STRING'),
                             try_variant_get(_exploded, '$.PTR', 'STRING'),
                             try_variant_get(_exploded, '$.TXT', 'STRING'),
-                            try_variant_get(_exploded, '$.dnsSOARName', 'STRING')
+                            try_variant_get(_exploded, '$.SOA', 'STRING'),
+                            try_variant_get(_exploded, '$.dnsSOARName', 'STRING'),
+                            try_variant_get(_exploded, '$.SRV', 'STRING'),
+                            try_variant_get(_exploded, '$.CAA', 'STRING'),
+                            try_variant_get(_exploded, '$.NAPTR', 'STRING'),
+                            try_variant_get(_exploded, '$.DNAME', 'STRING'),
+                            try_variant_get(_exploded, '$.SSHFP', 'STRING'),
+                            try_variant_get(_exploded, '$.TLSA', 'STRING'),
+                            try_variant_get(_exploded, '$.DS', 'STRING'),
+                            try_variant_get(_exploded, '$.DNSKEY', 'STRING'),
+                            try_variant_get(_exploded, '$.RRSIG', 'STRING'),
+                            try_variant_get(_exploded, '$.NSEC', 'STRING'),
+                            try_variant_get(_exploded, '$.HINFO', 'STRING'),
+                            try_variant_get(_exploded, '$.LOC', 'STRING'),
+                            try_variant_get(_exploded, '$.SPF', 'STRING'),
+                            try_variant_get(_exploded, '$.CERT', 'STRING'),
+                            try_variant_get(_exploded, '$.IPSECKEY', 'STRING'),
+                            try_variant_get(_exploded, '$.KX', 'STRING'),
+                            try_variant_get(_exploded, '$.RP', 'STRING'),
+                            try_variant_get(_exploded, '$.AFSDB', 'STRING'),
+                            try_variant_get(_exploded, '$.APL', 'STRING'),
+                            try_variant_get(_exploded, '$.DHCID', 'STRING')
                           ),
-            'ttl',        TRY_CAST(try_variant_get(_exploded, '$.dnsTTL', 'STRING') AS INT),
-            'type',       try_variant_get(_exploded, '$.dnsQRType', 'STRING')
+            'ttl',        try_variant_get(_exploded, '$.dnsTTL', 'INT'),
+            'type',       CASE CAST(try_variant_get(_exploded, '$.dnsQRType', 'INT') AS INT)
+                            WHEN 1   THEN 'A'
+                            WHEN 2   THEN 'NS'
+                            WHEN 5   THEN 'CNAME'
+                            WHEN 6   THEN 'SOA'
+                            WHEN 12  THEN 'PTR'
+                            WHEN 13  THEN 'HINFO'
+                            WHEN 15  THEN 'MX'
+                            WHEN 16  THEN 'TXT'
+                            WHEN 17  THEN 'RP'
+                            WHEN 18  THEN 'AFSDB'
+                            WHEN 24  THEN 'SIG'
+                            WHEN 25  THEN 'KEY'
+                            WHEN 26  THEN 'PX'
+                            WHEN 28  THEN 'AAAA'
+                            WHEN 29  THEN 'LOC'
+                            WHEN 33  THEN 'SRV'
+                            WHEN 35  THEN 'NAPTR'
+                            WHEN 36  THEN 'KX'
+                            WHEN 37  THEN 'CERT'
+                            WHEN 39  THEN 'DNAME'
+                            WHEN 42  THEN 'APL'
+                            WHEN 43  THEN 'DS'
+                            WHEN 44  THEN 'SSHFP'
+                            WHEN 45  THEN 'IPSECKEY'
+                            WHEN 46  THEN 'RRSIG'
+                            WHEN 47  THEN 'NSEC'
+                            WHEN 48  THEN 'DNSKEY'
+                            WHEN 49  THEN 'DHCID'
+                            WHEN 50  THEN 'NSEC3'
+                            WHEN 51  THEN 'NSEC3PARAM'
+                            WHEN 52  THEN 'TLSA'
+                            WHEN 53  THEN 'SMIMEA'
+                            WHEN 55  THEN 'HIP'
+                            WHEN 59  THEN 'CDS'
+                            WHEN 60  THEN 'CDNSKEY'
+                            WHEN 61  THEN 'OPENPGPKEY'
+                            WHEN 62  THEN 'CSYNC'
+                            WHEN 63  THEN 'ZONEMD'
+                            WHEN 64  THEN 'SVCB'
+                            WHEN 65  THEN 'HTTPS'
+                            WHEN 99  THEN 'SPF'
+                            WHEN 108 THEN 'EUI48'
+                            WHEN 109 THEN 'EUI64'
+                            WHEN 249 THEN 'TKEY'
+                            WHEN 250 THEN 'TSIG'
+                            WHEN 255 THEN 'ANY'
+                            WHEN 256 THEN 'URI'
+                            WHEN 257 THEN 'CAA'
+                            WHEN 260 THEN 'AMTRELAY'
+                            WHEN 32768 THEN 'TA'
+                            WHEN 32769 THEN 'DLV'
+                            ELSE try_variant_get(_exploded, '$.dnsQRType', 'STRING')
+                          END
           ))
       - name: rcode_id
         expr: |
@@ -178,31 +346,33 @@ silver:
                 )
               ),
               qname -> NAMED_STRUCT(
-                'hostname', qname,
-                'qtype',    try_variant_get(
-                              element_at(
-                                FILTER(variant_to_array(dnsRecords),
-                                  r -> try_variant_get(r, '$.dnsQName', 'STRING') = qname
-                                ), 1
-                              ), '$.dnsQRType', 'STRING'
-                            ),
-                'nxdomain', try_variant_get(
-                              element_at(
-                                FILTER(variant_to_array(dnsRecords),
-                                  r -> try_variant_get(r, '$.dnsQName', 'STRING') = qname
-                                ), 1
-                              ), '$.dnsNXDomain', 'BOOLEAN'
-                            ),
-                'answers',  TRANSFORM(
+                'hostname',  qname,
+                'rcode_id',  CAST(try_variant_get(
+                               element_at(
+                                 FILTER(variant_to_array(dnsRecords),
+                                   r -> try_variant_get(r, '$.dnsQName', 'STRING') = qname
+                                 ), 1
+                               ), '$.dnsRCode', 'INT') AS INT),
+                'answers',   TRANSFORM(
                               FILTER(
                                 variant_to_array(dnsRecords),
                                 r -> try_variant_get(r, '$.dnsQName', 'STRING') = qname
                               ),
                               r -> NAMED_STRUCT(
                                 'class',      'IN',
-                                'flag_ids',   CAST(NULL AS ARRAY<INT>),
-                                'flags',      CAST(NULL AS ARRAY<STRING>),
-                                'packet_uid', CAST(NULL AS INT),
+                                'flag_ids',   FILTER(
+                                                ARRAY(
+                                                  CASE WHEN try_variant_get(r, '$.dnsAuthoritative', 'BOOLEAN') THEN 1 ELSE NULL END
+                                                ),
+                                                x -> x IS NOT NULL
+                                              ),
+                                'flags',      FILTER(
+                                                ARRAY(
+                                                  CASE WHEN try_variant_get(r, '$.dnsAuthoritative', 'BOOLEAN') THEN 'Authoritative' ELSE NULL END
+                                                ),
+                                                x -> x IS NOT NULL
+                                              ),
+                                'packet_uid', try_variant_get(r, '$.dnsID', 'INT'),
                                 'rdata',      COALESCE(
                                                 try_variant_get(r, '$.A', 'STRING'),
                                                 try_variant_get(r, '$.AAAA', 'STRING'),
@@ -211,10 +381,84 @@ silver:
                                                 try_variant_get(r, '$.NS', 'STRING'),
                                                 try_variant_get(r, '$.PTR', 'STRING'),
                                                 try_variant_get(r, '$.TXT', 'STRING'),
-                                                try_variant_get(r, '$.dnsSOARName', 'STRING')
+                                                try_variant_get(r, '$.SOA', 'STRING'),
+                                                try_variant_get(r, '$.dnsSOARName', 'STRING'),
+                                                try_variant_get(r, '$.SRV', 'STRING'),
+                                                try_variant_get(r, '$.CAA', 'STRING'),
+                                                try_variant_get(r, '$.NAPTR', 'STRING'),
+                                                try_variant_get(r, '$.DNAME', 'STRING'),
+                                                try_variant_get(r, '$.SSHFP', 'STRING'),
+                                                try_variant_get(r, '$.TLSA', 'STRING'),
+                                                try_variant_get(r, '$.DS', 'STRING'),
+                                                try_variant_get(r, '$.DNSKEY', 'STRING'),
+                                                try_variant_get(r, '$.RRSIG', 'STRING'),
+                                                try_variant_get(r, '$.NSEC', 'STRING'),
+                                                try_variant_get(r, '$.HINFO', 'STRING'),
+                                                try_variant_get(r, '$.LOC', 'STRING'),
+                                                try_variant_get(r, '$.SPF', 'STRING'),
+                                                try_variant_get(r, '$.CERT', 'STRING'),
+                                                try_variant_get(r, '$.IPSECKEY', 'STRING'),
+                                                try_variant_get(r, '$.KX', 'STRING'),
+                                                try_variant_get(r, '$.RP', 'STRING'),
+                                                try_variant_get(r, '$.AFSDB', 'STRING'),
+                                                try_variant_get(r, '$.APL', 'STRING'),
+                                                try_variant_get(r, '$.DHCID', 'STRING')
                                               ),
-                                'ttl',        TRY_CAST(try_variant_get(r, '$.dnsTTL', 'STRING') AS INT),
-                                'type',       try_variant_get(r, '$.dnsQRType', 'STRING')
+                                'ttl',        try_variant_get(r, '$.dnsTTL', 'INT'),
+                                'type',       CASE CAST(try_variant_get(r, '$.dnsQRType', 'INT') AS INT)
+                                                WHEN 1   THEN 'A'
+                                                WHEN 2   THEN 'NS'
+                                                WHEN 5   THEN 'CNAME'
+                                                WHEN 6   THEN 'SOA'
+                                                WHEN 12  THEN 'PTR'
+                                                WHEN 13  THEN 'HINFO'
+                                                WHEN 15  THEN 'MX'
+                                                WHEN 16  THEN 'TXT'
+                                                WHEN 17  THEN 'RP'
+                                                WHEN 18  THEN 'AFSDB'
+                                                WHEN 24  THEN 'SIG'
+                                                WHEN 25  THEN 'KEY'
+                                                WHEN 26  THEN 'PX'
+                                                WHEN 28  THEN 'AAAA'
+                                                WHEN 29  THEN 'LOC'
+                                                WHEN 33  THEN 'SRV'
+                                                WHEN 35  THEN 'NAPTR'
+                                                WHEN 36  THEN 'KX'
+                                                WHEN 37  THEN 'CERT'
+                                                WHEN 39  THEN 'DNAME'
+                                                WHEN 42  THEN 'APL'
+                                                WHEN 43  THEN 'DS'
+                                                WHEN 44  THEN 'SSHFP'
+                                                WHEN 45  THEN 'IPSECKEY'
+                                                WHEN 46  THEN 'RRSIG'
+                                                WHEN 47  THEN 'NSEC'
+                                                WHEN 48  THEN 'DNSKEY'
+                                                WHEN 49  THEN 'DHCID'
+                                                WHEN 50  THEN 'NSEC3'
+                                                WHEN 51  THEN 'NSEC3PARAM'
+                                                WHEN 52  THEN 'TLSA'
+                                                WHEN 53  THEN 'SMIMEA'
+                                                WHEN 55  THEN 'HIP'
+                                                WHEN 59  THEN 'CDS'
+                                                WHEN 60  THEN 'CDNSKEY'
+                                                WHEN 61  THEN 'OPENPGPKEY'
+                                                WHEN 62  THEN 'CSYNC'
+                                                WHEN 63  THEN 'ZONEMD'
+                                                WHEN 64  THEN 'SVCB'
+                                                WHEN 65  THEN 'HTTPS'
+                                                WHEN 99  THEN 'SPF'
+                                                WHEN 108 THEN 'EUI48'
+                                                WHEN 109 THEN 'EUI64'
+                                                WHEN 249 THEN 'TKEY'
+                                                WHEN 250 THEN 'TSIG'
+                                                WHEN 255 THEN 'ANY'
+                                                WHEN 256 THEN 'URI'
+                                                WHEN 257 THEN 'CAA'
+                                                WHEN 260 THEN 'AMTRELAY'
+                                                WHEN 32768 THEN 'TA'
+                                                WHEN 32769 THEN 'DLV'
+                                                ELSE try_variant_get(r, '$.dnsQRType', 'STRING')
+                                              END
                               )
                             )
               )
@@ -230,9 +474,11 @@ gold:
     explode: dns_queries       # one gold row per unique dnsQName
     fields:
       - name: query.hostname
-        expr: try_variant_get(_exploded, '$.hostname', 'STRING')
+        expr: _exploded.hostname
       - name: query.type
-        expr: try_variant_get(_exploded, '$.qtype', 'STRING')
+        expr: element_at(_exploded.answers, 1).type   # reuse string type from answers — no duplicate CASE
+      - name: query.packet_uid
+        expr: element_at(_exploded.answers, 1).packet_uid   # reuse from answers — dropped from outer struct
       - name: query.class
         literal: IN
       - name: query.opcode
@@ -240,13 +486,35 @@ gold:
       - name: query.opcode_id
         expr: CAST(0 AS INT)
       - name: answers
-        expr: _exploded:answers   # already a full ARRAY<STRUCT> built in silver
+        expr: _exploded.answers
       - name: rcode_id
+        expr: _exploded.rcode_id
+      - name: rcode
         expr: |
-          CAST(CASE
-            WHEN try_variant_get(_exploded, '$.nxdomain', 'BOOLEAN') THEN 3
-            ELSE 0
-          END AS INT)
+          CASE _exploded.rcode_id
+            WHEN 0  THEN 'NoError'
+            WHEN 1  THEN 'FormErr'
+            WHEN 2  THEN 'ServFail'
+            WHEN 3  THEN 'NXDomain'
+            WHEN 4  THEN 'NotImp'
+            WHEN 5  THEN 'Refused'
+            WHEN 6  THEN 'YXDomain'
+            WHEN 7  THEN 'YXRRSet'
+            WHEN 8  THEN 'NXRRSet'
+            WHEN 9  THEN 'NotAuth'
+            WHEN 10 THEN 'NotZone'
+            WHEN 11 THEN 'DSOTYPENI'
+            WHEN 16 THEN 'BADSIG'
+            WHEN 17 THEN 'BADKEY'
+            WHEN 18 THEN 'BADTIME'
+            WHEN 19 THEN 'BADMODE'
+            WHEN 20 THEN 'BADNAME'
+            WHEN 21 THEN 'BADALG'
+            WHEN 22 THEN 'BADTRUNC'
+            WHEN 23 THEN 'BADCOOKIE'
+            WHEN 65535 THEN 'Reserved'
+            ELSE 'Other'
+          END
 ```
 
 **Summary of scenarios:**
