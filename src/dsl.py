@@ -71,13 +71,12 @@ def read_bronze_stream(config: Dict[str, Any], input: str, add_opts: Optional[di
     for pt in pre_transforms:
         df = df.selectExpr(*pt)
     
-    # dsl_id: unique per row. Use monotonically_increasing_id() so streaming micro-batches don't
-    # repeat the same uuid()/timestamp for every row (which would produce duplicate dsl_ids).
-    # Revert to old algo if needed (can produce duplicate dsl_ids in streaming):
-    #   "lower(concat(hex(unix_millis(current_timestamp())), substring(replace(uuid(), '-', ''), 0, 13))) as dsl_id"
+    # dsl_id: timestamp hex + 13 chars of uuid (streaming-safe; monotonically_increasing_id() is not supported in streaming).
+    # Note: In streaming micro-batches, uuid()/timestamp may repeat for all rows in a batch, so duplicate dsl_ids can occur; dedupe by (dsl_id, time, source, ...) if needed.
+    # Substring uses 1-based position (Spark SQL); use 1 not 0 for first 13 chars of uuid.
     df = df.selectExpr(
         "*",
-        "lower(concat(hex(unix_millis(current_timestamp())), '_', hex(monotonically_increasing_id()))) as dsl_id"
+        "lower(concat(hex(unix_millis(current_timestamp())), substring(replace(uuid(), '-', ''), 1, 13))) as dsl_id"
     )
     
     # Apply lookups if configured
