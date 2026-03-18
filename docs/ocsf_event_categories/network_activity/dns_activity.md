@@ -59,6 +59,208 @@ DNS Activity events capture DNS queries and responses for security monitoring, t
 
 **See also:** [OCSF ID reference](../../ocsf_ddl_fields/ocsf-ids.md) (incl. rcode_id) · [OCSF endpoint reference](../../ocsf_ddl_fields/ocsf-endpoint.md) · [OCSF metadata reference](../../ocsf_ddl_fields/ocsf-metadata.md) · [OCSF enrichments/observables](../../ocsf_ddl_fields/ocsf-enrichments-observables.md) · [OCSF connection_info](../../ocsf_ddl_fields/ocsf-connection-info.md) · [OCSF traffic](../../ocsf_ddl_fields/ocsf-traffic.md)
 
+## Mapping variant DNS records to OCSF `answers`
+
+[OCSF dns_answer](https://schema.ocsf.io/1.8.0/objects/dns_answer) is `STRUCT<class, packet_uid, type, flag_ids, flags, rdata, ttl>`.
+
+A common source schema has a `dnsRecords` VARIANT array where each element contains fields like `dnsID`, `dnsNXDomain`, `dnsQName`, `dnsQRType`, `dnsRSection`, `dnsTTL`, and optionally type-specific data fields (`A`, `AAAA`, `CNAME`, `MX`, `NS`, `PTR`, `TXT`, `dnsSOARName`, etc.).
+
+> **Important:** Source arrays often contain records from **multiple different query hostnames** mixed together in a single event. Taking only the first element (`$[0]`) produces incorrect results — you must handle all elements. Choose the approach below based on whether your source array is single-query or mixed-query.
+
+### Scenario 1: Without explode — one gold row per source event
+
+**Use when:** Each source event's `dnsRecords` array contains answers for a single query hostname (all records share the same `dnsQName`).
+
+Gold uses `TRANSFORM` to map the entire array to `answers` in one pass. One gold row per source event.
+
+```yaml
+- name: query.hostname
+  expr: try_variant_get(dnsRecords[0], '$.dnsQName', 'STRING')
+- name: query.type
+  expr: try_variant_get(dnsRecords[0], '$.dnsQRType', 'STRING')
+- name: answers
+  expr: |
+    TRANSFORM(
+      variant_to_array(dnsRecords),
+      r -> NAMED_STRUCT(
+        'class',      'IN',
+        'flag_ids',   CAST(NULL AS ARRAY<INT>),
+        'flags',      CAST(NULL AS ARRAY<STRING>),
+        'packet_uid', CAST(NULL AS INT),
+        'rdata',      COALESCE(
+                        try_variant_get(r, '$.A', 'STRING'),
+                        try_variant_get(r, '$.AAAA', 'STRING'),
+                        try_variant_get(r, '$.CNAME', 'STRING'),
+                        try_variant_get(r, '$.MX', 'STRING'),
+                        try_variant_get(r, '$.NS', 'STRING'),
+                        try_variant_get(r, '$.PTR', 'STRING'),
+                        try_variant_get(r, '$.TXT', 'STRING'),
+                        try_variant_get(r, '$.dnsSOARName', 'STRING')
+                      ),
+        'ttl',        TRY_CAST(try_variant_get(r, '$.dnsTTL', 'STRING') AS INT),
+        'type',       try_variant_get(r, '$.dnsQRType', 'STRING')
+      )
+    )
+```
+
+### Scenario 2: With explode — one gold row per DNS record (mixed-query arrays, simple)
+
+**Use when:** The source `dnsRecords` array contains records from **multiple different query hostnames** in the same event, and you want the simplest streaming-safe approach.
+
+Gold uses `explode: dnsRecords` so each element becomes its own row via `_exploded`. Each gold row is one DNS record; `answers` is a single-element array wrapping that record. `query.hostname` and other query fields are pulled directly from `_exploded`.
+
+```yaml
+gold:
+  - name: dns_activity
+    input: your_silver_table
+    explode: dnsRecords        # one gold row per DNS record
+    fields:
+      - name: query.hostname
+        expr: try_variant_get(_exploded, '$.dnsQName', 'STRING')
+      - name: query.type
+        expr: try_variant_get(_exploded, '$.dnsQRType', 'STRING')
+      - name: query.class
+        literal: IN
+      - name: query.opcode
+        literal: Query
+      - name: query.opcode_id
+        expr: CAST(0 AS INT)
+      - name: answers
+        expr: |
+          ARRAY(NAMED_STRUCT(
+            'class',      'IN',
+            'flag_ids',   CAST(NULL AS ARRAY<INT>),
+            'flags',      CAST(NULL AS ARRAY<STRING>),
+            'packet_uid', CAST(NULL AS INT),
+            'rdata',      COALESCE(
+                            try_variant_get(_exploded, '$.A', 'STRING'),
+                            try_variant_get(_exploded, '$.AAAA', 'STRING'),
+                            try_variant_get(_exploded, '$.CNAME', 'STRING'),
+                            try_variant_get(_exploded, '$.MX', 'STRING'),
+                            try_variant_get(_exploded, '$.NS', 'STRING'),
+                            try_variant_get(_exploded, '$.PTR', 'STRING'),
+                            try_variant_get(_exploded, '$.TXT', 'STRING'),
+                            try_variant_get(_exploded, '$.dnsSOARName', 'STRING')
+                          ),
+            'ttl',        TRY_CAST(try_variant_get(_exploded, '$.dnsTTL', 'STRING') AS INT),
+            'type',       try_variant_get(_exploded, '$.dnsQRType', 'STRING')
+          ))
+      - name: rcode_id
+        expr: |
+          CAST(CASE
+            WHEN try_variant_get(_exploded, '$.dnsNXDomain', 'BOOLEAN') THEN 3
+            ELSE 0
+          END AS INT)
+```
+
+**Tradeoff:** Produces multiple gold rows per source event (one per DNS record). `answers` will only ever have one element — it won't group all A/AAAA/CNAME records for the same hostname together. Use Scenario 3 if you need a complete `answers` array per query hostname.
+
+### Scenario 3: Silver pre-grouping + gold explode — one gold row per unique query hostname (mixed-query arrays, complete)
+
+**Use when:** The source `dnsRecords` array contains records from multiple query hostnames **and** you want a proper `query → answers` structure where each gold row has one `query.hostname` with all of its answer records grouped together.
+
+> **This is still streaming-safe.** The grouping happens entirely within a single row's array using higher-order functions (`ARRAY_DISTINCT`, `FILTER`, `TRANSFORM`). This is not `GROUP BY` across rows — no stateful aggregation is involved.
+
+**Step 1 — Silver:** Add a `dns_queries` field that reshapes the flat mixed array into one struct per unique `dnsQName`, each containing its own `answers` array:
+
+```yaml
+silver:
+  transform:
+    - name: your_silver_table
+      fields:
+        - name: dns_queries
+          expr: |
+            TRANSFORM(
+              ARRAY_DISTINCT(
+                TRANSFORM(
+                  variant_to_array(dnsRecords),
+                  r -> try_variant_get(r, '$.dnsQName', 'STRING')
+                )
+              ),
+              qname -> NAMED_STRUCT(
+                'hostname', qname,
+                'qtype',    try_variant_get(
+                              element_at(
+                                FILTER(variant_to_array(dnsRecords),
+                                  r -> try_variant_get(r, '$.dnsQName', 'STRING') = qname
+                                ), 1
+                              ), '$.dnsQRType', 'STRING'
+                            ),
+                'nxdomain', try_variant_get(
+                              element_at(
+                                FILTER(variant_to_array(dnsRecords),
+                                  r -> try_variant_get(r, '$.dnsQName', 'STRING') = qname
+                                ), 1
+                              ), '$.dnsNXDomain', 'BOOLEAN'
+                            ),
+                'answers',  TRANSFORM(
+                              FILTER(
+                                variant_to_array(dnsRecords),
+                                r -> try_variant_get(r, '$.dnsQName', 'STRING') = qname
+                              ),
+                              r -> NAMED_STRUCT(
+                                'class',      'IN',
+                                'flag_ids',   CAST(NULL AS ARRAY<INT>),
+                                'flags',      CAST(NULL AS ARRAY<STRING>),
+                                'packet_uid', CAST(NULL AS INT),
+                                'rdata',      COALESCE(
+                                                try_variant_get(r, '$.A', 'STRING'),
+                                                try_variant_get(r, '$.AAAA', 'STRING'),
+                                                try_variant_get(r, '$.CNAME', 'STRING'),
+                                                try_variant_get(r, '$.MX', 'STRING'),
+                                                try_variant_get(r, '$.NS', 'STRING'),
+                                                try_variant_get(r, '$.PTR', 'STRING'),
+                                                try_variant_get(r, '$.TXT', 'STRING'),
+                                                try_variant_get(r, '$.dnsSOARName', 'STRING')
+                                              ),
+                                'ttl',        TRY_CAST(try_variant_get(r, '$.dnsTTL', 'STRING') AS INT),
+                                'type',       try_variant_get(r, '$.dnsQRType', 'STRING')
+                              )
+                            )
+              )
+            )
+```
+
+**Step 2 — Gold:** Explode `dns_queries` — one row per unique hostname — and reference `_exploded` fields:
+
+```yaml
+gold:
+  - name: dns_activity
+    input: your_silver_table
+    explode: dns_queries       # one gold row per unique dnsQName
+    fields:
+      - name: query.hostname
+        expr: try_variant_get(_exploded, '$.hostname', 'STRING')
+      - name: query.type
+        expr: try_variant_get(_exploded, '$.qtype', 'STRING')
+      - name: query.class
+        literal: IN
+      - name: query.opcode
+        literal: Query
+      - name: query.opcode_id
+        expr: CAST(0 AS INT)
+      - name: answers
+        expr: _exploded:answers   # already a full ARRAY<STRUCT> built in silver
+      - name: rcode_id
+        expr: |
+          CAST(CASE
+            WHEN try_variant_get(_exploded, '$.nxdomain', 'BOOLEAN') THEN 3
+            ELSE 0
+          END AS INT)
+```
+
+**Summary of scenarios:**
+
+| | Scenario 1 | Scenario 2 | Scenario 3 |
+|---|---|---|---|
+| Source array | Single query per event | Mixed queries | Mixed queries |
+| Gold rows per event | 1 | N (one per record) | M (one per unique hostname) |
+| `answers` completeness | Full | Single element | Full, grouped by hostname |
+| Streaming safe | Yes | Yes | Yes |
+| Complexity | Low | Low | Medium |
+
+> Adjust the `rdata` COALESCE order and add/remove variant keys to match your schema. `dnsRSection` (answer/authority/additional) has no OCSF `dns_answer` equivalent — filter to the answer section before mapping or stash it in `unmapped`.
+
 ## Delta table properties
 
 - `delta.enableDeletionVectors` = true  
