@@ -74,7 +74,11 @@ dsl_lite/
 │   ├── sss_gold.py              # Gold (OCSF) layer task (SSS mode)
 │   └── sss_medallion.py         # Combined Bronze→Silver→Gold task (SSS mode)
 ├── notebooks/                    # Databricks notebooks
-│   └── create_ocsf_tables.py    # Setup notebook for OCSF tables
+│   ├── ddl/
+│   │   └── create_ocsf_tables.py    # OCSF gold table creation
+│   └── explorer/
+│       ├── explorer_helpers.py      # Batch transform functions (loaded via %run)
+│       └── preset_explorer.py       # Interactive preset development notebook
 ├── pipelines/                    # Configuration presets (Cisco, Zeek, Cloudflare, GitHub, AWS, etc.)
 ├── ocsf_templates/              # OCSF mapping templates (21 standardized templates)
 ├── docs/                         # Reference documentation
@@ -111,7 +115,7 @@ dsl_lite/
 
 To deploy a new data streaming pipeline you need:
 
-- **Databases**: Bronze, silver, and gold layers with OCSF-compliant tables (create using `notebooks/create_ocsf_tables.py`)
+- **Databases**: Bronze, silver, and gold layers with OCSF-compliant tables (create using `notebooks/ddl/create_ocsf_tables.py`)
 - **Preset configuration**: YAML files defining data transformations for your log source (located in `pipelines/` directory)
 - **Input location(s)**: Configure data source paths in the preset's `autoloader.inputs` section (only required if not skipping bronze layer)
 
