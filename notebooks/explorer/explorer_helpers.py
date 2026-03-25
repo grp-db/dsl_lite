@@ -212,23 +212,33 @@ def read_bronze_batch(config: dict, sample_path: str, fmt: str, display_limit: i
     """
     spark_fmt = _FMT_MAP.get(fmt, fmt)
     al_conf = config.get("autoloader", {})
+    bronze_conf = config.get("bronze", {})
+    load_as_single_variant = bronze_conf.get("loadAsSingleVariant", False)
 
-    # Build read options
-    read_opts = {}
-    if fmt in ("json", "jsonl"):
-        read_opts["multiLine"] = str(al_conf.get("multiline", "false"))
-    elif fmt == "csv":
-        read_opts["header"] = "true"
-        read_opts["inferSchema"] = "true"
-    for k, v in (al_conf.get("options") or {}).items():
-        read_opts[k] = v
+    if load_as_single_variant:
+        # Mirror Auto Loader's singleVariantColumn behaviour: read raw text then
+        # create a VARIANT 'data' column so preTransform try_variant_get() works.
+        # withColumn preserves _metadata so the preTransform can still access
+        # _metadata.file_path in the same selectExpr call.
+        df = spark.read.text(sample_path)
+        df = df.withColumn("data", spark_expr("parse_json(value)"))
+    else:
+        # Build read options
+        read_opts = {}
+        if fmt in ("json", "jsonl"):
+            read_opts["multiLine"] = str(al_conf.get("multiline", "false"))
+        elif fmt == "csv":
+            read_opts["header"] = "true"
+            read_opts["inferSchema"] = "true"
+        for k, v in (al_conf.get("options") or {}).items():
+            read_opts[k] = v
 
-    schema_str = al_conf.get("schema") or (al_conf.get("cloudFiles") or {}).get("schema")
-    reader = spark.read.format(spark_fmt).options(**read_opts)
-    if schema_str:
-        reader = reader.schema(schema_str)
+        schema_str = al_conf.get("schema") or (al_conf.get("cloudFiles") or {}).get("schema")
+        reader = spark.read.format(spark_fmt).options(**read_opts)
+        if schema_str:
+            reader = reader.schema(schema_str)
 
-    df = reader.load(sample_path)
+        df = reader.load(sample_path)
 
     # preTransform
     bronze_conf = config.get("bronze", {})
@@ -375,6 +385,11 @@ def run_gold(config: dict, silver_dfs: dict, display_limit: int = 50):
         if "dsl_id" in df.columns:
             select_exprs.append("dsl_id")
         select_exprs.extend(generate_field_exprs(tr_conf.get("fields", [])))
+
+        # VARIANT output type is not needed for display and can fail in batch
+        # selectExpr on some runtimes. Replace with STRING for explorer mode.
+        select_exprs = [e.replace("AS VARIANT", "AS STRING") for e in select_exprs]
+
         df = df.selectExpr(*select_exprs)
 
         if "postFilter" in tr_conf:

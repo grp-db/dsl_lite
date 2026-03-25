@@ -20,6 +20,10 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install pyyaml
+
+# COMMAND ----------
+
 dbutils.widgets.text("preset_file",     "",   "Preset File Path")
 dbutils.widgets.text("sample_data_path", "",  "Sample Data Path (leave blank → autoloader.inputs[0])")
 dbutils.widgets.text("display_limit",   "50", "Rows to Display per Layer")
