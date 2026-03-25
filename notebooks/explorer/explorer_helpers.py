@@ -11,6 +11,8 @@
 
 # COMMAND ----------
 
+import re
+
 from yaml import load, Loader
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import (
@@ -19,6 +21,36 @@ from pyspark.sql.functions import (
 )
 
 spark = SparkSession.getActiveSession()
+
+
+# =============================================================================
+# Batch expression rewriter
+# =============================================================================
+
+def _rewrite_expr(e: str) -> str:
+    """
+    Rewrite expressions that use VARIANT-dependent functions so they work in
+    batch/Spark-Connect mode without requiring the VARIANT type.
+
+    - try_variant_get(col, '$.path', 'TYPE') → get_json_object(col, '$.path')
+      (drops the type arg; outer TRY_CAST wrappers in the expression handle typing)
+    - CAST(... AS VARIANT) → CAST(... AS STRING)
+      (raw_data / unmapped / enrichments fields — fine for display)
+    """
+    # Replace try_variant_get with get_json_object (drop the third type argument)
+    e = re.sub(
+        r"try_variant_get\(([^,]+),\s*('[^']*'),\s*'[^']*'\)",
+        r"get_json_object(\1, \2)",
+        e,
+        flags=re.IGNORECASE,
+    )
+    # Replace VARIANT output casts
+    e = e.replace("AS VARIANT", "AS STRING")
+    return e
+
+
+def _rewrite_exprs(exprs: list) -> list:
+    return [_rewrite_expr(e) for e in exprs]
 
 
 # =============================================================================
@@ -216,12 +248,14 @@ def read_bronze_batch(config: dict, sample_path: str, fmt: str, display_limit: i
     load_as_single_variant = bronze_conf.get("loadAsSingleVariant", False)
 
     if load_as_single_variant:
-        # Mirror Auto Loader's singleVariantColumn behaviour: read raw text then
-        # create a VARIANT 'data' column so preTransform try_variant_get() works.
-        # withColumn preserves _metadata so the preTransform can still access
-        # _metadata.file_path in the same selectExpr call.
+        # Mirror Auto Loader's singleVariantColumn behaviour in batch mode.
+        # We keep 'data' as a plain STRING (raw JSON) rather than VARIANT because
+        # Spark Connect cannot serialise the VARIANT proto type and will throw
+        # PySparkValueError("data type ... is not supported") on schema access.
+        # All try_variant_get() calls are rewritten to get_json_object() below,
+        # which works identically on STRING for display/validation purposes.
         df = spark.read.text(sample_path)
-        df = df.withColumn("data", spark_expr("parse_json(value)"))
+        df = df.withColumn("data", spark_col("value"))
     else:
         # Build read options
         read_opts = {}
@@ -240,13 +274,12 @@ def read_bronze_batch(config: dict, sample_path: str, fmt: str, display_limit: i
 
         df = reader.load(sample_path)
 
-    # preTransform
-    bronze_conf = config.get("bronze", {})
+    # preTransform — rewrite VARIANT-dependent expressions for batch compatibility
     for pt in bronze_conf.get("preTransform", []):
         if isinstance(pt, list):
-            df = df.selectExpr(*pt)
+            df = df.selectExpr(*_rewrite_exprs(pt))
         elif isinstance(pt, str):
-            df = df.selectExpr(pt)
+            df = df.selectExpr(_rewrite_expr(pt))
 
     # dsl_id
     df = df.selectExpr(
@@ -308,7 +341,7 @@ def run_silver(config: dict, bronze_df: DataFrame, display_limit: int = 50) -> d
 
         temp_fields_conf = (tr_conf.get("utils") or {}).get("temporaryFields", [])
         if temp_fields_conf:
-            df = df.selectExpr("*", *generate_field_exprs(temp_fields_conf))
+            df = df.selectExpr("*", *_rewrite_exprs(generate_field_exprs(temp_fields_conf)))
 
         unreferenced_conf = (tr_conf.get("utils") or {}).get("unreferencedColumns", {})
         orig_cols = []
@@ -318,7 +351,7 @@ def run_silver(config: dict, bronze_df: DataFrame, display_limit: int = 50) -> d
         if "dsl_id" not in orig_cols and "`dsl_id`" not in orig_cols:
             orig_cols.append("dsl_id")
 
-        df = df.selectExpr(*orig_cols, *generate_field_exprs(tr_conf.get("fields", [])))
+        df = df.selectExpr(*orig_cols, *_rewrite_exprs(generate_field_exprs(tr_conf.get("fields", []))))
 
         if temp_fields_conf:
             df = df.drop(*[t["name"] for t in temp_fields_conf])
@@ -384,11 +417,7 @@ def run_gold(config: dict, silver_dfs: dict, display_limit: int = 50):
         select_exprs = []
         if "dsl_id" in df.columns:
             select_exprs.append("dsl_id")
-        select_exprs.extend(generate_field_exprs(tr_conf.get("fields", [])))
-
-        # VARIANT output type is not needed for display and can fail in batch
-        # selectExpr on some runtimes. Replace with STRING for explorer mode.
-        select_exprs = [e.replace("AS VARIANT", "AS STRING") for e in select_exprs]
+        select_exprs.extend(_rewrite_exprs(generate_field_exprs(tr_conf.get("fields", []))))
 
         df = df.selectExpr(*select_exprs)
 
