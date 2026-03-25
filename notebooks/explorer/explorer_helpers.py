@@ -231,6 +231,24 @@ def load_config(preset_file: str, sample_override: str = "") -> tuple:
 
 
 # =============================================================================
+# Diagnostic helpers
+# =============================================================================
+
+def _null_summary(df: DataFrame, row_count: int) -> list:
+    """Return list of column names where every row is NULL (likely a broken mapping)."""
+    if row_count == 0:
+        return []
+    null_counts = df.selectExpr(*[
+        f"sum(case when `{c}` is null then 1 else 0 end)"
+        for c in df.columns
+    ]).collect()[0]
+    return [
+        c for c, nc in zip(df.columns, null_counts)
+        if nc == row_count and c != "dsl_id"
+    ]
+
+
+# =============================================================================
 # Bronze
 # =============================================================================
 
@@ -306,7 +324,9 @@ def read_bronze_batch(config: dict, sample_path: str, fmt: str, display_limit: i
     if existing_drops:
         df = df.drop(*existing_drops)
 
-    print(f"Bronze schema ({len(df.columns)} columns): {df.columns}")
+    row_count = df.count()
+    print(f"  Rows    : {row_count}")
+    print(f"  Columns : {len(df.columns)} → {df.columns}")
     display(df.limit(display_limit))
     return df
 
@@ -330,43 +350,52 @@ def run_silver(config: dict, bronze_df: DataFrame, display_limit: int = 50) -> d
         print(f"Silver table: {silver_name}")
         print(f"{'='*60}")
 
-        input_ref = tr_conf.get("input")
-        if input_ref and "." in str(input_ref):
-            print(f"  Reading from existing table: {input_ref}")
-            df = spark.read.table(input_ref)
-        else:
-            df = bronze_df
+        try:
+            input_ref = tr_conf.get("input")
+            if input_ref and "." in str(input_ref):
+                print(f"  Reading from existing table: {input_ref}")
+                df = spark.read.table(input_ref)
+            else:
+                df = bronze_df
 
-        if tr_conf.get("lookups"):
-            df = apply_lookups(df, tr_conf["lookups"])
+            if tr_conf.get("lookups"):
+                df = apply_lookups(df, tr_conf["lookups"])
 
-        if "filter" in tr_conf:
-            print(f"  Filter: {tr_conf['filter']}")
-            df = df.filter(tr_conf["filter"])
+            if "filter" in tr_conf:
+                print(f"  Filter: {tr_conf['filter']}")
+                df = df.filter(tr_conf["filter"])
 
-        temp_fields_conf = (tr_conf.get("utils") or {}).get("temporaryFields", [])
-        if temp_fields_conf:
-            df = df.selectExpr("*", *_rewrite_exprs(generate_field_exprs(temp_fields_conf)))
+            temp_fields_conf = (tr_conf.get("utils") or {}).get("temporaryFields", [])
+            if temp_fields_conf:
+                df = df.selectExpr("*", *_rewrite_exprs(generate_field_exprs(temp_fields_conf)))
 
-        unreferenced_conf = (tr_conf.get("utils") or {}).get("unreferencedColumns", {})
-        orig_cols = []
-        if unreferenced_conf.get("preserve", False):
-            to_omit = [strip_backticks(c) for c in unreferenced_conf.get("omitColumns", [])]
-            orig_cols = [f"`{c}`" for c in df.columns if c not in to_omit]
-        if "dsl_id" not in orig_cols and "`dsl_id`" not in orig_cols:
-            orig_cols.append("dsl_id")
+            unreferenced_conf = (tr_conf.get("utils") or {}).get("unreferencedColumns", {})
+            orig_cols = []
+            if unreferenced_conf.get("preserve", False):
+                to_omit = [strip_backticks(c) for c in unreferenced_conf.get("omitColumns", [])]
+                orig_cols = [f"`{c}`" for c in df.columns if c not in to_omit]
+            if "dsl_id" not in orig_cols and "`dsl_id`" not in orig_cols:
+                orig_cols.append("dsl_id")
 
-        df = df.selectExpr(*orig_cols, *_rewrite_exprs(generate_field_exprs(tr_conf.get("fields", []))))
+            df = df.selectExpr(*orig_cols, *_rewrite_exprs(generate_field_exprs(tr_conf.get("fields", []))))
 
-        if temp_fields_conf:
-            df = df.drop(*[t["name"] for t in temp_fields_conf])
+            if temp_fields_conf:
+                df = df.drop(*[t["name"] for t in temp_fields_conf])
 
-        if "postFilter" in tr_conf:
-            df = df.filter(tr_conf["postFilter"])
+            if "postFilter" in tr_conf:
+                df = df.filter(tr_conf["postFilter"])
 
-        silver_dfs[silver_name] = df
-        print(f"  Schema ({len(df.columns)} columns): {df.columns}")
-        display(df.limit(display_limit))
+            row_count = df.count()
+            print(f"  Rows    : {row_count}")
+            print(f"  Columns : {len(df.columns)}")
+            null_fields = _null_summary(df, row_count)
+            if null_fields:
+                print(f"  ⚠️  All-null fields (check silver mappings): {null_fields}")
+            silver_dfs[silver_name] = df
+            display(df.limit(display_limit))
+
+        except Exception as e:
+            print(f"  ❌ Error processing silver table '{silver_name}': {e}")
 
     return silver_dfs
 
@@ -384,53 +413,65 @@ def run_gold(config: dict, silver_dfs: dict, display_limit: int = 50):
         print(f"Gold table: {gold_name}")
         print(f"{'='*60}")
 
-        input_ref = tr_conf.get("input")
-        if input_ref and "." in str(input_ref):
-            print(f"  Reading from existing table: {input_ref}")
-            df = spark.read.table(input_ref)
-        elif input_ref and input_ref in silver_dfs:
-            df = silver_dfs[input_ref]
-        elif silver_dfs:
-            df = next(iter(silver_dfs.values()))
-        else:
-            print(f"  ⚠️  No silver DataFrame found for input '{input_ref}' — skipping")
-            continue
+        try:
+            input_ref = tr_conf.get("input")
+            if input_ref and "." in str(input_ref):
+                print(f"  Reading from existing table: {input_ref}")
+                df = spark.read.table(input_ref)
+            elif input_ref and input_ref in silver_dfs:
+                df = silver_dfs[input_ref]
+            elif silver_dfs:
+                df = next(iter(silver_dfs.values()))
+            else:
+                print(f"  ⚠️  No silver DataFrame found for input '{input_ref}' — skipping")
+                continue
 
-        if "filter" in tr_conf:
-            print(f"  Filter: {tr_conf['filter']}")
-            df = df.filter(tr_conf["filter"])
+            if "filter" in tr_conf:
+                print(f"  Filter: {tr_conf['filter']}")
+                df = df.filter(tr_conf["filter"])
 
-        explode_col = tr_conf.get("explode")
-        if explode_col:
-            field = next((f for f in df.schema.fields if f.name == explode_col), None)
-            is_variant = field is not None and "variant" in str(field.dataType).lower()
-            if is_variant:
-                tvf = getattr(getattr(spark, "tvf", None), "variant_explode_outer", None)
-                lateral_join = getattr(df, "lateralJoin", None)
-                if tvf is not None and lateral_join is not None:
-                    try:
-                        exploded_tbl = tvf(spark_col(explode_col))
-                        df = df.lateralJoin(exploded_tbl, how="left_outer")
-                        df = df.withColumnRenamed("value", "_exploded").drop("pos", "key")
-                    except Exception:
+            explode_col = tr_conf.get("explode")
+            if explode_col:
+                field = next((f for f in df.schema.fields if f.name == explode_col), None)
+                is_variant = field is not None and "variant" in str(field.dataType).lower()
+                if is_variant:
+                    tvf = getattr(getattr(spark, "tvf", None), "variant_explode_outer", None)
+                    lateral_join = getattr(df, "lateralJoin", None)
+                    if tvf is not None and lateral_join is not None:
+                        try:
+                            exploded_tbl = tvf(spark_col(explode_col))
+                            df = df.lateralJoin(exploded_tbl, how="left_outer")
+                            df = df.withColumnRenamed("value", "_exploded").drop("pos", "key")
+                        except Exception:
+                            df = _explode_variant_fallback(df, explode_col)
+                    else:
                         df = _explode_variant_fallback(df, explode_col)
                 else:
-                    df = _explode_variant_fallback(df, explode_col)
+                    df = df.withColumn("_exploded", explode_outer(spark_col(explode_col)))
+
+            select_exprs = []
+            if "dsl_id" in df.columns:
+                select_exprs.append("dsl_id")
+            select_exprs.extend(_rewrite_exprs(generate_field_exprs(tr_conf.get("fields", []))))
+
+            df = df.selectExpr(*select_exprs)
+
+            if "postFilter" in tr_conf:
+                df = df.filter(tr_conf["postFilter"])
+
+            row_count = df.count()
+            if row_count == 0:
+                print(f"  ⚠️  0 rows — filter may be too restrictive")
             else:
-                df = df.withColumn("_exploded", explode_outer(spark_col(explode_col)))
+                print(f"  Rows    : {row_count}")
+                null_fields = _null_summary(df, row_count)
+                if null_fields:
+                    print(f"  ⚠️  All-null fields (check gold mappings): {null_fields}")
+            print(f"  Columns : {len(df.columns)}")
+            display(df.limit(display_limit))
 
-        select_exprs = []
-        if "dsl_id" in df.columns:
-            select_exprs.append("dsl_id")
-        select_exprs.extend(_rewrite_exprs(generate_field_exprs(tr_conf.get("fields", []))))
-
-        df = df.selectExpr(*select_exprs)
-
-        if "postFilter" in tr_conf:
-            df = df.filter(tr_conf["postFilter"])
-
-        print(f"  Schema ({len(df.columns)} columns): {df.columns}")
-        display(df.limit(display_limit))
+        except Exception as e:
+            print(f"  ❌ Error processing gold table '{gold_name}': {e}")
 
 
 print("✓ DSL Lite explorer helpers loaded")
