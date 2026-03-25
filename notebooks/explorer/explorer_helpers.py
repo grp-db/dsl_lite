@@ -44,6 +44,11 @@ def _rewrite_expr(e: str) -> str:
         e,
         flags=re.IGNORECASE,
     )
+    # to_json(data) → data
+    # In production 'data' is VARIANT so to_json() works. In the explorer 'data'
+    # is already a JSON STRING, so to_json() would fail with a type mismatch.
+    # named_struct('payload', data, ...) is fine because the struct itself is valid.
+    e = re.sub(r"\bto_json\(\s*data\s*\)", "data", e, flags=re.IGNORECASE)
     # Replace VARIANT output casts
     e = e.replace("AS VARIANT", "AS STRING")
     return e

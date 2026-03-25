@@ -17,6 +17,31 @@
 # MAGIC 4. Tweak your YAML and re-run the affected cell to iterate
 # MAGIC
 # MAGIC See `tutorials/building-a-preset-end-to-end.md` for a full walkthrough.
+# MAGIC
+# MAGIC ---
+# MAGIC
+# MAGIC ### Note on `data` column type (JSON presets)
+# MAGIC
+# MAGIC In production (SDP / SSS), Auto Loader reads JSON records into a single `data VARIANT`
+# MAGIC column using `loadAsSingleVariant`. The explorer runs on **serverless compute via Spark
+# MAGIC Connect**, which does not support the VARIANT type in its Python client protocol — any
+# MAGIC DataFrame holding a VARIANT column will fail schema serialisation before `display()` runs.
+# MAGIC
+# MAGIC To work around this, the explorer keeps `data` as a plain **STRING** (the raw JSON) and
+# MAGIC transparently rewrites VARIANT-dependent expressions at runtime:
+# MAGIC
+# MAGIC | Production YAML expression | Explorer equivalent |
+# MAGIC |----------------------------|---------------------|
+# MAGIC | `try_variant_get(data, '$.field', 'STRING')` | `get_json_object(data, '$.field')` |
+# MAGIC | `CAST(... AS VARIANT)` | `CAST(... AS STRING)` |
+# MAGIC | `to_json(data)` | `data` (already a JSON string) |
+# MAGIC
+# MAGIC **The values are identical** — only the column type annotation differs. Your YAML is
+# MAGIC validated correctly and deployed to SDP / SSS unchanged.
+# MAGIC
+# MAGIC > **Array-type fields** (`'ARRAY<STRING>'`, `'ARRAY<INT>'`, etc.) will appear as raw
+# MAGIC > JSON strings (e.g. `["a","b"]`) rather than typed arrays. This is a display-only
+# MAGIC > difference and does not affect the correctness of field mapping validation.
 
 # COMMAND ----------
 
