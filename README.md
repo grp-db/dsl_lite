@@ -29,7 +29,7 @@ This accelerator was developed by the **Databricks Field Engineering and Profess
   - [Spark Declarative Pipeline (SDP)](#execute-as-spark-declarative-pipeline-sdp)
   - [Spark Structured Streaming (SSS)](#execute-as-spark-structured-streaming-sss-job)
 - [Further Reading](#further-reading)
-- [Development & Testing Tool](#development--testing-tool)
+- [Development & Testing Tools](#development--testing-tools)
 - [Key Features](#key-features)
 - [Supported Data Sources](#supported-data-sources)
 - [Limitations](#limitations)
@@ -299,16 +299,11 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
 
 ---
 
-## Development & Testing Tool
+## Development & Testing Tools
 
-**DASL Preset Tool** provides an interactive development workflow for creating, testing, and iterating on preset configurations before deploying to production with DSL Lite.
+**Preferred: Preset Explorer** — The interactive notebook [`notebooks/explorer/preset_explorer.py`](notebooks/explorer/preset_explorer.py) (with [`explorer_helpers.py`](notebooks/explorer/explorer_helpers.py)) is the recommended way to develop and test presets in Databricks: run bronze, silver, and gold transforms in batch against sample logs, preview outputs, and iterate on YAML before production deployment. See [Building a preset end-to-end](tutorials/building-a-preset-end-to-end.md) for a walkthrough.
 
-- **Interactive Development**: Test preset transformations in real-time using sample log files
-- **Rapid Iteration**: Quickly validate changes to YAML preset configurations
-- **Preview & Debug**: Preview bronze, silver, and gold layer outputs before deployment
-- **Production Deployment**: Once validated, deploy presets via DSL Lite
-
-For more information, see the [DASL Preset Tool repository](https://github.com/grp-db/preset_tool).
+**Alternative: DASL Preset Tool** — The [DASL Preset Tool repository](https://github.com/grp-db/preset_tool) offers a separate interactive workflow for creating, testing, and iterating on preset configurations with sample log files before deploying with DSL Lite.
 
 ---
 
@@ -334,14 +329,14 @@ DSL Lite uses Databricks Auto Loader to ingest data from file-based sources:
 
 **Example presets** (see [Example Pipeline Outputs](#example-pipeline-outputs)): Cisco IOS, Cloudflare Gateway DNS, GitHub Audit Logs, Zeek Conn, AWS VPC Flow Logs.
 
-Support for streaming sources (Kafka, Event Hubs, Kinesis) can be added based on customer requirements.
+Support for streaming sources (Kafka, Event Hubs, Kinesis, Zerobus) can be added based on customer requirements.
 
 ---
 
 ## Limitations
 
-- **File-based ingestion only.** Ingestion is via Databricks Auto Loader only. There is no built-in support for Kafka, Event Hubs, Kinesis, or other streaming sources; those would require custom integration.
-- **Auto Loader: one stream per path.** Each path in `autoloader.inputs` is a separate stream with its own checkpoint.
+- **File-based ingestion only.** Ingestion is via Databricks Auto Loader only. There is no built-in support for Kafka, Event Hubs, Kinesis, Zerobus or other streaming sources; those would require custom integration.
+b- **Auto Loader: one stream per path.** Each path in `autoloader.inputs` is a separate stream with its own checkpoint.
 - **SDP (Spark Declarative Pipeline) mode.** With SDP deployment, confirm in your environment whether pipelines support continuous execution or only trigger-based (e.g. "Trigger now") runs. Behavior may depend on Databricks runtime and Lakeflow configuration.
 - **No interactive `display()` in pipeline execution.** The framework runs as batch/streaming jobs. There is no built-in interactive notebook experience with `df.display()` for ad-hoc preview of pipeline output; use the [DASL Preset Tool](https://github.com/grp-db/preset_tool) or run queries against the tables after the job.
 - **One pipeline per log source.** Each log source (e.g. Cisco IOS, Zeek conn, Cloudflare DNS, GitHub Audit Logs, AWS VPC Flow Logs) is configured as a separate preset and typically a separate pipeline. Multi-source aggregation happens in the gold OCSF tables, not in a single preset.
