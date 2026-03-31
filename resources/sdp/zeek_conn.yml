@@ -10,7 +10,7 @@ resources:
       name: "[${bundle.target}] DSL Lite - Zeek Conn (SDP)"
 
       libraries:
-        - notebook:
+        - file:
             path: ../../src/sdp_medallion.py
 
       configuration:
