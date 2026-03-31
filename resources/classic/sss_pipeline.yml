@@ -1,0 +1,48 @@
+# DSL Lite — SSS Single-Task Medallion Job (Generic)
+#
+# Runs all three layers (Bronze → Silver → Gold) in a single notebook task.
+# Simpler than the multi-task approach but provides less isolation between layers.
+#
+# The preset is controlled by the `preset_name` bundle variable:
+#
+#   databricks bundle deploy -t dev --var="preset_name=cloudflare/gateway_dns"
+#   databricks bundle run sss_medallion_pipeline -t dev
+#
+# Default preset_name is set in databricks.yml (cisco/ios).
+# To create dedicated single-task jobs for other presets, copy this file and
+# hardcode the preset path in preset_file instead of using the variable.
+
+resources:
+  jobs:
+    sss_medallion_pipeline:
+      name: "[${bundle.target}] DSL Lite - SSS Medallion (${var.preset_name})"
+
+      job_clusters:
+        - job_cluster_key: pipeline_cluster
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id: ${var.node_type_id}
+            num_workers: 2
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              spark.databricks.delta.preview.enabled: "true"
+
+      tasks:
+        - task_key: medallion
+          description: "Run full Bronze → Silver → Gold pipeline in a single notebook."
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ../../src/sss_medallion.py
+            base_parameters:
+              preset_file:           "${workspace.file_path}/pipelines/${var.preset_name}/preset.yaml"
+              bronze_database:       "${var.bronze_database}"
+              silver_database:       "${var.silver_database}"
+              gold_database:         "${var.gold_database}"
+              checkpoints_location:  "${var.sss_checkpoints_base}/${var.preset_name}"
+              skip_bronze:           "False"
+              skip_silver:           "False"
+              continuous:            "False"
+
+      permissions:
+        - level: CAN_VIEW
+          group_name: users

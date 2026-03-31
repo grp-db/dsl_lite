@@ -1,0 +1,67 @@
+# DSL Lite — Cisco IOS SSS Multi-Task Job
+#
+# Processes Cisco IOS logs through the full Bronze → Silver → Gold pipeline
+# using Spark Structured Streaming with availableNow (batch) trigger mode.
+#
+# To run continuously instead of batch, change continuous to "True" in each task
+# and remove the depends_on sections so all three tasks start simultaneously.
+
+resources:
+  jobs:
+    cisco_ios_pipeline:
+      name: "[${bundle.target}] DSL Lite - Cisco IOS Pipeline"
+
+      job_clusters:
+        - job_cluster_key: pipeline_cluster
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id: ${var.node_type_id}
+            num_workers: 2
+            data_security_mode: SINGLE_USER
+            spark_conf:
+              spark.databricks.delta.preview.enabled: "true"
+
+      tasks:
+
+        - task_key: bronze
+          description: "Ingest Cisco IOS logs into the Bronze Delta table via Auto Loader."
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ../../src/sss_bronze.py
+            base_parameters:
+              preset_file:           "${workspace.file_path}/pipelines/cisco/ios/preset.yaml"
+              bronze_database:       "${var.bronze_database}"
+              checkpoints_location:  "${var.sss_checkpoints_base}/cisco_ios"
+              continuous:            "False"
+
+        - task_key: silver
+          description: "Parse and structure Bronze data into the Silver Delta table."
+          depends_on:
+            - task_key: bronze
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ../../src/sss_silver.py
+            base_parameters:
+              preset_file:           "${workspace.file_path}/pipelines/cisco/ios/preset.yaml"
+              bronze_database:       "${var.bronze_database}"
+              silver_database:       "${var.silver_database}"
+              checkpoints_location:  "${var.sss_checkpoints_base}/cisco_ios"
+              continuous:            "False"
+
+        - task_key: gold
+          description: "Map Silver data to OCSF-compliant Gold tables."
+          depends_on:
+            - task_key: silver
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ../../src/sss_gold.py
+            base_parameters:
+              preset_file:           "${workspace.file_path}/pipelines/cisco/ios/preset.yaml"
+              silver_database:       "${var.silver_database}"
+              gold_database:         "${var.gold_database}"
+              checkpoints_location:  "${var.sss_checkpoints_base}/cisco_ios"
+              continuous:            "False"
+
+      permissions:
+        - level: CAN_VIEW
+          group_name: users

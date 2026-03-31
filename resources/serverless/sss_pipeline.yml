@@ -1,0 +1,33 @@
+# DSL Lite — SSS Single-Task Medallion Job (Serverless, Generic)
+#
+# Set preset via: databricks bundle deploy -t dev --var="preset_name=cloudflare/gateway_dns"
+
+resources:
+  jobs:
+    sss_medallion_pipeline:
+      name: "[${bundle.target}] DSL Lite - SSS Medallion (${var.preset_name})"
+
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+
+      tasks:
+        - task_key: medallion
+          description: "Run full Bronze → Silver → Gold pipeline in a single notebook."
+          environment_key: default
+          notebook_task:
+            notebook_path: ../../src/sss_medallion.py
+            base_parameters:
+              preset_file:           "${workspace.file_path}/pipelines/${var.preset_name}/preset.yaml"
+              bronze_database:       "${var.bronze_database}"
+              silver_database:       "${var.silver_database}"
+              gold_database:         "${var.gold_database}"
+              checkpoints_location:  "${var.sss_checkpoints_base}/${var.preset_name}"
+              skip_bronze:           "False"
+              skip_silver:           "False"
+              continuous:            "False"
+
+      permissions:
+        - level: CAN_VIEW
+          group_name: users
