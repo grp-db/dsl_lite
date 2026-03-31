@@ -14,202 +14,151 @@ This directory and the root `databricks.yml` define the Databricks Asset Bundle 
   databricks configure --profile prod-workspace
   ```
 - **Unity Catalog** — target workspace must have Unity Catalog enabled
-- **Volumes** — if using SSS jobs, create a Volume for checkpoint storage before deploying:
-  ```sql
-  CREATE CATALOG IF NOT EXISTS dev;
-  CREATE SCHEMA IF NOT EXISTS dev.dsl_bronze_dev;
-  CREATE VOLUME IF NOT EXISTS dev.dsl_bronze_dev.checkpoints;
-  ```
+- **DBR 16.0+ / Spark 4.1+** — required for SDP pipelines
 
 ---
 
-## Bundle Overview
+## Recommended: SDP Pipeline (Lakeflow)
 
-The bundle deploys **three types of resources**, all driven by preset YAML configuration files in `pipelines/`:
+The **Spark Declarative Pipeline (SDP)** is the recommended way to deploy DSL Lite via DABs. It uses Lakeflow to manage the full Bronze → Silver → Gold pipeline as a single, serverless, continuously monitored resource — no cluster configuration required.
 
-| Resource Type | File(s) | Description |
-|---|---|---|
-| SSS Multi-Task Job | `resources/serverless/*_job.yml` or `resources/classic/*_job.yml` | One job per preset, 3 tasks (Bronze → Silver → Gold) |
-| SSS Single-Task Job | `resources/serverless/sss_pipeline.yml` or `resources/classic/sss_pipeline.yml` | All layers in one notebook; preset set via `preset_name` variable |
-| SDP Pipeline | `resources/sdp_pipeline.yml` | Lakeflow Spark Declarative Pipeline; preset set via `preset_name` variable |
+### Quick Start
 
-### Available Preset Jobs (SSS Multi-Task)
-
-| Job Key | Source | Gold Tables (OCSF) |
-|---|---|---|
-| `cisco_ios_pipeline` | Cisco IOS logs | authentication, authorize_session, network_activity, process_activity |
-| `cloudflare_gateway_dns_pipeline` | Cloudflare Gateway DNS | dns_activity |
-| `github_audit_logs_pipeline` | GitHub Audit Logs | account_change, authentication, authorize_session, user_access, group_management |
-| `zeek_conn_pipeline` | Zeek Conn logs | network_activity |
-| `aws_vpc_flowlogs_pipeline` | AWS VPC Flow Logs | network_activity |
-
----
-
-## Compute Mode
-
-SSS jobs (multi-task and single-task) come in two compute variants. The SDP pipeline is always serverless by default regardless of which mode is selected.
-
-### Switching compute modes
-
-Open `databricks.yml` and uncomment **one** of the two `include` blocks:
-
-```yaml
-# Option 1: Serverless (recommended — no cluster management required)
-include:
-  - resources/*.yml
-  - resources/serverless/*.yml
-
-# Option 2: Classic compute (requires spark_version and node_type_id variables)
-# include:
-#   - resources/*.yml
-#   - resources/classic/*.yml
-```
-
-### Serverless (`resources/serverless/`)
-
-- No cluster configuration needed — Databricks manages compute automatically
-- `spark_version` and `node_type_id` variables are **ignored**
-- Recommended for most deployments
-
-### Classic compute (`resources/classic/`)
-
-- Uses `job_clusters` with a dedicated cluster per job run
-- Requires setting `spark_version` and `node_type_id` variables
-- `node_type_id` is cloud-specific:
-  - **AWS:** `i3.xlarge`, `m5.xlarge`, etc.
-  - **Azure:** `Standard_D4ds_v5`, `Standard_D8ds_v5`, etc.
-  - **GCP:** `n2-highmem-4`, `n2-standard-8`, etc.
-
----
-
-## Quick Start
-
-### 1. Choose your compute mode
-
-Edit the `include` block in `databricks.yml` as described above.
-
-### 2. Set your variables
-
-All defaults in `databricks.yml` are **placeholders** — replace them with values that match your workspace. At minimum, update the `dev` target variables:
+**1. Set your variables** in `databricks.yml`. All root-level defaults are placeholders — update the `dev` target at minimum:
 
 ```yaml
 targets:
   dev:
     variables:
-      catalog: "my_catalog"              # your UC catalog name
-      bronze_database: "dsl_bronze_dev"  # schema for Bronze tables
-      silver_database: "dsl_silver_dev"  # schema for Silver tables
-      gold_database:   "dsl_gold_dev"    # schema for Gold tables
-      sss_checkpoints_base: "/Volumes/my_catalog/dsl_bronze_dev/checkpoints"  # SSS only
+      catalog: "my_catalog"
+      bronze_database: "dsl_bronze_dev"
+      silver_database: "dsl_silver_dev"
+      gold_database:   "dsl_gold_dev"
 ```
 
-If using classic compute, also set:
+**2. Select your preset** via the `preset_name` variable (must match a folder under `pipelines/`):
 
-```yaml
-    variables:
-      spark_version: "16.4.x-scala2.12"
-      node_type_id: "i3.xlarge"   # adjust for your cloud (see Compute Mode section above)
+```bash
+databricks bundle deploy -t dev --var="preset_name=cisco/ios"
 ```
 
-### 3. Validate the bundle
+Available presets:
+
+| `preset_name` | Source | Gold Tables (OCSF) |
+|---|---|---|
+| `cisco/ios` | Cisco IOS logs | authentication, authorize_session, network_activity, process_activity |
+| `cloudflare/gateway_dns` | Cloudflare Gateway DNS | dns_activity |
+| `github/audit_logs` | GitHub Audit Logs | account_change, authentication, authorize_session, user_access, group_management |
+| `zeek/conn` | Zeek Conn logs | network_activity |
+| `aws/vpc_flowlogs` | AWS VPC Flow Logs | network_activity |
+
+**3. Validate, deploy, and run:**
 
 ```bash
 databricks bundle validate -t dev
+databricks bundle deploy -t dev --var="preset_name=cisco/ios"
+databricks bundle run dsl_lite_sdp -t dev
 ```
 
-### 4. Deploy
+### SDP Pipeline resource
 
-```bash
-# Deploy to dev (default target)
-databricks bundle deploy
+Defined in `resources/sdp_pipeline.yml`. Key configuration:
 
-# Deploy to a specific target
-databricks bundle deploy -t staging
-databricks bundle deploy -t prod
-```
-
-### 5. Run a pipeline
-
-```bash
-databricks bundle run cisco_ios_pipeline -t dev
-databricks bundle run cloudflare_gateway_dns_pipeline -t dev
-databricks bundle run github_audit_logs_pipeline -t dev
-databricks bundle run zeek_conn_pipeline -t dev
-databricks bundle run aws_vpc_flowlogs_pipeline -t dev
-```
+- Runs **serverless** by default — no `clusters` block needed
+- Preset is wired via Spark conf key `dsl_lite.config_file`, pointing to the synced preset YAML
+- Layer databases are set via Spark conf keys (`dsl_lite.bronze_database_name`, etc.)
+- To skip Bronze or Silver (use existing tables): set `dsl_lite.skip_bronze: "true"` or `dsl_lite.skip_silver: "true"` in the pipeline `configuration` block
 
 ---
 
-## Execution Modes
+## SSS Jobs (Alternative)
 
-### SSS Multi-Task Job (Recommended)
+Spark Structured Streaming jobs are available as an alternative when SDP is not suitable (e.g. DBR < 16.0, or you need per-layer scheduling control).
 
-Each preset has a dedicated 3-task job that runs Bronze → Silver → Gold sequentially using `availableNow` trigger (batch mode). Jobs can be scheduled via the Databricks UI or by adding a `schedule` block to the resource YAML.
+### Compute mode
 
-**To run continuously:** Change `continuous: "False"` to `continuous: "True"` in the job resource file, and remove the `depends_on` sections so all three tasks start simultaneously.
+SSS jobs come in two variants. Select one by editing the `include` block in `databricks.yml`:
+
+```yaml
+# Serverless (recommended if using SSS)
+include:
+  - resources/*.yml
+  - resources/serverless/*.yml
+
+# Classic compute (uses spark_version and node_type_id variables)
+# include:
+#   - resources/*.yml
+#   - resources/classic/*.yml
+```
+
+> `spark_version` and `node_type_id` are only relevant for classic compute and can be left as-is when using serverless.
+
+### SSS Multi-Task Job
+
+One dedicated job per preset — Bronze, Silver, and Gold run as sequential tasks on a shared cluster. Good for scheduled batch processing.
+
+```bash
+databricks bundle deploy -t dev
+databricks bundle run cisco_ios_pipeline -t dev
+```
+
+Available job keys: `cisco_ios_pipeline`, `cloudflare_gateway_dns_pipeline`, `github_audit_logs_pipeline`, `zeek_conn_pipeline`, `aws_vpc_flowlogs_pipeline`
+
+**Checkpoint volumes** must exist before running SSS jobs:
+
+```sql
+CREATE CATALOG IF NOT EXISTS dev;
+CREATE SCHEMA IF NOT EXISTS dev.dsl_bronze_dev;
+CREATE VOLUME IF NOT EXISTS dev.dsl_bronze_dev.checkpoints;
+```
+
+Then set `sss_checkpoints_base` in the target variables.
+
+**To run continuously:** change `continuous: "False"` to `continuous: "True"` in the job resource file and remove `depends_on` so all three tasks start simultaneously.
 
 ### SSS Single-Task Job (Generic)
 
-Runs all three layers in one notebook. Simpler but less fault-isolated. The preset is selected via `preset_name`:
+Runs all three layers in one notebook. Uses the `preset_name` variable:
 
 ```bash
 databricks bundle deploy -t dev --var="preset_name=cloudflare/gateway_dns"
 databricks bundle run sss_medallion_pipeline -t dev
 ```
 
-### SDP Pipeline (Lakeflow)
-
-Uses Spark Declarative Pipelines (requires DBR 16.0+ / Spark 4.1+). Always runs serverless — the `resources/sdp_pipeline.yml` file contains no cluster config. The preset is set via `preset_name`:
-
-```bash
-databricks bundle deploy -t dev --var="preset_name=zeek/conn"
-databricks bundle run dsl_lite_sdp -t dev
-```
-
 ---
 
 ## Variables Reference
 
-All variables are defined in `databricks.yml`. The root-level defaults are placeholders — the per-target values under `targets:` override them at deploy time and should be set to match your workspace.
+All root-level defaults in `databricks.yml` are **placeholders** — set real values in the `targets` section.
 
-| Variable | Default (placeholder) | Description |
+| Variable | Default (placeholder) | Used by |
 |---|---|---|
-| `catalog` | `main` | UC catalog for Gold tables and SDP pipeline target |
-| `bronze_database` | `dsl_bronze` | Schema for Bronze tables |
-| `silver_database` | `dsl_silver` | Schema for Silver tables |
-| `gold_database` | `dsl_gold` | Schema for Gold (OCSF) tables |
-| `sss_checkpoints_base` | `/Volumes/main/dsl_bronze/checkpoints` | SSS only — base path for streaming checkpoints. Not used by SDP (Lakeflow manages those internally). |
-| `spark_version` | `16.4.x-scala2.12` | Classic compute only — Databricks Runtime version |
-| `node_type_id` | `i3.xlarge` | Classic compute only — worker instance type (cloud-specific, see above) |
-| `preset_name` | `cisco/ios` | Preset path for SDP and SSS single-task jobs |
+| `catalog` | `main` | SDP, SSS |
+| `bronze_database` | `dsl_bronze` | SDP, SSS |
+| `silver_database` | `dsl_silver` | SDP, SSS |
+| `gold_database` | `dsl_gold` | SDP, SSS |
+| `preset_name` | `cisco/ios` | SDP, SSS single-task |
+| `sss_checkpoints_base` | `/Volumes/main/dsl_bronze/checkpoints` | SSS only |
+| `spark_version` | `16.4.x-scala2.12` | Classic compute only |
+| `node_type_id` | `i3.xlarge` (AWS) | Classic compute only — Azure: `Standard_D4ds_v5`, GCP: `n2-highmem-4` |
 
 ---
 
 ## Targets
 
-| Target | Mode | Profile | Notes |
-|---|---|---|---|
-| `dev` | development | DEFAULT | Default target; job names prefixed with `[dev]` |
-| `staging` | development | DEFAULT | Pre-production validation |
-| `prod` | production | DEFAULT | Production deployment |
+| Target | Mode | Notes |
+|---|---|---|
+| `dev` | development | Default; job/pipeline names prefixed with `[dev]` |
+| `staging` | development | Pre-production validation |
+| `prod` | production | Production deployment |
 
 Update `workspace.profile` in each target to match your CLI profile names.
 
 ---
 
-## Adding a New Preset
-
-1. Create your preset YAML under `pipelines/<vendor>/<type>/preset.yaml`
-2. Copy `resources/serverless/cisco_ios_job.yml` (or the classic equivalent) to a new file
-3. Replace all occurrences of `cisco/ios` with your preset path
-4. Update the job `name`, resource key, and task descriptions
-5. Run `databricks bundle validate && databricks bundle deploy`
-
----
-
 ## How Preset Files Are Resolved
 
-When the bundle is deployed, DABs syncs the `pipelines/` directory to the workspace alongside the source notebooks. Preset YAML files are accessible from running notebooks at:
+DABs syncs the `pipelines/` directory to the workspace at deploy time. Preset YAML files are accessible from notebooks and pipelines at:
 
 ```
 ${workspace.file_path}/pipelines/<vendor>/<type>/preset.yaml
@@ -219,9 +168,17 @@ No manual file uploads required.
 
 ---
 
-## Scheduling Jobs
+## Adding a New Preset
 
-Add a `schedule` block to any job resource file:
+1. Create your preset YAML under `pipelines/<vendor>/<type>/preset.yaml`
+2. Deploy with `--var="preset_name=<vendor>/<type>"` to use it with SDP or the SSS single-task job
+3. For a dedicated SSS multi-task job, copy `resources/serverless/cisco_ios_job.yml` (or the classic equivalent), replace all `cisco/ios` references with your preset path, and update the job name and resource key
+
+---
+
+## Scheduling SSS Jobs
+
+Add a `schedule` block to any SSS job resource file:
 
 ```yaml
 resources:
@@ -233,15 +190,7 @@ resources:
         pause_status: UNPAUSED
 ```
 
----
-
-## Skipping Layers
-
-If Bronze or Silver tables already exist and you only want to refresh Gold:
-
-- **SSS single-task:** set `skip_bronze: "True"` and/or `skip_silver: "True"` in the task `base_parameters`
-- **SSS multi-task:** comment out the `bronze` and/or `silver` task blocks and remove the corresponding `depends_on` entries
-- **SDP:** set `dsl_lite.skip_bronze: "true"` and/or `dsl_lite.skip_silver: "true"` in the pipeline `configuration` block
+SDP pipelines are scheduled via the Lakeflow UI or by setting `continuous: true` in `resources/sdp_pipeline.yml`.
 
 ---
 
