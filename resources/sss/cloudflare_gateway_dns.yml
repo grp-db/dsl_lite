@@ -1,0 +1,62 @@
+# DSL Lite — Cloudflare Gateway DNS SSS Multi-Task Job (Classic Compute)
+#
+#   bronze: cloudflare  (catalog: use 'catalog.database' format in the database variable, e.g. cisco_database: "cyber_lakehouse.cisco")
+#   silver: cloudflare
+#   gold:   ocsf
+
+resources:
+  jobs:
+    cloudflare_gateway_dns_sss:
+      name: "[${bundle.target}] DSL Lite - Cloudflare Gateway DNS (SSS)"
+
+      job_clusters:
+        - job_cluster_key: pipeline_cluster
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id:  ${var.node_type_id}
+            num_workers: 2
+
+      tasks:
+
+        - task_key: bronze
+          description: "Ingest Cloudflare Gateway DNS logs into the Bronze Delta table via Auto Loader."
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ../../src/sss_bronze.py
+            base_parameters:
+              preset_file:          "${workspace.file_path}/pipelines/cloudflare/gateway_dns/preset.yaml"
+              bronze_database:      "${var.cloudflare_database}"
+              checkpoints_location: "${var.sss_checkpoints_base}/cloudflare_gateway_dns"
+              continuous:           "False"
+
+        - task_key: silver
+          description: "Parse and structure Bronze data into the Silver Delta table."
+          depends_on:
+            - task_key: bronze
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ../../src/sss_silver.py
+            base_parameters:
+              preset_file:          "${workspace.file_path}/pipelines/cloudflare/gateway_dns/preset.yaml"
+              bronze_database:      "${var.cloudflare_database}"
+              silver_database:      "${var.cloudflare_database}"
+              checkpoints_location: "${var.sss_checkpoints_base}/cloudflare_gateway_dns"
+              continuous:           "False"
+
+        - task_key: gold
+          description: "Map Silver data to OCSF-compliant Gold tables (dns_activity)."
+          depends_on:
+            - task_key: silver
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ../../src/sss_gold.py
+            base_parameters:
+              preset_file:          "${workspace.file_path}/pipelines/cloudflare/gateway_dns/preset.yaml"
+              silver_database:      "${var.cloudflare_database}"
+              gold_database:        "${var.gold_database}"
+              checkpoints_location: "${var.sss_checkpoints_base}/cloudflare_gateway_dns"
+              continuous:           "False"
+
+      permissions:
+        - level: CAN_VIEW
+          group_name: users

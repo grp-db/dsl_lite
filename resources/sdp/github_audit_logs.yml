@@ -1,0 +1,35 @@
+# DSL Lite — GitHub Audit Logs SDP Pipeline (Lakeflow, Serverless)
+#
+#   bronze: ${var.bronze_catalog}.github
+#   silver: ${var.silver_catalog}.github
+#   gold:   ${var.gold_catalog}.ocsf
+
+resources:
+  pipelines:
+    github_audit_logs_sdp:
+      name: "[${bundle.target}] DSL Lite - GitHub Audit Logs (SDP)"
+
+      libraries:
+        - file:
+            path: ../../src/sdp_medallion.py
+
+      configuration:
+        dsl_lite.config_file:          "${workspace.file_path}/pipelines/github/audit_logs/preset.yaml"
+        dsl_lite.bronze_catalog_name:  "${var.bronze_catalog}"
+        dsl_lite.bronze_database_name: "${var.github_database}"
+        dsl_lite.silver_catalog_name:  "${var.silver_catalog}"
+        dsl_lite.silver_database_name: "${var.github_database}"
+        dsl_lite.gold_catalog_name:    "${var.gold_catalog}"
+        dsl_lite.gold_database_name:   "${var.gold_database}"
+        dsl_lite.skip_bronze:          "false"
+        dsl_lite.skip_silver:          "false"
+        spark.databricks.delta.preview.enabled: "true"
+
+      catalog: ${var.gold_catalog}
+      schema:  ${var.gold_database}
+      serverless: true
+      continuous: false
+
+      permissions:
+        - level: CAN_VIEW
+          group_name: users
