@@ -129,6 +129,7 @@ targets:
     default: true
     mode: development
     workspace:
+      host: ""
       profile: DEFAULT
     variables:
       bronze_catalog: ""
@@ -139,6 +140,7 @@ targets:
   staging:
     mode: development
     workspace:
+      host: ""
       profile: DEFAULT
     variables:
       bronze_catalog: ""
@@ -149,6 +151,7 @@ targets:
   prod:
     mode: production
     workspace:
+      host: ""
       profile: DEFAULT
     variables:
       bronze_catalog: ""

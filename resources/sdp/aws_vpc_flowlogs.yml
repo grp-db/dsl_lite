@@ -27,6 +27,7 @@ resources:
 
       catalog: ${var.gold_catalog}
       schema:  ${var.gold_database}
+      serverless: true
       continuous: false
 
       permissions:
