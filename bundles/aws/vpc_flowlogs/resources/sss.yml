@@ -1,9 +1,3 @@
-# DSL Lite — AWS VPC Flow Logs SSS Multi-Task Job (Classic Compute)
-#
-#   bronze: aws  (catalog: use 'catalog.database' format in the database variable, e.g. cisco_database: "cyber_lakehouse.cisco")
-#   silver: aws
-#   gold:   ocsf
-
 resources:
   jobs:
     aws_vpc_flowlogs_sss:
@@ -22,10 +16,10 @@ resources:
           description: "Ingest AWS VPC Flow Logs into the Bronze Delta table via Auto Loader."
           job_cluster_key: pipeline_cluster
           notebook_task:
-            notebook_path: ../../src/sss_bronze.py
+            notebook_path: "${workspace.file_path}/src/sss_bronze.py"
             base_parameters:
               preset_file:          "${workspace.file_path}/pipelines/aws/vpc_flowlogs/preset.yaml"
-              bronze_database:      "${var.aws_database}"
+              bronze_database:      "${var.source_database}"
               checkpoints_location: "${var.sss_checkpoints_base}/aws_vpc_flowlogs"
               continuous:           "False"
 
@@ -35,24 +29,24 @@ resources:
             - task_key: bronze
           job_cluster_key: pipeline_cluster
           notebook_task:
-            notebook_path: ../../src/sss_silver.py
+            notebook_path: "${workspace.file_path}/src/sss_silver.py"
             base_parameters:
               preset_file:          "${workspace.file_path}/pipelines/aws/vpc_flowlogs/preset.yaml"
-              bronze_database:      "${var.aws_database}"
-              silver_database:      "${var.aws_database}"
+              bronze_database:      "${var.source_database}"
+              silver_database:      "${var.source_database}"
               checkpoints_location: "${var.sss_checkpoints_base}/aws_vpc_flowlogs"
               continuous:           "False"
 
         - task_key: gold
-          description: "Map Silver data to OCSF-compliant Gold tables (network_activity)."
+          description: "Map Silver data to OCSF-compliant Gold tables."
           depends_on:
             - task_key: silver
           job_cluster_key: pipeline_cluster
           notebook_task:
-            notebook_path: ../../src/sss_gold.py
+            notebook_path: "${workspace.file_path}/src/sss_gold.py"
             base_parameters:
               preset_file:          "${workspace.file_path}/pipelines/aws/vpc_flowlogs/preset.yaml"
-              silver_database:      "${var.aws_database}"
+              silver_database:      "${var.source_database}"
               gold_database:        "${var.gold_database}"
               checkpoints_location: "${var.sss_checkpoints_base}/aws_vpc_flowlogs"
               continuous:           "False"

@@ -1,0 +1,104 @@
+# DSL Lite — Cloudflare Gateway DNS Bundle
+#
+# Deploys the Cloudflare Gateway DNS pipeline (Bronze → Silver → Gold) as an isolated bundle.
+# Select execution mode by editing the include block below.
+#
+# Quick start:
+#   databricks bundle validate -t dev
+#   databricks bundle deploy -t dev
+#   databricks bundle run cloudflare_gateway_dns_sdp -t dev
+
+bundle:
+  name: dsl_lite_cloudflare_gateway_dns
+
+sync:
+  include:
+    - ../../../src/**
+    - ../../../pipelines/cloudflare/gateway_dns/**
+
+# ── Execution mode ─────────────────────────────────────────────────────────────
+# Option 1: SDP — Lakeflow Spark Declarative Pipeline (recommended, serverless)
+include:
+  - resources/sdp.yml
+#
+# Option 2: SSS — Spark Structured Streaming, classic compute
+# include:
+#   - resources/sss.yml
+# ─────────────────────────────────────────────────────────────────────────────
+
+variables:
+
+  # --- Catalogs ---
+  bronze_catalog:
+    description: "Catalog for Bronze tables. Leave empty to use database name only."
+    default: ""
+
+  silver_catalog:
+    description: "Catalog for Silver tables. Leave empty to use database name only."
+    default: ""
+
+  gold_catalog:
+    description: "Catalog for Gold (OCSF) tables. Required for SDP."
+    default: ""
+
+  # --- Databases ---
+  source_database:
+    description: "Bronze and Silver schema for this pipeline."
+    default: "cloudflare"
+
+  gold_database:
+    description: "Gold (OCSF) schema."
+    default: "ocsf"
+
+  # --- SSS only ---
+  sss_checkpoints_base:
+    description: "Base path for SSS checkpoints. Not used by SDP."
+    default: "/Volumes/main/ocsf/checkpoints"   # placeholder
+
+  spark_version:
+    description: "DBR version for SSS classic job clusters."
+    default: "16.4.x-scala2.12"
+
+  node_type_id:
+    description: "Worker instance type. AWS: i3.xlarge | Azure: Standard_D4ds_v5 | GCP: n2-highmem-4"
+    default: "i3.xlarge"
+
+# ---------------------------------------------------------------------------
+# Targets
+# ---------------------------------------------------------------------------
+
+targets:
+
+  dev:
+    default: true
+    mode: development
+    workspace:
+      host: ""
+      profile: DEFAULT
+    variables:
+      bronze_catalog: ""
+      silver_catalog: ""
+      gold_catalog:   ""
+      sss_checkpoints_base: "/Volumes/main/ocsf/checkpoints"   # placeholder
+
+  staging:
+    mode: development
+    workspace:
+      host: ""
+      profile: DEFAULT
+    variables:
+      bronze_catalog: ""
+      silver_catalog: ""
+      gold_catalog:   ""
+      sss_checkpoints_base: "/Volumes/main/ocsf/checkpoints"   # placeholder
+
+  prod:
+    mode: production
+    workspace:
+      host: ""
+      profile: DEFAULT
+    variables:
+      bronze_catalog: ""
+      silver_catalog: ""
+      gold_catalog:   ""
+      sss_checkpoints_base: "/Volumes/main/ocsf/checkpoints"   # placeholder

@@ -25,6 +25,7 @@ This accelerator was developed by the **Databricks Field Engineering and Profess
 - [Architecture](#architecture)
 - [Project Structure](#project-structure)
 - [OCSF Documentation](#ocsf-documentation)
+- [Declarative Automation Bundles](#declarative-automation-bundles)
 - [Getting Started](#how-to-use)
   - [Spark Declarative Pipeline (SDP)](#execute-as-spark-declarative-pipeline-sdp)
   - [Spark Structured Streaming (SSS)](#execute-as-spark-structured-streaming-sss-job)
@@ -79,6 +80,7 @@ dsl_lite/
 │   └── explorer/
 │       ├── explorer_helpers.py      # Batch transform functions (loaded via %run)
 │       └── preset_explorer.py       # Interactive preset development notebook
+├── bundles/                      # Declarative Automation Bundles — one per source/source_type (see bundles/README.md)
 ├── pipelines/                    # Configuration presets (Cisco, Zeek, Cloudflare, GitHub, AWS, etc.)
 ├── ocsf_templates/              # OCSF mapping templates (21 standardized templates)
 ├── docs/                         # Reference documentation
@@ -108,6 +110,28 @@ dsl_lite/
 | `docs/ocsf_spark_expressions/` | Gold-layer Spark SQL: CASE WHEN templates, named_struct, bold-column field logic. |
 | `docs/ocsf_event_categories/` | OCSF table docs by category: network_activity, identity_access_management, system_activity. |
 | `docs/ocsf_ddl_fields/` | DDL and reference for common structs: metadata, endpoint, ids, cloud, connection_info, traffic, enrichments/observables, IAM (session, user, service). |
+
+---
+
+## Declarative Automation Bundles
+
+The `bundles/` directory contains ready-to-deploy Declarative Automation Bundles — one per pipeline, isolated by `source/source_type`. Each bundle deploys independently to any Databricks workspace with no cross-pipeline dependencies.
+
+| Bundle | SDP resource key | SSS resource key |
+|---|---|---|
+| `cisco/ios` | `cisco_ios_sdp` | `cisco_ios_sss` |
+| `cloudflare/gateway_dns` | `cloudflare_gateway_dns_sdp` | `cloudflare_gateway_dns_sss` |
+| `github/audit_logs` | `github_audit_logs_sdp` | `github_audit_logs_sss` |
+| `zeek/conn` | `zeek_conn_sdp` | `zeek_conn_sss` |
+| `aws/vpc_flowlogs` | `aws_vpc_flowlogs_sdp` | `aws_vpc_flowlogs_sss` |
+
+```bash
+cd bundles/cisco/ios
+databricks bundle deploy -t dev
+databricks bundle run cisco_ios_sdp -t dev
+```
+
+> For full setup instructions, variable reference, catalog routing, and a tutorial for adding new bundles see [bundles/README.md](bundles/README.md).
 
 ---
 
