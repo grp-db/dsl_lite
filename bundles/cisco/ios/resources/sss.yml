@@ -1,9 +1,3 @@
-# DSL Lite — Cisco IOS SSS Multi-Task Job (Classic Compute)
-#
-#   bronze: cisco  (catalog: use 'catalog.database' format in the database variable, e.g. cisco_database: "cyber_lakehouse.cisco")
-#   silver: cisco
-#   gold:   ocsf
-
 resources:
   jobs:
     cisco_ios_sss:
@@ -22,10 +16,10 @@ resources:
           description: "Ingest Cisco IOS logs into the Bronze Delta table via Auto Loader."
           job_cluster_key: pipeline_cluster
           notebook_task:
-            notebook_path: ../../src/sss_bronze.py
+            notebook_path: "${workspace.file_path}/src/sss_bronze.py"
             base_parameters:
               preset_file:          "${workspace.file_path}/pipelines/cisco/ios/preset.yaml"
-              bronze_database:      "${var.cisco_database}"
+              bronze_database:      "${var.source_database}"
               checkpoints_location: "${var.sss_checkpoints_base}/cisco_ios"
               continuous:           "False"
 
@@ -35,11 +29,11 @@ resources:
             - task_key: bronze
           job_cluster_key: pipeline_cluster
           notebook_task:
-            notebook_path: ../../src/sss_silver.py
+            notebook_path: "${workspace.file_path}/src/sss_silver.py"
             base_parameters:
               preset_file:          "${workspace.file_path}/pipelines/cisco/ios/preset.yaml"
-              bronze_database:      "${var.cisco_database}"
-              silver_database:      "${var.cisco_database}"
+              bronze_database:      "${var.source_database}"
+              silver_database:      "${var.source_database}"
               checkpoints_location: "${var.sss_checkpoints_base}/cisco_ios"
               continuous:           "False"
 
@@ -49,10 +43,10 @@ resources:
             - task_key: silver
           job_cluster_key: pipeline_cluster
           notebook_task:
-            notebook_path: ../../src/sss_gold.py
+            notebook_path: "${workspace.file_path}/src/sss_gold.py"
             base_parameters:
               preset_file:          "${workspace.file_path}/pipelines/cisco/ios/preset.yaml"
-              silver_database:      "${var.cisco_database}"
+              silver_database:      "${var.source_database}"
               gold_database:        "${var.gold_database}"
               checkpoints_location: "${var.sss_checkpoints_base}/cisco_ios"
               continuous:           "False"
