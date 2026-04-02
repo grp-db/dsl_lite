@@ -1,0 +1,152 @@
+# DSL Lite — Preset Template
+#
+# Replace <source> and <source_type> with your actual values
+# (e.g. source=palo_alto, source_type=firewall).
+#
+# Delete or comment out sections you don't need.
+
+name: <source>_<source_type>
+description: "<Source> <source_type> logs"
+title: "<Source> <Source_type>"
+
+# ── Auto Loader ────────────────────────────────────────────────────────────────
+autoloader:
+  inputs:
+    - /Volumes/<catalog>/<schema>/raw/<source>/<source_type>/  # CHANGE ME
+
+  # ── Text / syslog ──────────────────────────────────────────────────────────
+  format: text
+  cloudFiles:
+    schemaHints: "value string"
+
+  # ── JSON (one object per line) ─────────────────────────────────────────────
+  # format: json
+
+  # ── Multi-line / CSV / Avro / Parquet — add cloudFiles options as needed ──
+  # format: csv
+  # cloudFiles:
+  #   header: true
+
+
+# ── Bronze ─────────────────────────────────────────────────────────────────────
+# Minimal promotion from raw files to a typed Delta table.
+# Adjust the time-parsing expression to match your log's timestamp format.
+bronze:
+  name: <source>_<source_type>_bronze
+
+  # loadAsSingleVariant: true  # Uncomment for JSON — keeps the whole record as VARIANT
+
+  preTransform:
+    -
+      - "*"                         # carry all Auto Loader columns forward
+      - "_metadata.file_path"       # originating file path (useful for debugging)
+
+      # Parse a timestamp from the raw log. Adjust the regex and format string.
+      # Text example:
+      - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})', 1), 'yyyy-MM-dd''T''HH:mm:ss') as time
+      # JSON example (uncomment and remove the line above):
+      # - CAST(try_variant_get(data, '$.timestamp', 'STRING') AS TIMESTAMP) as time
+
+      - CAST(time AS DATE) as date
+      - CAST('<source>' AS STRING) AS source
+      - CAST('<source_type>' AS STRING) AS sourcetype
+      - CURRENT_TIMESTAMP() as processed_time
+
+
+# ── Silver ─────────────────────────────────────────────────────────────────────
+# Extract structured fields from the raw log value (or VARIANT for JSON).
+silver:
+  transform:
+    - name: <source>_<source_type>_silver
+      fields:
+        # Text example — use REGEXP_EXTRACT to pull fields from `value`
+        - name: field_one
+          expr: REGEXP_EXTRACT(value, 'pattern_one=(\\S+)', 1)
+
+        - name: field_two
+          expr: REGEXP_EXTRACT(value, 'pattern_two=(\\S+)', 1)
+
+        # JSON example — use try_variant_get to pull fields from `data`
+        # - name: field_one
+        #   expr: try_variant_get(data, '$.fieldOne', 'STRING')
+
+        # - name: field_two
+        #   expr: TRY_CAST(try_variant_get(data, '$.fieldTwo', 'STRING') AS INT)
+
+      utils:
+        unreferencedColumns:
+          preserve: true   # pass through any columns not listed above
+
+
+# ── Gold (OCSF) ────────────────────────────────────────────────────────────────
+# One entry per OCSF table. Add or remove tables as needed.
+# See https://schema.ocsf.io for class_uid / category_uid values.
+#
+# TIP: Ready-made field lists for all 21 OCSF event classes live in ocsf_templates/.
+# Copy the fields block from the matching template instead of writing from scratch:
+#
+#   ocsf_templates/network_activity/   → network_activity, dns_activity, http_activity, ssh_activity, …
+#   ocsf_templates/identity_access_management/ → authentication, authorize_session, account_change, …
+#   ocsf_templates/system_activity/    → process_activity, file_activity, script_activity, …
+#   ocsf_templates/findings/           → vulnerability_finding, data_security_finding
+#   ocsf_templates/application_activity/ → api_activity
+#
+# Note: clusterBy is supported in SSS mode only. For SDP, run ALTER TABLE after
+# pipeline creation:
+#   ALTER TABLE <catalog>.<database>.<table_name> CLUSTER BY (time, <field>)
+gold:
+  - name: <ocsf_table_name>          # e.g. network_activity, authentication, dns_activity
+    input: <source>_<source_type>_silver
+    # catalog: my_catalog            # Optional — overrides the bundle-level gold_catalog
+    # database: my_database          # Optional — overrides the bundle-level gold_database
+    # filter: field = 'value'        # Optional — row filter applied before mapping
+    # clusterBy: ["time", "field"]   # SSS only
+    fields:
+      - name: category_uid
+        expr: CAST('<category_uid>' AS INT)    # e.g. 4 for Network Activity
+      - name: category_name
+        literal: <Category Name>               # e.g. Network Activity
+      - name: class_uid
+        expr: CAST('<class_uid>' AS INT)       # e.g. 4001
+      - name: class_name
+        literal: <Class Name>                  # e.g. Network Activity
+      - name: type_uid
+        expr: CAST('<type_uid>' AS BIGINT)     # class_uid * 100 + activity_id
+      - name: activity_id
+        expr: CAST('<activity_id>' AS INT)     # see OCSF schema
+      - name: activity_name
+        literal: <Activity Name>
+      - name: severity_id
+        expr: CAST(1 AS INT)                   # 0=Unknown 1=Informational … 6=Fatal 99=Other
+      - name: severity
+        literal: Informational
+      - name: time
+        from: time
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      - name: type_name
+        expr: "CONCAT('<Class Name>: ', activity_name)"
+      - name: message
+        from: value                            # or whichever field holds the log message
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: <Product Name>
+      - name: metadata.product.vendor_name
+        literal: <Vendor Name>
+      - name: metadata.log_provider
+        literal: <source>
+      - name: metadata.log_name
+        literal: <source_type>
+      - name: metadata.log_format
+        literal: <log_format>                  # e.g. syslog, JSON, CEF
+      - name: metadata.log_version
+        literal: "<source>@<source_type>:version@1.0"
+      - name: metadata.processed_time
+        expr: CURRENT_TIMESTAMP()
+      - name: metadata.logged_time
+        from: time
+      - name: raw_data
+        expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      - name: unmapped
+        expr: CAST(to_json(named_struct('field_one', field_one, 'field_two', field_two)) AS VARIANT)

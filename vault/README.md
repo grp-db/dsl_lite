@@ -4,6 +4,30 @@ This folder contains utility scripts for maintaining and validating OCSF YAML te
 
 ## Scripts
 
+### `validate_preset.py`
+Validates DSL Lite preset YAML files for structural correctness before deployment.
+
+**Usage:**
+```bash
+# Validate all presets under pipelines/
+python3 vault/validate_preset.py
+
+# Validate a single preset
+python3 vault/validate_preset.py pipelines/cisco/ios/preset.yaml
+```
+
+**What it checks:**
+- Required top-level keys: `name`, `autoloader`, `bronze`, `silver`, `gold`
+- `autoloader.inputs` is non-empty and `format` is set
+- `bronze.name` is present; `preTransform` includes a `time` column
+- Each `silver.transform` entry has a `name` and `fields`
+- Each `gold` entry has `name`, `input`, and `fields`; `input` references a defined silver table
+- No un-replaced `<placeholder>` values remain
+
+Exit code 0 if all presets pass, 1 if any errors are found (suitable for CI).
+
+---
+
 ### `check_template_fields.py`
 Compares OCSF table schemas defined in `notebooks/create_ocsf_tables.py` with the corresponding YAML templates in `ocsf_templates/`. 
 

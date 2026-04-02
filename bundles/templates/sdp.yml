@@ -1,18 +1,18 @@
 resources:
   pipelines:
-    github_audit_logs_sdp:
-      name: "[${bundle.target}] DSL Lite - GitHub Audit Logs (SDP)"
+    <source>_<source_type>_sdp:
+      name: "[${bundle.target}] DSL Lite - <SOURCE> <SOURCE_TYPE> (SDP)"
 
       libraries:
         - notebook:
             path: ${var.repo_path}/src/sdp_medallion.py
 
       configuration:
-        dsl_lite.config_file:          "${var.repo_path}/pipelines/github/audit_logs/preset.yaml"
+        dsl_lite.config_file:          "${var.repo_path}/pipelines/<source>/<source_type>/preset.yaml"
         dsl_lite.bronze_catalog_name:  "${var.bronze_catalog}"
-        dsl_lite.bronze_database_name:  "${var.bronze_database}"
+        dsl_lite.bronze_database_name: "${var.bronze_database}"
         dsl_lite.silver_catalog_name:  "${var.silver_catalog}"
-        dsl_lite.silver_database_name:  "${var.silver_database}"
+        dsl_lite.silver_database_name: "${var.silver_database}"
         dsl_lite.gold_catalog_name:    "${var.gold_catalog}"
         dsl_lite.gold_database_name:   "${var.gold_database}"
         dsl_lite.skip_bronze:          "false"

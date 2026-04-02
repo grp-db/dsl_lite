@@ -1,7 +1,7 @@
 resources:
   jobs:
-    zeek_conn_sss:
-      name: "[${bundle.target}] DSL Lite - Zeek Conn (SSS)"
+    <source>_<source_type>_sss:
+      name: "[${bundle.target}] DSL Lite - <SOURCE> <SOURCE_TYPE> (SSS)"
 
       job_clusters:
         - job_cluster_key: pipeline_cluster
@@ -13,14 +13,14 @@ resources:
       tasks:
 
         - task_key: bronze
-          description: "Ingest Zeek Conn logs into the Bronze Delta table via Auto Loader."
+          description: "Ingest <SOURCE> <SOURCE_TYPE> logs into the Bronze Delta table via Auto Loader."
           job_cluster_key: pipeline_cluster
           notebook_task:
             notebook_path: "${var.repo_path}/src/sss_bronze.py"
             base_parameters:
-              preset_file:          "${var.repo_path}/pipelines/zeek/conn/preset.yaml"
+              preset_file:          "${var.repo_path}/pipelines/<source>/<source_type>/preset.yaml"
               bronze_database:      "${var.bronze_database}"
-              checkpoints_location: "${var.sss_checkpoints_base}/zeek_conn"
+              checkpoints_location: "${var.sss_checkpoints_base}/<source>_<source_type>"
               continuous:           "False"
 
         - task_key: silver
@@ -31,10 +31,10 @@ resources:
           notebook_task:
             notebook_path: "${var.repo_path}/src/sss_silver.py"
             base_parameters:
-              preset_file:          "${var.repo_path}/pipelines/zeek/conn/preset.yaml"
+              preset_file:          "${var.repo_path}/pipelines/<source>/<source_type>/preset.yaml"
               bronze_database:      "${var.bronze_database}"
               silver_database:      "${var.silver_database}"
-              checkpoints_location: "${var.sss_checkpoints_base}/zeek_conn"
+              checkpoints_location: "${var.sss_checkpoints_base}/<source>_<source_type>"
               continuous:           "False"
 
         - task_key: gold
@@ -45,10 +45,10 @@ resources:
           notebook_task:
             notebook_path: "${var.repo_path}/src/sss_gold.py"
             base_parameters:
-              preset_file:          "${var.repo_path}/pipelines/zeek/conn/preset.yaml"
+              preset_file:          "${var.repo_path}/pipelines/<source>/<source_type>/preset.yaml"
               silver_database:      "${var.silver_database}"
               gold_database:        "${var.gold_database}"
-              checkpoints_location: "${var.sss_checkpoints_base}/zeek_conn"
+              checkpoints_location: "${var.sss_checkpoints_base}/<source>_<source_type>"
               continuous:           "False"
 
       permissions:

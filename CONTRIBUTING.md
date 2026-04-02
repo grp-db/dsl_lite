@@ -1,0 +1,135 @@
+# Contributing to DSL Lite
+
+DSL Lite is a Databricks Field Engineering accelerator. The most common contributions are:
+
+- **New pipeline presets** — adding support for a new log source
+- **New DAB bundles** — adding deployment config for a new pipeline
+- **Bug fixes** — correcting field expressions, regex patterns, or OCSF mappings
+- **Documentation** — improving tutorials, docs, or inline comments
+
+---
+
+## Quick Start
+
+```bash
+git clone https://github.com/<org>/dsl_lite
+cd dsl_lite
+git checkout -b feature/my-source-sourcetype
+```
+
+---
+
+## Adding a New Pipeline
+
+### Step 1 — Build the preset
+
+Follow [tutorials/building-a-preset-end-to-end.md](tutorials/building-a-preset-end-to-end.md).
+
+The short version:
+
+```bash
+mkdir -p pipelines/<source>/<source_type>
+cp pipelines/templates/preset.yaml pipelines/<source>/<source_type>/preset.yaml
+# Edit the preset — replace all placeholders, add autoloader path, parse fields
+```
+
+Use the **Preset Explorer** notebook (`notebooks/explorer/preset_explorer.py`) in your
+Databricks workspace to iterate on the preset interactively before committing.
+
+### Step 2 — Validate the preset
+
+```bash
+python3 vault/validate_preset.py pipelines/<source>/<source_type>/preset.yaml
+```
+
+All checks must pass (no `✗` errors) before opening a PR. Warnings (`⚠`) are advisory.
+
+### Step 3 — Add a bundle
+
+Follow [tutorials/adding-a-bundle.md](tutorials/adding-a-bundle.md):
+
+```bash
+mkdir -p bundles/<source>/<source_type>/resources
+cp bundles/templates/databricks.yml bundles/<source>/<source_type>/databricks.yml
+cp bundles/templates/sdp.yml        bundles/<source>/<source_type>/resources/sdp.yml
+cp bundles/templates/sss.yml        bundles/<source>/<source_type>/resources/sss.yml
+# Replace all <source>/<source_type> placeholders
+```
+
+Validate the bundle locally (requires Databricks CLI configured):
+
+```bash
+cd bundles/<source>/<source_type>
+databricks bundle validate -t dev
+```
+
+### Step 4 — Update the Available Bundles table
+
+Add a row to the **Available Bundles** table in [bundles/README.md](bundles/README.md):
+
+```markdown
+| `<source>/<source_type>` | `<source>_<source_type>_sdp` | `<source>_<source_type>_sss` | <ocsf_tables> |
+```
+
+### Step 5 — Open a PR
+
+```bash
+git add pipelines/<source>/<source_type>/preset.yaml
+git add bundles/<source>/<source_type>/
+git add bundles/README.md
+git commit -m "add <source>/<source_type> pipeline and bundle"
+git push origin feature/my-source-sourcetype
+```
+
+---
+
+## Validating All Presets
+
+```bash
+# Validate all pipelines at once
+python3 vault/validate_preset.py
+
+# Or via make
+make validate-presets
+```
+
+---
+
+## Updating OCSF Templates
+
+If you add or change fields in `notebooks/ddl/create_ocsf_tables.py`, run the vault
+utilities to keep `ocsf_templates/` in sync:
+
+```bash
+# Check which templates are missing fields
+python3 vault/check_template_fields.py
+
+# Automatically add missing fields (review changes before committing)
+python3 vault/add_missing_fields.py
+```
+
+---
+
+## Conventions
+
+| Area | Convention |
+|---|---|
+| Pipeline names | `<source>_<source_type>` (snake_case) |
+| Bronze table | `<source>_<source_type>_bronze` |
+| Silver table | `<source>_<source_type>_silver` |
+| Gold tables | OCSF class name, e.g. `network_activity`, `authentication` |
+| Bundle name | `dsl_lite_<source>_<source_type>` |
+| Resource keys | `<source>_<source_type>_sdp` / `<source>_<source_type>_sss` |
+| OCSF version | `1.7.0` (update `metadata.version` if upgrading) |
+
+### Gold field ordering
+
+Follow the ordering in `ocsf_templates/` — category/class/type first, then activity,
+then action/status, then time fields, then metadata, then endpoint/object structs,
+then `raw_data` and `unmapped` last.
+
+---
+
+## Questions
+
+Open an issue or reach out via the Databricks Field Engineering team.

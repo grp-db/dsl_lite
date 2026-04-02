@@ -4,15 +4,15 @@ resources:
       name: "[${bundle.target}] DSL Lite - Cloudflare Gateway DNS (SDP)"
 
       libraries:
-        - file:
-            path: ../../../src/sdp_medallion.py
+        - notebook:
+            path: ${var.repo_path}/src/sdp_medallion.py
 
       configuration:
-        dsl_lite.config_file:          "${workspace.file_path}/pipelines/cloudflare/gateway_dns/preset.yaml"
+        dsl_lite.config_file:          "${var.repo_path}/pipelines/cloudflare/gateway_dns/preset.yaml"
         dsl_lite.bronze_catalog_name:  "${var.bronze_catalog}"
-        dsl_lite.bronze_database_name: "${var.source_database}"
+        dsl_lite.bronze_database_name:  "${var.bronze_database}"
         dsl_lite.silver_catalog_name:  "${var.silver_catalog}"
-        dsl_lite.silver_database_name: "${var.source_database}"
+        dsl_lite.silver_database_name:  "${var.silver_database}"
         dsl_lite.gold_catalog_name:    "${var.gold_catalog}"
         dsl_lite.gold_database_name:   "${var.gold_database}"
         dsl_lite.skip_bronze:          "false"

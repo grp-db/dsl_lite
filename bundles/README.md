@@ -24,6 +24,7 @@ Each bundle deploys and operates independently — changes to one pipeline never
   ```
 - **Unity Catalog** — required for all modes
 - **DBR 16.0+ / Spark 4.1+** — required for SDP mode
+- **dsl_lite available in Databricks Workspace** — the bundle references source files by workspace path (see `repo_path` below); the repo must be accessible in the workspace via Repos or Workspace Files
 
 ---
 
@@ -36,7 +37,7 @@ bundles/<source>/<source_type>/
   databricks.yml          ← bundle config: variables, targets, execution mode
   resources/
     sdp.yml               ← SDP pipeline resource (Lakeflow, serverless)
-    sss.yml               ← SSS job resource (classic compute, 3-task Bronze→Silver→Gold)
+    sss.yml               ← SSS job resource (classic compute, Bronze→Silver→Gold)
 ```
 
 ### Execution mode
@@ -61,7 +62,8 @@ include:
 # Navigate to the bundle for your pipeline
 cd bundles/cisco/ios
 
-# 1. Set your workspace and catalog in databricks.yml (see Variables section below)
+# 1. Set repo_path, workspace host, and catalog variables in databricks.yml
+#    repo_path example: /Workspace/Repos/user@domain.com/dsl_lite
 
 # 2. Validate
 databricks bundle validate -t dev
@@ -93,14 +95,42 @@ Each bundle's `databricks.yml` defines the same set of variables. All root-level
 
 | Variable | Default | Used by | Notes |
 |---|---|---|---|
+| `repo_path` | auto (`/Workspace/Users/<current-user>/dsl_lite`) | SDP + SSS | Resolves to current user's workspace path by default; override for CI/CD or Repos checkouts |
 | `bronze_catalog` | `""` | SDP only | Leave empty to use database name only |
 | `silver_catalog` | `""` | SDP only | Leave empty to use database name only |
 | `gold_catalog` | `""` | SDP only | Required for SDP — must be a valid UC catalog |
-| `source_database` | varies | SDP + SSS | Bronze and Silver schema (e.g. `cisco`, `github`) |
+| `bronze_database` | varies | SDP + SSS | Bronze schema (e.g. `cisco`, `github`) |
+| `silver_database` | varies | SDP + SSS | Silver schema (e.g. `cisco`, `github`) |
 | `gold_database` | `"ocsf"` | SDP + SSS | Gold (OCSF) schema |
 | `sss_checkpoints_base` | placeholder | SSS only | Base Volume path for streaming checkpoints |
 | `spark_version` | `"16.4.x-scala2.12"` | SSS only | DBR version for classic job clusters |
 | `node_type_id` | `"i3.xlarge"` | SSS only | AWS default — Azure: `Standard_D4ds_v5`, GCP: `n2-highmem-4` |
+
+### `repo_path` — workspace path to dsl_lite
+
+The bundle references all source files (`sdp_medallion.py`, `sss_bronze.py`, preset YAMLs, etc.) by their absolute workspace path via `${var.repo_path}`. This avoids DABs sync boundary restrictions — the bundle deploys the pipeline/job *configuration* and points it at code that already lives in your workspace.
+
+Set `repo_path` to wherever dsl_lite is accessible in your workspace:
+
+```yaml
+# Databricks Repos checkout:
+repo_path: /Workspace/Repos/user@domain.com/dsl_lite
+
+# Workspace Files upload:
+repo_path: /Workspace/Users/user@domain.com/dsl_lite
+```
+
+Set this per-target in `databricks.yml`:
+
+```yaml
+targets:
+  dev:
+    variables:
+      repo_path: /Workspace/Repos/user@domain.com/dsl_lite
+  prod:
+    variables:
+      repo_path: /Workspace/Repos/svc-account@domain.com/dsl_lite
+```
 
 ### Catalog routing in SDP
 
@@ -113,7 +143,8 @@ targets:
       bronze_catalog: "cyber_lakehouse"
       silver_catalog: "cyber_lakehouse"
       gold_catalog:   "cyber_lakehouse"
-      source_database: "cisco"
+      bronze_database: "cisco"
+      silver_database: "cisco"
       gold_database:   "ocsf"
 ```
 
@@ -202,71 +233,11 @@ Then set `sss_checkpoints_base` in `databricks.yml` to point to it.
 
 ---
 
-## Tutorial: Adding a New Bundle
+## Adding a New Bundle
 
-This walkthrough adds a new bundle for a fictional `palo_alto/firewall` pipeline.
+See **[tutorials/adding-a-bundle.md](../tutorials/adding-a-bundle.md)** for a step-by-step walkthrough.
 
-### Step 1 — Create the preset
-
-If you haven't already, create the preset YAML:
-
-```
-pipelines/palo_alto/firewall/preset.yaml
-```
-
-### Step 2 — Create the bundle directory
-
-```bash
-mkdir -p bundles/palo_alto/firewall/resources
-```
-
-### Step 3 — Copy an existing bundle as a template
-
-```bash
-cp bundles/cisco/ios/databricks.yml     bundles/palo_alto/firewall/databricks.yml
-cp bundles/cisco/ios/resources/sdp.yml  bundles/palo_alto/firewall/resources/sdp.yml
-cp bundles/cisco/ios/resources/sss.yml  bundles/palo_alto/firewall/resources/sss.yml
-```
-
-### Step 4 — Update `databricks.yml`
-
-Open `bundles/palo_alto/firewall/databricks.yml` and change:
-
-| Find | Replace with |
-|---|---|
-| `dsl_lite_cisco_ios` | `dsl_lite_palo_alto_firewall` |
-| `../../../pipelines/cisco/ios/**` | `../../../pipelines/palo_alto/firewall/**` |
-| `default: "cisco"` (source_database) | `default: "palo_alto"` |
-| `cisco_ios_sdp` (quick start comment) | `palo_alto_firewall_sdp` |
-
-### Step 5 — Update `resources/sdp.yml`
-
-| Find | Replace with |
-|---|---|
-| `cisco_ios_sdp` | `palo_alto_firewall_sdp` |
-| `Cisco IOS` | `Palo Alto Firewall` |
-| `pipelines/cisco/ios/preset.yaml` | `pipelines/palo_alto/firewall/preset.yaml` |
-
-### Step 6 — Update `resources/sss.yml`
-
-| Find | Replace with |
-|---|---|
-| `cisco_ios_sss` | `palo_alto_firewall_sss` |
-| `Cisco IOS` | `Palo Alto Firewall` |
-| `pipelines/cisco/ios/preset.yaml` | `pipelines/palo_alto/firewall/preset.yaml` |
-| `cisco_ios` (checkpoint subdirectory) | `palo_alto_firewall` |
-
-### Step 7 — Set your variables and deploy
-
-```bash
-cd bundles/palo_alto/firewall
-
-# Edit databricks.yml targets with your catalog/workspace details
-
-databricks bundle validate -t dev
-databricks bundle deploy -t dev
-databricks bundle run palo_alto_firewall_sdp -t dev
-```
+Templates for all three bundle files live in `bundles/templates/` — copy and fill in placeholders rather than copying from an existing bundle.
 
 ---
 
@@ -276,6 +247,5 @@ databricks bundle run palo_alto_firewall_sdp -t dev
 cd bundles/cisco/ios
 databricks bundle destroy -t dev
 
-cd bundles/cisco/ios
 databricks bundle destroy -t prod --auto-approve
 ```

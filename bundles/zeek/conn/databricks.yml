@@ -1,20 +1,13 @@
 # DSL Lite — Zeek Conn Bundle
 #
-# Deploys the Zeek Conn pipeline (Bronze → Silver → Gold) as an isolated bundle.
-# Select execution mode by editing the include block below.
-#
 # Quick start:
+#   cd bundles/zeek/conn
 #   databricks bundle validate -t dev
 #   databricks bundle deploy -t dev
 #   databricks bundle run zeek_conn_sdp -t dev
 
 bundle:
   name: dsl_lite_zeek_conn
-
-sync:
-  include:
-    - ../../../src/**
-    - ../../../pipelines/zeek/conn/**
 
 # ── Execution mode ─────────────────────────────────────────────────────────────
 # Option 1: SDP — Lakeflow Spark Declarative Pipeline (recommended, serverless)
@@ -28,6 +21,14 @@ include:
 
 variables:
 
+  # --- Workspace ---
+  repo_path:
+    description: >
+      Absolute workspace path to the dsl_lite repository.
+      Defaults to the current user's standard workspace path.
+      Override for CI/CD service accounts or custom paths.
+    default: "/Workspace/Users/${workspace.current_user.userName}/dsl_lite"
+
   # --- Catalogs ---
   bronze_catalog:
     description: "Catalog for Bronze tables. Leave empty to use database name only."
@@ -38,12 +39,16 @@ variables:
     default: ""
 
   gold_catalog:
-    description: "Catalog for Gold (OCSF) tables. Required for SDP."
+    description: "Catalog for Gold (OCSF) tables."
     default: ""
 
   # --- Databases ---
-  source_database:
-    description: "Bronze and Silver schema for this pipeline."
+  bronze_database:
+    description: "Bronze schema for this pipeline."
+    default: "zeek"
+
+  silver_database:
+    description: "Silver schema for this pipeline."
     default: "zeek"
 
   gold_database:
@@ -52,8 +57,8 @@ variables:
 
   # --- SSS only ---
   sss_checkpoints_base:
-    description: "Base path for SSS checkpoints. Not used by SDP."
-    default: "/Volumes/main/ocsf/checkpoints"   # placeholder
+    description: "Base Volume path for SSS checkpoints. Not used by SDP."
+    default: "/Volumes/main/ocsf/checkpoints"
 
   spark_version:
     description: "DBR version for SSS classic job clusters."
@@ -62,10 +67,6 @@ variables:
   node_type_id:
     description: "Worker instance type. AWS: i3.xlarge | Azure: Standard_D4ds_v5 | GCP: n2-highmem-4"
     default: "i3.xlarge"
-
-# ---------------------------------------------------------------------------
-# Targets
-# ---------------------------------------------------------------------------
 
 targets:
 
@@ -76,10 +77,11 @@ targets:
       host: ""
       profile: DEFAULT
     variables:
+      # repo_path defaults to /Workspace/Users/<current-user>/dsl_lite
+      # If your repo is under Repos: /Workspace/Repos/<current-user>/dsl_lite
       bronze_catalog: ""
       silver_catalog: ""
       gold_catalog:   ""
-      sss_checkpoints_base: "/Volumes/main/ocsf/checkpoints"   # placeholder
 
   staging:
     mode: development
@@ -90,7 +92,6 @@ targets:
       bronze_catalog: ""
       silver_catalog: ""
       gold_catalog:   ""
-      sss_checkpoints_base: "/Volumes/main/ocsf/checkpoints"   # placeholder
 
   prod:
     mode: production
@@ -98,7 +99,7 @@ targets:
       host: ""
       profile: DEFAULT
     variables:
+      # repo_path: /Workspace/Users/svc-account@domain.com/dsl_lite
       bronze_catalog: ""
       silver_catalog: ""
       gold_catalog:   ""
-      sss_checkpoints_base: "/Volumes/main/ocsf/checkpoints"   # placeholder

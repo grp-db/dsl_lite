@@ -1,13 +1,16 @@
-# DSL Lite — GitHub Audit Logs Bundle
+# DSL Lite — <SOURCE> <SOURCE_TYPE> Bundle
+#
+# Replace all occurrences of <source>, <source_type>, <SOURCE>, and <SOURCE_TYPE>
+# with your actual values before deploying.
 #
 # Quick start:
-#   cd bundles/github/audit_logs
+#   cd bundles/<source>/<source_type>
 #   databricks bundle validate -t dev
 #   databricks bundle deploy -t dev
-#   databricks bundle run github_audit_logs_sdp -t dev
+#   databricks bundle run <source>_<source_type>_sdp -t dev
 
 bundle:
-  name: dsl_lite_github_audit_logs
+  name: dsl_lite_<source>_<source_type>
 
 # ── Execution mode ─────────────────────────────────────────────────────────────
 # Option 1: SDP — Lakeflow Spark Declarative Pipeline (recommended, serverless)
@@ -45,11 +48,11 @@ variables:
   # --- Databases ---
   bronze_database:
     description: "Bronze schema for this pipeline."
-    default: "github"
+    default: "<source>"
 
   silver_database:
     description: "Silver schema for this pipeline."
-    default: "github"
+    default: "<source>"
 
   gold_database:
     description: "Gold (OCSF) schema."

@@ -30,17 +30,16 @@ that you can use as reference while building your own.
 
 ## Step 2: Create a Starter Preset YAML
 
-Start from an existing template in `ocsf_templates/` that matches your log format and OCSF
-event class, or copy the closest pipeline preset from `pipelines/`.
+A ready-to-fill template lives at `pipelines/templates/preset.yaml`. Copy it into your new
+source directory:
 
-Create a folder for your new source:
+```bash
+mkdir -p pipelines/<source>/<source_type>
+cp pipelines/templates/preset.yaml pipelines/<source>/<source_type>/preset.yaml
+```
 
-```
-pipelines/
-  <source>/
-    <sourcetype>/
-      preset.yaml
-```
+Then open the file and replace every `<source>`, `<source_type>`, and other placeholder values.
+The template includes commented alternatives for both text/syslog and JSON log formats.
 
 A minimal preset looks like this:
 
