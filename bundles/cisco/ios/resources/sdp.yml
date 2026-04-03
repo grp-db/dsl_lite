@@ -4,7 +4,7 @@ resources:
       name: "[${bundle.target}] DSL Lite - Cisco IOS (SDP)"
 
       libraries:
-        - notebook:
+        - file:
             path: ${var.repo_path}/src/sdp_medallion.py
 
       configuration:
