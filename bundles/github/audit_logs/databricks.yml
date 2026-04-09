@@ -19,15 +19,33 @@ include:
 #   - resources/sss.yml
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── File sync ──────────────────────────────────────────────────────────────────
+# Syncs src/ and pipelines/ from the repo root alongside this bundle directory.
+# DABs uses the nearest common ancestor (repo root) as the sync root, so all
+# three folders land directly under ${workspace.file_path}/ on deploy.
+sync:
+  paths:
+    - .
+    - ../../../src
+    - ../../../pipelines
+# ─────────────────────────────────────────────────────────────────────────────
+
 variables:
 
-  # --- Workspace ---
+  # --- Metadata ---
+  source:
+    description: "Log source identifier (e.g. aws, cloudflare, cisco)."
+    default: "github"
+
+  source_type:
+    description: "Log source type identifier (e.g. vpc_flowlogs, gateway_dns)."
+    default: "audit_logs"
+
   repo_path:
     description: >
-      Absolute workspace path to the dsl_lite repository.
-      Defaults to the current user's standard workspace path.
-      Override for CI/CD service accounts or custom paths.
-    default: "/Workspace/Users/${workspace.current_user.userName}/dsl_lite"
+      Workspace path where DABs synced the repository files.
+      Automatically resolves to the bundle's file_path on deploy.
+    default: "${workspace.file_path}"
 
   # --- Catalogs ---
   bronze_catalog:
@@ -76,9 +94,8 @@ targets:
     workspace:
       host: ""
       profile: DEFAULT
+      root_path: "/Workspace/dsl_lite_bundles/.bundle/${bundle.name}/${bundle.target}"
     variables:
-      # repo_path defaults to /Workspace/Users/<current-user>/dsl_lite
-      # If your repo is under Repos: /Workspace/Repos/<current-user>/dsl_lite
       bronze_catalog: ""
       silver_catalog: ""
       gold_catalog:   ""
@@ -88,6 +105,7 @@ targets:
     workspace:
       host: ""
       profile: DEFAULT
+      root_path: "/Workspace/dsl_lite_bundles/.bundle/${bundle.name}/${bundle.target}"
     variables:
       bronze_catalog: ""
       silver_catalog: ""
@@ -98,8 +116,8 @@ targets:
     workspace:
       host: ""
       profile: DEFAULT
+      root_path: "/Workspace/dsl_lite_bundles/.bundle/${bundle.name}/${bundle.target}"
     variables:
-      # repo_path: /Workspace/Users/svc-account@domain.com/dsl_lite
       bronze_catalog: ""
       silver_catalog: ""
       gold_catalog:   ""

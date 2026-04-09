@@ -8,7 +8,7 @@ resources:
             path: ${var.repo_path}/src/sdp_medallion.py
 
       configuration:
-        dsl_lite.config_file:          "${var.repo_path}/pipelines/cloudflare/gateway_dns/preset.yaml"
+        dsl_lite.config_file:          "${var.repo_path}/pipelines/${var.source}/${var.source_type}/preset.yaml"
         dsl_lite.bronze_catalog_name:  "${var.bronze_catalog}"
         dsl_lite.bronze_database_name:  "${var.bronze_database}"
         dsl_lite.silver_catalog_name:  "${var.silver_catalog}"

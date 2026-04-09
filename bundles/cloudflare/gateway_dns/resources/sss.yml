@@ -18,9 +18,9 @@ resources:
           notebook_task:
             notebook_path: "${var.repo_path}/src/sss_bronze.py"
             base_parameters:
-              preset_file:          "${var.repo_path}/pipelines/cloudflare/gateway_dns/preset.yaml"
+              preset_file:          "${var.repo_path}/pipelines/${var.source}/${var.source_type}/preset.yaml"
               bronze_database:      "${var.bronze_database}"
-              checkpoints_location: "${var.sss_checkpoints_base}/cloudflare_gateway_dns"
+              checkpoints_location: "${var.sss_checkpoints_base}/${var.source}_${var.source_type}"
               continuous:           "False"
 
         - task_key: silver
@@ -31,10 +31,10 @@ resources:
           notebook_task:
             notebook_path: "${var.repo_path}/src/sss_silver.py"
             base_parameters:
-              preset_file:          "${var.repo_path}/pipelines/cloudflare/gateway_dns/preset.yaml"
+              preset_file:          "${var.repo_path}/pipelines/${var.source}/${var.source_type}/preset.yaml"
               bronze_database:      "${var.bronze_database}"
               silver_database:      "${var.silver_database}"
-              checkpoints_location: "${var.sss_checkpoints_base}/cloudflare_gateway_dns"
+              checkpoints_location: "${var.sss_checkpoints_base}/${var.source}_${var.source_type}"
               continuous:           "False"
 
         - task_key: gold
@@ -45,10 +45,10 @@ resources:
           notebook_task:
             notebook_path: "${var.repo_path}/src/sss_gold.py"
             base_parameters:
-              preset_file:          "${var.repo_path}/pipelines/cloudflare/gateway_dns/preset.yaml"
+              preset_file:          "${var.repo_path}/pipelines/${var.source}/${var.source_type}/preset.yaml"
               silver_database:      "${var.silver_database}"
               gold_database:        "${var.gold_database}"
-              checkpoints_location: "${var.sss_checkpoints_base}/cloudflare_gateway_dns"
+              checkpoints_location: "${var.sss_checkpoints_base}/${var.source}_${var.source_type}"
               continuous:           "False"
 
       permissions:
