@@ -13,7 +13,7 @@
 
 import re
 
-from yaml import load, Loader
+from yaml import load, SafeLoader
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import (
     broadcast, col as spark_col, explode_outer, from_json, to_json,
@@ -209,7 +209,7 @@ def load_config(preset_file: str, sample_override: str = "") -> tuple:
         raise ValueError("Set the 'preset_file' widget to the full path of your preset.yaml")
 
     with open(preset_file, "r") as f:
-        config = load(f, Loader=Loader)
+        config = load(f, Loader=SafeLoader)
 
     if sample_override:
         sample_path = sample_override
