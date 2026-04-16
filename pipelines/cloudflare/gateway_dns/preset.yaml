@@ -324,7 +324,7 @@ gold:
       - name: severity
         literal: Informational
       - name: severity_id
-        expr: CAST('0' AS INT)
+        expr: CAST(1 AS INT)
       - name: src_endpoint.ip
         from: SrcIP
       - name: src_endpoint.port
@@ -373,7 +373,12 @@ gold:
             ELSE 'Other'
           END
       - name: status_id
-        from: RCode
+        expr: |
+          CAST(CASE
+            WHEN RCode = 0 THEN 1
+            WHEN RCode IS NULL THEN 0
+            ELSE 2
+          END AS INT)
       - name: time
         from: time
       - name: timezone_offset

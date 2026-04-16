@@ -59,7 +59,7 @@ gold:
             CASE
               WHEN conn_state IN ('SF', 'RSTO', 'RSTR', 'RSTRH', 'SH', 'SHR') THEN 2
               WHEN conn_state = 'S0' THEN 4
-              WHEN conn_state = 'REJ' THEN 5
+              WHEN conn_state = 'REJ' THEN 3
               ELSE 6
             END
           as int)
@@ -323,6 +323,10 @@ gold:
         expr: data:orig_pkts::BIGINT
       - name: traffic.packets
         expr: data:orig_pkts::BIGINT + data:resp_pkts::BIGINT
+      - name: traffic.bytes_missed
+        expr: data:missed_bytes::BIGINT
+      - name: dst_endpoint.svc_name
+        expr: data:service::STRING
       - name: src_endpoint.mac
         expr: data:orig_l2_addr::STRING
       - name: dst_endpoint.mac
@@ -356,13 +360,11 @@ gold:
                 'conn_state', conn_state,
                 'local_orig', data:local_orig::BOOLEAN,
                 'local_resp', data:local_resp::BOOLEAN,
-                'missed_bytes', data:missed_bytes::BIGINT,
                 'history', data:history::STRING,
                 'orig_ip_bytes', data:orig_ip_bytes::BIGINT,
                 'resp_ip_bytes', data:resp_ip_bytes::BIGINT,
                 'tunnel_parents', data:tunnel_parents::STRING,
                 'duration', data:duration::DOUBLE,
-                'service', data:service::STRING,
                 'vlan', data:vlan::INT,
                 'inner_vlan', data:inner_vlan::INT
               )

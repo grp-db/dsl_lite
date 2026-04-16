@@ -363,6 +363,73 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Detection Finding (Class UID: 2004, Category: Findings)
+# Captures security detections from EDR, SIEM, IDS/IPS, and alert platforms
+# Reference: https://schema.ocsf.io/1.7.0/classes/detection_finding
+spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.detection_finding (
+  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  action STRING COMMENT 'The action taken in response to the detection (e.g., Allowed, Blocked, Quarantined)',
+  action_id INT COMMENT 'The action ID: 0=Unknown, 1=Allowed, 2=Denied, 99=Other',
+  activity_id INT COMMENT 'The detection finding activity ID: 0=Unknown, 1=Create, 2=Update, 3=Close, 99=Other',
+  activity_name STRING COMMENT 'The detection finding activity name (e.g., Create, Update, Close)',
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  api STRUCT<operation: STRING, request: STRUCT<data: VARIANT, uid: STRING>, response: STRUCT<code: INT, data: VARIANT, error: STRING, message: STRING>>,
+  category_name STRING COMMENT 'The OCSF category name: Findings',
+  category_uid INT COMMENT 'The OCSF category unique identifier: 2 for Findings',
+  class_name STRING COMMENT 'The OCSF class name: Detection Finding',
+  class_uid INT COMMENT 'The OCSF class unique identifier: 2004 for Detection Finding',
+  cloud STRUCT<account: STRUCT<name: STRING, uid: STRING>, cloud_partition: STRING, project_uid: STRING, provider: STRING, region: STRING, zone: STRING>,
+  confidence STRING COMMENT 'The confidence level of the detection (e.g., High, Medium, Low)',
+  confidence_id INT COMMENT 'The confidence ID: 0=Unknown, 1=Low, 2=Medium, 3=High, 99=Other',
+  confidence_score INT COMMENT 'Numerical confidence score (0-100) from the detection source',
+  device STRUCT<created_time: TIMESTAMP, desc: STRING, domain: STRING, groups: ARRAY<STRUCT<name: STRING, privileges: STRING, type: STRING, uid: STRING>>, hostname: STRING, ip: STRING, is_compliant: BOOLEAN, is_managed: BOOLEAN, is_personal: BOOLEAN, is_trusted: BOOLEAN, name: STRING, region: STRING, risk_level: STRING, risk_level_id: INT, risk_score: INT, subnet: STRING, type: STRING, type_id: INT, uid: STRING> COMMENT 'The device where the detection occurred',
+  disposition STRING COMMENT 'The disposition name (e.g., Detected, Blocked, Quarantined)',
+  disposition_id INT COMMENT 'The disposition ID: 0=Unknown, 1=Allowed, 2=Blocked, 10=Detected, 17=Logged, 19=Alert',
+  end_time TIMESTAMP COMMENT 'The end time of the detection window',
+  enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>> COMMENT 'Additional enrichment data from threat intel or GeoIP',
+  evidences ARRAY<VARIANT> COMMENT 'Evidence artifacts supporting the detection (rules matched, indicators triggered)',
+  finding_info STRUCT<analytic: STRUCT<name: STRING, uid: STRING, category: STRING, desc: STRING, related_analytics: ARRAY<VARIANT>, type: STRING, type_id: INT, version: STRING>, attacks: ARRAY<STRUCT<sub_technique: STRUCT<name: STRING, uid: STRING, src_url: STRING>, tactic: STRUCT<name: STRING, uid: STRING, src_url: STRING>, tactics: ARRAY<STRUCT<name: STRING, uid: STRING, src_url: STRING>>, technique: STRUCT<name: STRING, uid: STRING, src_url: STRING>, version: STRING>>, created_time: TIMESTAMP, data_sources: STRING, desc: STRING, first_seen_time: TIMESTAMP, last_seen_time: TIMESTAMP, modified_time: TIMESTAMP, src_url: STRING, title: STRING, uid: STRING> COMMENT 'Detection finding details: title, description, rule info, MITRE ATT&CK mappings, timestamps',
+  impact STRING COMMENT 'The impact level of the detection (e.g., High, Medium, Low)',
+  impact_id INT COMMENT 'The impact ID: 0=Unknown, 1=Low, 2=Medium, 3=High, 99=Other',
+  impact_score INT COMMENT 'Numerical impact score from the detection source',
+  is_alert BOOLEAN COMMENT 'Indicates whether this detection was promoted to an alert',
+  message STRING COMMENT 'Human-readable description of the detection',
+  metadata STRUCT<correlation_uid: STRING, event_code: STRING, log_level: STRING, log_name: STRING, log_provider: STRING, log_format: STRING, log_version: STRING, logged_time: TIMESTAMP, modified_time: TIMESTAMP, original_time: STRING, processed_time: TIMESTAMP, product: STRUCT<name: STRING, vendor_name: STRING, version: STRING>, tags: VARIANT, tenant_uid: STRING, uid: STRING, version: STRING>,
+  observables ARRAY<STRUCT<name: STRING, type: STRING, value: STRING>> COMMENT 'Observable artifacts extracted from the detection (IPs, domains, hashes) for threat hunting',
+  raw_data VARIANT COMMENT 'The original raw detection event in its native format',
+  remediations ARRAY<STRUCT<desc: STRING, kb_articles: ARRAY<STRING>>> COMMENT 'Recommended remediation steps and knowledge base references',
+  resources ARRAY<STRUCT<hostname: STRING, ip: STRING, name: STRING, uid: STRING>> COMMENT 'Affected resources identified by the detection',
+  risk_details STRING COMMENT 'Additional details about the risk level or risk factors',
+  risk_level STRING COMMENT 'The risk level name (e.g., High, Medium, Low)',
+  risk_level_id INT COMMENT 'The risk level ID: 0=Info, 1=Low, 2=Medium, 3=High, 4=Critical',
+  risk_score INT COMMENT 'Numerical risk score from the detection source',
+  severity STRING COMMENT 'The detection severity name (e.g., Informational, Low, Medium, High, Critical)',
+  severity_id INT COMMENT 'The detection severity ID: 0=Unknown, 1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical, 6=Fatal, 99=Other',
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  start_time TIMESTAMP COMMENT 'The start time of the detection window',
+  status STRING COMMENT 'The detection status name (e.g., New, In Progress, Suppressed, Resolved)',
+  status_code STRING COMMENT 'Vendor-specific status code',
+  status_detail STRING COMMENT 'Additional details about the detection status',
+  status_id INT COMMENT 'The detection status ID: 0=Unknown, 1=New, 2=In Progress, 3=Suppressed, 4=Resolved, 99=Other',
+  time TIMESTAMP COMMENT 'The detection event time (required)',
+  timezone_offset INT COMMENT 'The timezone offset in minutes from UTC',
+  type_name STRING COMMENT 'The event type name, formatted as "Detection Finding: <activity_name>"',
+  type_uid BIGINT COMMENT 'The event type unique identifier, calculated as class_uid * 100 + activity_id',
+  unmapped VARIANT COMMENT 'Vendor-specific detection fields that do not map to OCSF schema attributes')
+USING delta
+TBLPROPERTIES (
+  'delta.enableDeletionVectors' = 'true',
+  'delta.feature.appendOnly' = 'supported',
+  'delta.feature.deletionVectors' = 'supported',
+  'delta.feature.invariants' = 'supported',
+  'delta.feature.variantType-preview' = 'supported',
+  'delta.feature.variantShredding-preview' = "supported",
+  'delta.minReaderVersion' = '3',
+  'delta.minWriterVersion' = '7')
+""")
+
+# COMMAND ----------
+
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.datastore_activity (
   dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,

@@ -169,9 +169,106 @@ gold:
         from: dstport
       # connection_info fields
       - name: connection_info.direction_id
-        expr: CAST('O' AS INT)
+        expr: |
+          CAST(CASE
+            WHEN
+              (
+                srcaddr RLIKE '^10\\.'
+                OR srcaddr RLIKE '^192\\.168\\.'
+                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+              AND
+              (
+                dstaddr RLIKE '^10\\.'
+                OR dstaddr RLIKE '^192\\.168\\.'
+                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+            THEN 3
+            WHEN
+              (
+                srcaddr RLIKE '^10\\.'
+                OR srcaddr RLIKE '^192\\.168\\.'
+                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+              AND NOT
+              (
+                dstaddr RLIKE '^10\\.'
+                OR dstaddr RLIKE '^192\\.168\\.'
+                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+            THEN 2
+            WHEN
+              NOT
+              (
+                srcaddr RLIKE '^10\\.'
+                OR srcaddr RLIKE '^192\\.168\\.'
+                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+              AND
+              (
+                dstaddr RLIKE '^10\\.'
+                OR dstaddr RLIKE '^192\\.168\\.'
+                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+            THEN 1
+            ELSE 0
+          END AS INT)
+      - name: connection_info.direction
+        expr: |
+          CASE
+            WHEN
+              (
+                srcaddr RLIKE '^10\\.'
+                OR srcaddr RLIKE '^192\\.168\\.'
+                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+              AND
+              (
+                dstaddr RLIKE '^10\\.'
+                OR dstaddr RLIKE '^192\\.168\\.'
+                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+            THEN 'Lateral'
+            WHEN
+              (
+                srcaddr RLIKE '^10\\.'
+                OR srcaddr RLIKE '^192\\.168\\.'
+                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+              AND NOT
+              (
+                dstaddr RLIKE '^10\\.'
+                OR dstaddr RLIKE '^192\\.168\\.'
+                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+            THEN 'Outbound'
+            WHEN
+              NOT
+              (
+                srcaddr RLIKE '^10\\.'
+                OR srcaddr RLIKE '^192\\.168\\.'
+                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+              AND
+              (
+                dstaddr RLIKE '^10\\.'
+                OR dstaddr RLIKE '^192\\.168\\.'
+                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
+              )
+            THEN 'Inbound'
+            ELSE 'Unknown'
+          END
       - name: connection_info.protocol_num
         from: protocol
+      - name: connection_info.protocol_name
+        expr: |
+          CASE
+            WHEN protocol = 1 THEN 'icmp'
+            WHEN protocol = 6 THEN 'tcp'
+            WHEN protocol = 17 THEN 'udp'
+            WHEN protocol = 58 THEN 'icmpv6'
+            ELSE CAST(protocol AS STRING)
+          END
       # Deterministic flow UID: SHA256 of interface + 4-tuple + protocol + start time (no placeholders in output)
       - name: connection_info.uid
         expr: |
@@ -229,6 +326,22 @@ gold:
         from: connection_info.uid
       - name: metadata.log_version
         literal: "aws@vpc_flowlogs:version@1.0"
+      # cloud context
+      - name: cloud.provider
+        literal: AWS
+      - name: cloud.account.uid
+        from: account_id
+      # observables
+      - name: observables
+        expr: |
+          filter(
+            array(
+              named_struct('name', 'src_endpoint.ip', 'type', 'IP Address', 'value', srcaddr),
+              named_struct('name', 'dst_endpoint.ip', 'type', 'IP Address', 'value', dstaddr),
+              CASE WHEN account_id IS NOT NULL THEN named_struct('name', 'cloud.account.uid', 'type', 'Account UID', 'value', account_id) ELSE NULL END
+            ),
+            x -> x IS NOT NULL
+          )
       # raw fields
       - name: raw_data
         expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)

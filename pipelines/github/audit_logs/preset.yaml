@@ -919,3 +919,269 @@ gold:
               )
             )
           AS VARIANT)
+
+  # --- Entity Management (3004): repo.create/destroy/rename, org.rename ---
+  - name: entity_management
+    input: github_audit_logs_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
+    filter: "action RLIKE 'repo\\.(create|destroy|rename|archived|access)|org\\.rename'"
+    fields:
+      - name: time
+        from: time
+      - name: category_uid
+        expr: CAST(3 AS INT)
+      - name: category_name
+        literal: Identity & Access Management
+      - name: class_uid
+        expr: CAST(3004 AS INT)
+      - name: class_name
+        literal: Entity Management
+      - name: severity_id
+        expr: |
+          CASE
+            WHEN action LIKE '%destroy%' THEN 3
+            WHEN action LIKE '%create%' THEN 2
+            ELSE 1
+          END
+      - name: severity
+        expr: |
+          CASE
+            WHEN action LIKE '%destroy%' THEN 'Medium'
+            WHEN action LIKE '%create%' THEN 'Low'
+            ELSE 'Informational'
+          END
+      - name: activity_id
+        expr: |
+          CASE
+            WHEN action = 'repo.create' THEN 1
+            WHEN action = 'repo.destroy' THEN 4
+            WHEN action IN ('repo.rename', 'org.rename') THEN 3
+            WHEN action = 'repo.archived' THEN 3
+            WHEN action = 'repo.access' THEN 3
+            ELSE 99
+          END
+      - name: activity_name
+        expr: |
+          CASE
+            WHEN action = 'repo.create' THEN 'Create'
+            WHEN action = 'repo.destroy' THEN 'Delete'
+            WHEN action IN ('repo.rename', 'org.rename', 'repo.archived', 'repo.access') THEN 'Update'
+            ELSE 'Other'
+          END
+      - name: status_id
+        expr: CAST(1 AS INT)
+      - name: status
+        literal: Success
+      - name: action
+        literal: Allowed
+      - name: action_id
+        expr: CAST(1 AS INT)
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      - name: type_uid
+        expr: CAST(300400 + activity_id AS BIGINT)
+      - name: type_name
+        expr: |
+          CONCAT('Entity Management: ', activity_name)
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: GitHub
+      - name: metadata.product.vendor_name
+        literal: "GitHub Inc."
+      - name: metadata.uid
+        from: event_id
+      - name: metadata.event_code
+        from: action
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_name
+        literal: audit_logs
+      - name: metadata.log_provider
+        from: source
+      - name: metadata.log_version
+        literal: "github@audit_logs:version@1.0"
+      - name: metadata.logged_time
+        from: processed_time
+      - name: metadata.original_time
+        expr: CAST(created_at_ms AS STRING)
+      - name: actor.user.uid
+        from: actor
+      - name: actor.user.name
+        from: actor
+      - name: actor.user.type
+        literal: User
+      - name: actor.user.type_id
+        expr: CAST(1 AS INT)
+      - name: entity.uid
+        from: repository
+      - name: entity.name
+        expr: SPLIT(repository, '/')[1]
+      - name: entity.type
+        literal: Repository
+      - name: src_endpoint.ip
+        from: actor_ip
+      - name: src_endpoint.location.country
+        from: actor_country
+      - name: src_endpoint.location.city
+        from: actor_city
+      - name: cloud.provider
+        literal: GitHub
+      - name: cloud.account.uid
+        from: organization
+      - name: observables
+        expr: |
+          filter(array(
+            CASE WHEN actor IS NOT NULL THEN named_struct('name', 'actor', 'type', 'User Name', 'value', actor) ELSE NULL END,
+            CASE WHEN repository IS NOT NULL THEN named_struct('name', 'entity.uid', 'type', 'Resource UID', 'value', repository) ELSE NULL END
+          ), x -> x IS NOT NULL)
+      - name: enrichments
+        expr: |
+          array(
+            named_struct('name', 'organization', 'value', organization, 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING))
+          )
+      - name: raw_data
+        expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      - name: unmapped
+        expr: |
+          CAST(
+            to_json(
+              named_struct(
+                'event_id', event_id,
+                'action', action,
+                'actor', actor,
+                'organization', organization,
+                'repository', repository,
+                'visibility', visibility
+              )
+            )
+          AS VARIANT)
+
+  # --- API Activity (6003): git.clone/fetch/push, pull_request, deploy, workflow.run, release ---
+  - name: api_activity
+    input: github_audit_logs_silver
+    # catalog: my_catalog  # Optional: Unity Catalog catalog name
+    # database: my_database  # Optional: database name (required if catalog is specified)
+    filter: "action RLIKE 'git\\.(clone|fetch|push)|pull_request\\.|deploy\\.|workflow\\.run|release\\.'"
+    fields:
+      - name: time
+        from: time
+      - name: category_uid
+        expr: CAST(6 AS INT)
+      - name: category_name
+        literal: Application Activity
+      - name: class_uid
+        expr: CAST(6003 AS INT)
+      - name: class_name
+        literal: API Activity
+      - name: severity_id
+        expr: CAST(1 AS INT)
+      - name: severity
+        literal: Informational
+      - name: activity_id
+        expr: |
+          CASE
+            WHEN action IN ('git.push', 'pull_request.create', 'release.create') THEN 1
+            WHEN action IN ('git.clone', 'git.fetch') THEN 2
+            WHEN action IN ('pull_request.merge', 'pull_request.close') THEN 3
+            WHEN action LIKE 'deploy.%' THEN 5
+            ELSE 99
+          END
+      - name: activity_name
+        expr: |
+          CASE
+            WHEN action IN ('git.push', 'pull_request.create', 'release.create') THEN 'Create'
+            WHEN action IN ('git.clone', 'git.fetch') THEN 'Read'
+            WHEN action IN ('pull_request.merge', 'pull_request.close') THEN 'Update'
+            WHEN action LIKE 'deploy.%' THEN 'Connect'
+            ELSE 'Other'
+          END
+      - name: status_id
+        expr: CAST(1 AS INT)
+      - name: status
+        literal: Success
+      - name: action
+        literal: Allowed
+      - name: action_id
+        expr: CAST(1 AS INT)
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      - name: type_uid
+        expr: CAST(600300 + activity_id AS BIGINT)
+      - name: type_name
+        expr: |
+          CONCAT('API Activity: ', activity_name)
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: GitHub
+      - name: metadata.product.vendor_name
+        literal: "GitHub Inc."
+      - name: metadata.uid
+        from: event_id
+      - name: metadata.event_code
+        from: action
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_name
+        literal: audit_logs
+      - name: metadata.log_provider
+        from: source
+      - name: metadata.log_version
+        literal: "github@audit_logs:version@1.0"
+      - name: metadata.logged_time
+        from: processed_time
+      - name: metadata.original_time
+        expr: CAST(created_at_ms AS STRING)
+      - name: api.operation
+        from: action
+      - name: actor.user.uid
+        from: actor
+      - name: actor.user.name
+        from: actor
+      - name: actor.user.type
+        literal: User
+      - name: actor.user.type_id
+        expr: CAST(1 AS INT)
+      - name: src_endpoint.ip
+        from: actor_ip
+      - name: resources
+        expr: |
+          CASE
+            WHEN repository IS NOT NULL THEN array(named_struct('name', repository, 'uid', repository, 'hostname', CAST(NULL AS STRING), 'ip', CAST(NULL AS STRING)))
+            ELSE CAST(NULL AS ARRAY<STRUCT<name:STRING, uid:STRING, hostname:STRING, ip:STRING>>)
+          END
+      - name: cloud.provider
+        literal: GitHub
+      - name: cloud.account.uid
+        from: organization
+      - name: observables
+        expr: |
+          filter(array(
+            CASE WHEN actor IS NOT NULL THEN named_struct('name', 'actor.user.name', 'type', 'User Name', 'value', actor) ELSE NULL END,
+            CASE WHEN repository IS NOT NULL THEN named_struct('name', 'resources.uid', 'type', 'Resource UID', 'value', repository) ELSE NULL END
+          ), x -> x IS NOT NULL)
+      - name: enrichments
+        expr: |
+          array(
+            named_struct('name', 'organization', 'value', organization, 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING))
+          )
+      - name: raw_data
+        expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      - name: unmapped
+        expr: |
+          CAST(
+            to_json(
+              named_struct(
+                'event_id', event_id,
+                'action', action,
+                'actor', actor,
+                'organization', organization,
+                'repository', repository,
+                'ref', ref,
+                'head', head,
+                'base', base
+              )
+            )
+          AS VARIANT)
