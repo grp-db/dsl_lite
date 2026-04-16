@@ -8,6 +8,7 @@ autoloader:
 
 bronze:
   name: cloudflare_gateway_dns_bronze
+  clusterBy: [time]
   loadAsSingleVariant: true
   preTransform:
     -
@@ -22,6 +23,7 @@ bronze:
 silver:
   transform:
     - name: cloudflare_gateway_dns_silver
+      clusterBy: [time]
       fields:
         - name: AccountID
           expr: try_variant_get(data, '$.AccountID', 'STRING')
@@ -188,6 +190,8 @@ gold:
     # database: my_database  # Optional: database name (required if catalog is specified)
     # clusterBy: ["time", "query.hostname"]  # Only works in SSS mode (src/sss_gold.py)
     fields:
+      - name: time
+        from: time
       - name: answers
         expr: |
           CASE 
@@ -379,8 +383,6 @@ gold:
             WHEN RCode IS NULL THEN 0
             ELSE 2
           END AS INT)
-      - name: time
-        from: time
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_name

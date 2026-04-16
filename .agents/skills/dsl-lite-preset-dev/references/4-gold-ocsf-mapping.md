@@ -88,7 +88,7 @@
 - name: metadata.product.vendor_name
   literal: <Vendor Name>
 - name: metadata.log_provider
-  literal: <source>           # MUST match preset's source value exactly
+  literal: <source>           # MUST be a literal — never `from: source`. e.g. literal: okta
 - name: metadata.log_name
   literal: <source_type>      # MUST match preset's sourcetype value exactly
 - name: metadata.log_format

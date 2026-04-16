@@ -239,5 +239,9 @@ See [references/5-lookup-joins.md](references/5-lookup-joins.md) for the full co
 - **`TRY_CAST` for string→type conversions** — returns NULL on failure; use plain `CAST` only for safe conversions (literals, int→string)
 - **`try_variant_get` over `data:field::TYPE`** — shorthand `::TYPE` fails on type mismatch; `try_variant_get` returns NULL
 - **`to_variant_object()` for `unmapped`** — preferred over `CAST(to_json(...) AS VARIANT)`: produces native VARIANT without JSON round-trip
+- **`clusterBy: [time]` on every bronze and silver** — always set explicitly, e.g. `bronze.clusterBy: [time]` and `silver.transform[N].clusterBy: [time]`. Both default to `["time"]` internally but always make it explicit for clarity.
+- **`time` must be the first field in every gold table** — Delta liquid clustering requires clustered columns to be within the first 32 columns. Putting `time` first guarantees `ALTER TABLE ... CLUSTER BY (time)` always succeeds without needing `ALTER TABLE ... ALTER COLUMN` to reposition it first.
 - **`clusterBy` is SSS mode only** — in SDP mode, run `ALTER TABLE ... CLUSTER BY (time, field)` after pipeline creation
+- **`metadata.log_provider` must always be a `literal`** — never use `from: source`. Hardcode the vendor name (e.g. `literal: okta`, `literal: github`). The `source` column is the same value but using a literal makes the intent clear and avoids column dependency.
+- **`metadata.log_name` must always be a `literal`** — never use `from: sourcetype`. Hardcode the source type (e.g. `literal: system_log`, `literal: gateway_dns`).
 - **Gold table names must match OCSF class names** — check `ocsf_templates/` for the exact name

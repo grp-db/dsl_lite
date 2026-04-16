@@ -10,6 +10,7 @@ autoloader:
 
 bronze:
   name: cisco_ios_bronze
+  clusterBy: [time]
   preTransform:
     -
       - "*"
@@ -23,6 +24,7 @@ bronze:
 silver:
   transform:
     - name: cisco_ios_silver
+      clusterBy: [time]
       fields:
         - name: seq_no
           expr: REGEXP_EXTRACT(value, '^(\\d+):\\s+(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+):\\s+%(\\w+)-(\\d+)-(\\w+):\\s(.+)$', 1)
@@ -50,6 +52,8 @@ gold:
     filter: (facility IN ('AAA', 'SEC_LOGIN') AND mnemonic LIKE 'LOGIN%') OR (facility = 'SYS' AND mnemonic = 'LOGOUT')
     # clusterBy: ["time", "user.name"]  # Only works in SSS mode (src/sss_gold.py)
     fields:
+      - name: time
+        from: time
       - name: category_uid
         expr: CAST('3' AS INT)
       - name: category_name
@@ -162,8 +166,6 @@ gold:
             WHEN CAST(severity AS INT) = 7 THEN 'Informational'
             ELSE 'Other'
           END
-      - name: time
-        from: time
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_name
@@ -272,6 +274,8 @@ gold:
     # database: my_database  # Optional: database name (required if catalog is specified)
     filter: mnemonic IN ('EXEC_FAILED', 'CLI_DENIED', 'ACCESS_DENIED')
     fields:
+      - name: time
+        from: time
       - name: category_uid
         expr: CAST('3' AS INT)
       - name: category_name
@@ -324,8 +328,6 @@ gold:
             WHEN CAST(severity AS INT) = 7 THEN 'Informational'
             ELSE 'Other'
           END
-      - name: time
-        from: time
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_name
@@ -379,6 +381,8 @@ gold:
     # database: my_database  # Optional: database name (required if catalog is specified)
     filter: facility IN ('LINK', 'LINEPROTO', 'ETHCNTR', 'IFMON', 'DEBUG')
     fields:
+      - name: time
+        from: time
       - name: category_uid
         expr: CAST('4' AS INT)
       - name: category_name
@@ -477,8 +481,6 @@ gold:
             WHEN CAST(severity AS INT) = 7 THEN 'Informational'
             ELSE 'Other'
           END
-      - name: time
-        from: time
       - name: start_time
         from: time
       - name: end_time
@@ -545,6 +547,8 @@ gold:
     # database: my_database  # Optional: database name (required if catalog is specified)
     filter: facility IN ('SYS', 'CPU', 'MEM', 'ENV')
     fields:
+      - name: time
+        from: time
       - name: category_uid
         expr: CAST('1' AS INT)
       - name: category_name
@@ -632,8 +636,6 @@ gold:
             WHEN CAST(severity AS INT) = 7 THEN 'Informational'
             ELSE 'Other'
           END
-      - name: time
-        from: time
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_name

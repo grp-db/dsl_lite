@@ -29,6 +29,7 @@ bronze:
 silver:
   transform:
     - name: aws_vpc_flowlogs_silver
+      clusterBy: [time]
       fields:
         - name: version
           expr: CAST(NULLIF(SPLIT(value, ' ')[0], '-') AS INT)
@@ -72,6 +73,8 @@ gold:
     # database: my_database  # Optional: database name (required if catalog is specified)
     # clusterBy: ["time", "src_endpoint.ip"]  # Only works in SSS mode (src/sss_gold.py)
     fields:
+      - name: time
+        from: time
       # action fields
       - name: action_id
         expr: |
@@ -285,8 +288,6 @@ gold:
             256
           )
       # time fields
-      - name: time
-        from: time
       - name: start_time
         expr: TO_TIMESTAMP(start)
       - name: end_time

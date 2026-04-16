@@ -1,0 +1,714 @@
+# Okta System Log → OCSF IAM (Authentication, Account Change, Group Management)
+# Covers: user.session.start/end, user.authentication.sso/mfa, user.lifecycle.*, user.account.*,
+#         group.user_membership.*, group.lifecycle.*
+name: okta_system_log
+description: "Okta System Log"
+title: "Okta System Log"
+autoloader:
+  inputs:
+    - /Volumes/logs/logs/logs/dsl_grp/okta/system_log/  # CHANGE ME: /Volumes/<catalog>/<schema>/raw/okta/system_log/
+  format: json
+
+bronze:
+  name: okta_system_log_bronze
+  clusterBy: [time]
+  loadAsSingleVariant: true
+  preTransform:
+    -
+      - "data"
+      - "_metadata.file_path"
+      - CAST(try_variant_get(data, '$.published', 'STRING') AS TIMESTAMP) as time
+      - CAST(time AS DATE) as date
+      - CAST('okta' AS STRING) as source
+      - CAST('system_log' AS STRING) as sourcetype
+      - CURRENT_TIMESTAMP() as processed_time
+
+silver:
+  transform:
+    - name: okta_system_log_silver
+      clusterBy: [time]
+      fields:
+        - name: uuid
+          expr: try_variant_get(data, '$.uuid', 'STRING')
+        - name: event_type
+          expr: try_variant_get(data, '$.eventType', 'STRING')
+        - name: display_message
+          expr: try_variant_get(data, '$.displayMessage', 'STRING')
+        - name: severity
+          expr: try_variant_get(data, '$.severity', 'STRING')
+        - name: legacy_event_type
+          expr: try_variant_get(data, '$.legacyEventType', 'STRING')
+        # outcome
+        - name: outcome_result
+          expr: try_variant_get(data, '$.outcome.result', 'STRING')
+        - name: outcome_reason
+          expr: try_variant_get(data, '$.outcome.reason', 'STRING')
+        # actor
+        - name: actor_id
+          expr: try_variant_get(data, '$.actor.id', 'STRING')
+        - name: actor_type
+          expr: try_variant_get(data, '$.actor.type', 'STRING')
+        - name: actor_alternate_id
+          expr: try_variant_get(data, '$.actor.alternateId', 'STRING')
+        - name: actor_display_name
+          expr: try_variant_get(data, '$.actor.displayName', 'STRING')
+        # client / network
+        - name: client_ip
+          expr: try_variant_get(data, '$.client.ipAddress', 'STRING')
+        - name: client_device
+          expr: try_variant_get(data, '$.client.device', 'STRING')
+        - name: client_os
+          expr: try_variant_get(data, '$.client.userAgent.os', 'STRING')
+        - name: client_browser
+          expr: try_variant_get(data, '$.client.userAgent.browser', 'STRING')
+        - name: client_user_agent
+          expr: try_variant_get(data, '$.client.userAgent.rawUserAgent', 'STRING')
+        - name: geo_city
+          expr: try_variant_get(data, '$.client.geographicalContext.city', 'STRING')
+        - name: geo_state
+          expr: try_variant_get(data, '$.client.geographicalContext.state', 'STRING')
+        - name: geo_country
+          expr: try_variant_get(data, '$.client.geographicalContext.country', 'STRING')
+        # security context
+        - name: sec_isp
+          expr: try_variant_get(data, '$.securityContext.isp', 'STRING')
+        - name: sec_domain
+          expr: try_variant_get(data, '$.securityContext.domain', 'STRING')
+        - name: sec_is_proxy
+          expr: TRY_CAST(try_variant_get(data, '$.securityContext.isProxy', 'STRING') AS BOOLEAN)
+        - name: sec_as_org
+          expr: try_variant_get(data, '$.securityContext.asOrg', 'STRING')
+        # authentication context
+        - name: auth_provider
+          expr: try_variant_get(data, '$.authenticationContext.authenticationProvider', 'STRING')
+        - name: auth_credential_type
+          expr: try_variant_get(data, '$.authenticationContext.credentialType', 'STRING')
+        - name: auth_interface
+          expr: try_variant_get(data, '$.authenticationContext.interface', 'STRING')
+        - name: auth_external_session_id
+          expr: try_variant_get(data, '$.authenticationContext.externalSessionId', 'STRING')
+        # target — first User target
+        - name: target_user_id
+          expr: |
+            try_variant_get(
+              filter(
+                from_json(to_json(try_variant_get(data, '$.target', 'STRING')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+                t -> t.type = 'User'
+              )[0],
+              '$.id', 'STRING'
+            )
+        - name: target_user_alternate_id
+          expr: |
+            try_variant_get(
+              filter(
+                from_json(to_json(try_variant_get(data, '$.target', 'STRING')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+                t -> t.type = 'User'
+              )[0],
+              '$.alternateId', 'STRING'
+            )
+        - name: target_user_display_name
+          expr: |
+            try_variant_get(
+              filter(
+                from_json(to_json(try_variant_get(data, '$.target', 'STRING')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+                t -> t.type = 'User'
+              )[0],
+              '$.displayName', 'STRING'
+            )
+        # target — first UserGroup target
+        - name: target_group_id
+          expr: |
+            try_variant_get(
+              filter(
+                from_json(to_json(try_variant_get(data, '$.target', 'STRING')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+                t -> t.type = 'UserGroup'
+              )[0],
+              '$.id', 'STRING'
+            )
+        - name: target_group_name
+          expr: |
+            try_variant_get(
+              filter(
+                from_json(to_json(try_variant_get(data, '$.target', 'STRING')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+                t -> t.type = 'UserGroup'
+              )[0],
+              '$.displayName', 'STRING'
+            )
+        # target — first AppInstance target
+        - name: target_app_id
+          expr: |
+            try_variant_get(
+              filter(
+                from_json(to_json(try_variant_get(data, '$.target', 'STRING')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+                t -> t.type = 'AppInstance'
+              )[0],
+              '$.id', 'STRING'
+            )
+        - name: target_app_name
+          expr: |
+            try_variant_get(
+              filter(
+                from_json(to_json(try_variant_get(data, '$.target', 'STRING')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+                t -> t.type = 'AppInstance'
+              )[0],
+              '$.displayName', 'STRING'
+            )
+        # transaction
+        - name: transaction_id
+          expr: try_variant_get(data, '$.transaction.id', 'STRING')
+        # debug
+        - name: debug_request_uri
+          expr: try_variant_get(data, '$.debugContext.debugData.requestUri', 'STRING')
+        - name: debug_request_id
+          expr: try_variant_get(data, '$.debugContext.debugData.requestId', 'STRING')
+      utils:
+        unreferencedColumns:
+          preserve: true
+
+gold:
+  # Note: clusterBy supported in SSS mode only.
+  # For SDP: ALTER TABLE <catalog>.<db>.authentication CLUSTER BY (time, user.name)
+
+  # --- Authentication (3002): user.session.start, user.session.end, user.authentication.sso, user.authentication.auth_via_mfa ---
+  - name: authentication
+    input: okta_system_log_silver
+    filter: "event_type RLIKE 'user\\.session\\.(start|end)|user\\.authentication\\.(sso|auth_via_mfa|auth_via_radius|verify_push_approve|verify_push_reject)'"
+    fields:
+      - name: time
+        from: time
+      - name: category_uid
+        expr: CAST(3 AS INT)
+      - name: category_name
+        literal: Identity & Access Management
+      - name: class_uid
+        expr: CAST(3002 AS INT)
+      - name: class_name
+        literal: Authentication
+      - name: activity_id
+        expr: |
+          CASE
+            WHEN event_type LIKE '%session.start' OR event_type LIKE '%.sso' OR event_type LIKE '%auth_via%' OR event_type LIKE '%verify_push_approve' THEN 1
+            WHEN event_type LIKE '%session.end' THEN 2
+            WHEN event_type LIKE '%verify_push_reject' THEN 99
+            ELSE 99
+          END
+      - name: activity_name
+        expr: |
+          CASE
+            WHEN event_type LIKE '%session.start' OR event_type LIKE '%.sso' OR event_type LIKE '%auth_via%' OR event_type LIKE '%verify_push_approve' THEN 'Logon'
+            WHEN event_type LIKE '%session.end' THEN 'Logoff'
+            ELSE 'Other'
+          END
+      - name: activity
+        expr: |
+          CASE
+            WHEN event_type LIKE '%session.start' OR event_type LIKE '%.sso' OR event_type LIKE '%auth_via%' OR event_type LIKE '%verify_push_approve' THEN 'Logon'
+            WHEN event_type LIKE '%session.end' THEN 'Logoff'
+            ELSE 'Other'
+          END
+      - name: status_id
+        expr: "CASE WHEN outcome_result IN ('SUCCESS', 'ALLOW') THEN 1 WHEN outcome_result IN ('FAILURE', 'DENY') THEN 2 WHEN outcome_result = 'CHALLENGE' THEN 99 ELSE 0 END"
+      - name: status
+        expr: "CASE WHEN outcome_result IN ('SUCCESS', 'ALLOW') THEN 'Success' WHEN outcome_result IN ('FAILURE', 'DENY') THEN 'Failure' WHEN outcome_result = 'CHALLENGE' THEN 'Other' ELSE 'Unknown' END"
+      - name: status_detail
+        from: outcome_reason
+      - name: status_code
+        from: outcome_result
+      - name: action_id
+        expr: "CASE WHEN outcome_result IN ('SUCCESS', 'ALLOW') THEN 1 WHEN outcome_result IN ('FAILURE', 'DENY') THEN 2 ELSE 0 END"
+      - name: action
+        expr: "CASE WHEN outcome_result IN ('SUCCESS', 'ALLOW') THEN 'Allowed' WHEN outcome_result IN ('FAILURE', 'DENY') THEN 'Denied' ELSE 'Unknown' END"
+      - name: severity_id
+        expr: |
+          CASE severity
+            WHEN 'DEBUG' THEN 1
+            WHEN 'INFO' THEN 1
+            WHEN 'WARN' THEN 3
+            WHEN 'ERROR' THEN 4
+            ELSE 0
+          END
+      - name: severity
+        expr: |
+          CASE severity
+            WHEN 'DEBUG' THEN 'Informational'
+            WHEN 'INFO' THEN 'Informational'
+            WHEN 'WARN' THEN 'Medium'
+            WHEN 'ERROR' THEN 'High'
+            ELSE 'Unknown'
+          END
+      - name: is_mfa
+        expr: CAST(event_type RLIKE 'auth_via_mfa|verify_push' AS BOOLEAN)
+      - name: is_remote
+        expr: CAST(TRUE AS BOOLEAN)
+      - name: auth_protocol
+        expr: |
+          CASE
+            WHEN auth_interface = 'SAML2.0' THEN 'SAML'
+            WHEN auth_credential_type = 'OTP' THEN 'TOTP'
+            WHEN auth_credential_type = 'PASSWORD' THEN 'Password'
+            ELSE COALESCE(auth_interface, auth_credential_type)
+          END
+      - name: auth_protocol_id
+        expr: |
+          CASE
+            WHEN auth_interface = 'SAML2.0' THEN 5
+            WHEN auth_credential_type = 'OTP' THEN 99
+            WHEN auth_credential_type = 'PASSWORD' THEN 1
+            ELSE 0
+          END
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      - name: type_uid
+        expr: |
+          CAST(300200 + CASE
+            WHEN event_type LIKE '%session.start' OR event_type LIKE '%.sso' OR event_type LIKE '%auth_via%' OR event_type LIKE '%verify_push_approve' THEN 1
+            WHEN event_type LIKE '%session.end' THEN 2
+            ELSE 99
+          END AS BIGINT)
+      - name: type_name
+        expr: |
+          CONCAT('Authentication: ', CASE
+            WHEN event_type LIKE '%session.start' OR event_type LIKE '%.sso' OR event_type LIKE '%auth_via%' THEN 'Logon'
+            WHEN event_type LIKE '%session.end' THEN 'Logoff'
+            ELSE 'Other'
+          END)
+      - name: message
+        from: display_message
+      - name: user.uid
+        from: actor_id
+      - name: user.name
+        from: actor_alternate_id
+      - name: user.full_name
+        from: actor_display_name
+      - name: user.type
+        from: actor_type
+      - name: user.type_id
+        expr: CAST(1 AS INT)
+      - name: src_endpoint.ip
+        from: client_ip
+      - name: src_endpoint.location.city
+        from: geo_city
+      - name: src_endpoint.location.region
+        from: geo_state
+      - name: src_endpoint.location.country
+        from: geo_country
+      - name: dst_endpoint.hostname
+        literal: acme.okta.com
+      - name: dst_endpoint.name
+        literal: Okta
+      - name: session.uid
+        from: auth_external_session_id
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: Okta System Log
+      - name: metadata.product.vendor_name
+        literal: Okta
+      - name: metadata.uid
+        from: uuid
+      - name: metadata.event_code
+        from: event_type
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_name
+        literal: system_log
+      - name: metadata.log_provider
+        literal: okta
+      - name: metadata.log_version
+        literal: "okta@system_log:version@1.0"
+      - name: metadata.logged_time
+        from: time
+      - name: metadata.processed_time
+        expr: CURRENT_TIMESTAMP()
+      - name: observables
+        expr: |
+          filter(array(
+            CASE WHEN actor_alternate_id IS NOT NULL THEN named_struct('name', 'user.name', 'type', 'User Name', 'value', actor_alternate_id) ELSE NULL END,
+            CASE WHEN client_ip IS NOT NULL THEN named_struct('name', 'src_endpoint.ip', 'type', 'IP Address', 'value', client_ip) ELSE NULL END
+          ), x -> x IS NOT NULL)
+      - name: enrichments
+        expr: |
+          filter(array(
+            CASE WHEN sec_isp IS NOT NULL THEN named_struct('name', 'isp', 'value', sec_isp, 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING)) ELSE NULL END,
+            CASE WHEN target_app_name IS NOT NULL THEN named_struct('name', 'target_app', 'value', target_app_name, 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING)) ELSE NULL END
+          ), x -> x IS NOT NULL)
+      - name: raw_data
+        expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      - name: unmapped
+        expr: |
+          to_variant_object(named_struct(
+            'uuid', uuid,
+            'event_type', event_type,
+            'legacy_event_type', legacy_event_type,
+            'auth_provider', auth_provider,
+            'auth_credential_type', auth_credential_type,
+            'client_device', client_device,
+            'client_os', client_os,
+            'client_browser', client_browser,
+            'client_user_agent', client_user_agent,
+            'sec_domain', sec_domain,
+            'sec_is_proxy', sec_is_proxy,
+            'sec_as_org', sec_as_org,
+            'transaction_id', transaction_id,
+            'debug_request_uri', debug_request_uri
+          ))
+
+  # --- Account Change (3001): user.lifecycle.create/activate/deactivate, user.account.lock/unlock/reset_password ---
+  - name: account_change
+    input: okta_system_log_silver
+    filter: "event_type RLIKE 'user\\.lifecycle\\.(create|activate|deactivate|reactivate|delete_initiated)|user\\.account\\.(lock|unlock|reset_password|update_password)'"
+    fields:
+      - name: time
+        from: time
+      - name: category_uid
+        expr: CAST(3 AS INT)
+      - name: category_name
+        literal: Identity & Access Management
+      - name: class_uid
+        expr: CAST(3001 AS INT)
+      - name: class_name
+        literal: Account Change
+      - name: activity_id
+        expr: |
+          CASE
+            WHEN event_type = 'user.lifecycle.create' THEN 1
+            WHEN event_type IN ('user.lifecycle.activate', 'user.lifecycle.reactivate') THEN 2
+            WHEN event_type = 'user.account.reset_password' OR event_type = 'user.account.update_password' THEN 3
+            WHEN event_type = 'user.lifecycle.deactivate' THEN 4
+            WHEN event_type = 'user.lifecycle.delete_initiated' THEN 5
+            WHEN event_type = 'user.account.lock' THEN 99
+            WHEN event_type = 'user.account.unlock' THEN 2
+            ELSE 99
+          END
+      - name: activity_name
+        expr: |
+          CASE
+            WHEN event_type = 'user.lifecycle.create' THEN 'Create'
+            WHEN event_type IN ('user.lifecycle.activate', 'user.lifecycle.reactivate') THEN 'Enable'
+            WHEN event_type = 'user.account.reset_password' OR event_type = 'user.account.update_password' THEN 'Password Change'
+            WHEN event_type = 'user.lifecycle.deactivate' THEN 'Disable'
+            WHEN event_type = 'user.lifecycle.delete_initiated' THEN 'Delete'
+            WHEN event_type = 'user.account.lock' THEN 'Other'
+            WHEN event_type = 'user.account.unlock' THEN 'Enable'
+            ELSE 'Other'
+          END
+      - name: activity
+        expr: |
+          CASE
+            WHEN event_type = 'user.lifecycle.create' THEN 'Create'
+            WHEN event_type IN ('user.lifecycle.activate', 'user.lifecycle.reactivate', 'user.account.unlock') THEN 'Enable'
+            WHEN event_type LIKE '%reset_password' OR event_type LIKE '%update_password' THEN 'Password Change'
+            WHEN event_type = 'user.lifecycle.deactivate' THEN 'Disable'
+            WHEN event_type = 'user.lifecycle.delete_initiated' THEN 'Delete'
+            ELSE 'Other'
+          END
+      - name: status_id
+        expr: "CASE WHEN outcome_result IN ('SUCCESS', 'ALLOW') THEN 1 WHEN outcome_result IN ('FAILURE', 'DENY') THEN 2 ELSE 0 END"
+      - name: status
+        expr: "CASE WHEN outcome_result IN ('SUCCESS', 'ALLOW') THEN 'Success' WHEN outcome_result IN ('FAILURE', 'DENY') THEN 'Failure' ELSE 'Unknown' END"
+      - name: status_code
+        from: outcome_result
+      - name: status_detail
+        from: outcome_reason
+      - name: action_id
+        expr: "CASE WHEN outcome_result IN ('SUCCESS', 'ALLOW') THEN 1 ELSE 2 END"
+      - name: action
+        expr: "CASE WHEN outcome_result IN ('SUCCESS', 'ALLOW') THEN 'Allowed' ELSE 'Denied' END"
+      - name: severity_id
+        expr: |
+          CASE severity
+            WHEN 'DEBUG' THEN 1
+            WHEN 'INFO' THEN 1
+            WHEN 'WARN' THEN 3
+            WHEN 'ERROR' THEN 4
+            ELSE 0
+          END
+      - name: severity
+        expr: |
+          CASE severity
+            WHEN 'DEBUG' THEN 'Informational'
+            WHEN 'INFO' THEN 'Informational'
+            WHEN 'WARN' THEN 'Medium'
+            WHEN 'ERROR' THEN 'High'
+            ELSE 'Unknown'
+          END
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      - name: type_uid
+        expr: |
+          CAST(300100 + CASE
+            WHEN event_type = 'user.lifecycle.create' THEN 1
+            WHEN event_type IN ('user.lifecycle.activate', 'user.lifecycle.reactivate', 'user.account.unlock') THEN 2
+            WHEN event_type LIKE '%reset_password' OR event_type LIKE '%update_password' THEN 3
+            WHEN event_type = 'user.lifecycle.deactivate' THEN 4
+            WHEN event_type = 'user.lifecycle.delete_initiated' THEN 5
+            ELSE 99
+          END AS BIGINT)
+      - name: type_name
+        expr: |
+          CONCAT('Account Change: ', CASE
+            WHEN event_type = 'user.lifecycle.create' THEN 'Create'
+            WHEN event_type IN ('user.lifecycle.activate', 'user.lifecycle.reactivate', 'user.account.unlock') THEN 'Enable'
+            WHEN event_type LIKE '%reset_password' OR event_type LIKE '%update_password' THEN 'Password Change'
+            WHEN event_type = 'user.lifecycle.deactivate' THEN 'Disable'
+            WHEN event_type = 'user.lifecycle.delete_initiated' THEN 'Delete'
+            ELSE 'Other'
+          END)
+      - name: message
+        from: display_message
+      # actor = admin who made the change
+      - name: actor.user.uid
+        from: actor_id
+      - name: actor.user.name
+        from: actor_alternate_id
+      - name: actor.user.full_name
+        from: actor_display_name
+      - name: actor.user.type
+        from: actor_type
+      - name: actor.user.type_id
+        expr: CAST(1 AS INT)
+      # user = the affected account
+      - name: user.uid
+        from: target_user_id
+      - name: user.name
+        from: target_user_alternate_id
+      - name: user.full_name
+        from: target_user_display_name
+      - name: user.type
+        literal: User
+      - name: user.type_id
+        expr: CAST(1 AS INT)
+      - name: src_endpoint.ip
+        from: client_ip
+      - name: src_endpoint.location.city
+        from: geo_city
+      - name: src_endpoint.location.country
+        from: geo_country
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: Okta System Log
+      - name: metadata.product.vendor_name
+        literal: Okta
+      - name: metadata.uid
+        from: uuid
+      - name: metadata.event_code
+        from: event_type
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_name
+        literal: system_log
+      - name: metadata.log_provider
+        literal: okta
+      - name: metadata.log_version
+        literal: "okta@system_log:version@1.0"
+      - name: metadata.logged_time
+        from: time
+      - name: metadata.processed_time
+        expr: CURRENT_TIMESTAMP()
+      - name: observables
+        expr: |
+          filter(array(
+            CASE WHEN actor_alternate_id IS NOT NULL THEN named_struct('name', 'actor.user.name', 'type', 'User Name', 'value', actor_alternate_id) ELSE NULL END,
+            CASE WHEN target_user_alternate_id IS NOT NULL THEN named_struct('name', 'user.name', 'type', 'User Name', 'value', target_user_alternate_id) ELSE NULL END,
+            CASE WHEN client_ip IS NOT NULL THEN named_struct('name', 'src_endpoint.ip', 'type', 'IP Address', 'value', client_ip) ELSE NULL END
+          ), x -> x IS NOT NULL)
+      - name: enrichments
+        expr: |
+          filter(array(
+            CASE WHEN sec_isp IS NOT NULL THEN named_struct('name', 'isp', 'value', sec_isp, 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING)) ELSE NULL END
+          ), x -> x IS NOT NULL)
+      - name: raw_data
+        expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      - name: unmapped
+        expr: |
+          to_variant_object(named_struct(
+            'uuid', uuid,
+            'event_type', event_type,
+            'legacy_event_type', legacy_event_type,
+            'actor_type', actor_type,
+            'client_device', client_device,
+            'client_os', client_os,
+            'client_user_agent', client_user_agent,
+            'sec_is_proxy', sec_is_proxy,
+            'sec_domain', sec_domain,
+            'debug_request_uri', debug_request_uri,
+            'transaction_id', transaction_id
+          ))
+
+  # --- Group Management (3006): group.user_membership.add/remove, group.lifecycle.create/delete ---
+  - name: group_management
+    input: okta_system_log_silver
+    filter: "event_type RLIKE 'group\\.user_membership\\.(add|remove)|group\\.lifecycle\\.(create|delete)'"
+    fields:
+      - name: time
+        from: time
+      - name: category_uid
+        expr: CAST(3 AS INT)
+      - name: category_name
+        literal: Identity & Access Management
+      - name: class_uid
+        expr: CAST(3006 AS INT)
+      - name: class_name
+        literal: Group Management
+      - name: activity_id
+        expr: |
+          CASE
+            WHEN event_type = 'group.lifecycle.create' THEN 1
+            WHEN event_type = 'group.lifecycle.delete' THEN 4
+            WHEN event_type = 'group.user_membership.add' THEN 5
+            WHEN event_type = 'group.user_membership.remove' THEN 6
+            ELSE 99
+          END
+      - name: activity_name
+        expr: |
+          CASE
+            WHEN event_type = 'group.lifecycle.create' THEN 'Create'
+            WHEN event_type = 'group.lifecycle.delete' THEN 'Delete'
+            WHEN event_type = 'group.user_membership.add' THEN 'Add'
+            WHEN event_type = 'group.user_membership.remove' THEN 'Remove'
+            ELSE 'Other'
+          END
+      - name: activity
+        expr: |
+          CASE
+            WHEN event_type = 'group.lifecycle.create' THEN 'Create'
+            WHEN event_type = 'group.lifecycle.delete' THEN 'Delete'
+            WHEN event_type = 'group.user_membership.add' THEN 'Add'
+            WHEN event_type = 'group.user_membership.remove' THEN 'Remove'
+            ELSE 'Other'
+          END
+      - name: status_id
+        expr: "CASE WHEN outcome_result IN ('SUCCESS', 'ALLOW') THEN 1 WHEN outcome_result IN ('FAILURE', 'DENY') THEN 2 ELSE 0 END"
+      - name: status
+        expr: "CASE WHEN outcome_result IN ('SUCCESS', 'ALLOW') THEN 'Success' WHEN outcome_result IN ('FAILURE', 'DENY') THEN 'Failure' ELSE 'Unknown' END"
+      - name: action_id
+        expr: CAST(1 AS INT)
+      - name: action
+        literal: Allowed
+      - name: severity_id
+        expr: |
+          CASE severity
+            WHEN 'DEBUG' THEN 1
+            WHEN 'INFO' THEN 1
+            WHEN 'WARN' THEN 3
+            WHEN 'ERROR' THEN 4
+            ELSE 0
+          END
+      - name: severity
+        expr: |
+          CASE severity
+            WHEN 'DEBUG' THEN 'Informational'
+            WHEN 'INFO' THEN 'Informational'
+            WHEN 'WARN' THEN 'Medium'
+            WHEN 'ERROR' THEN 'High'
+            ELSE 'Unknown'
+          END
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      - name: type_uid
+        expr: |
+          CAST(300600 + CASE
+            WHEN event_type = 'group.lifecycle.create' THEN 1
+            WHEN event_type = 'group.lifecycle.delete' THEN 4
+            WHEN event_type = 'group.user_membership.add' THEN 5
+            WHEN event_type = 'group.user_membership.remove' THEN 6
+            ELSE 99
+          END AS BIGINT)
+      - name: type_name
+        expr: |
+          CONCAT('Group Management: ', CASE
+            WHEN event_type = 'group.lifecycle.create' THEN 'Create'
+            WHEN event_type = 'group.lifecycle.delete' THEN 'Delete'
+            WHEN event_type = 'group.user_membership.add' THEN 'Add'
+            WHEN event_type = 'group.user_membership.remove' THEN 'Remove'
+            ELSE 'Other'
+          END)
+      - name: message
+        from: display_message
+      # actor = admin performing the action
+      - name: actor.user.uid
+        from: actor_id
+      - name: actor.user.name
+        from: actor_alternate_id
+      - name: actor.user.full_name
+        from: actor_display_name
+      - name: actor.user.type
+        from: actor_type
+      - name: actor.user.type_id
+        expr: CAST(1 AS INT)
+      # group being modified
+      - name: group.uid
+        from: target_group_id
+      - name: group.name
+        from: target_group_name
+      - name: group.type
+        literal: Security Group
+      # user being added/removed (null for lifecycle events)
+      - name: user.uid
+        from: target_user_id
+      - name: user.name
+        from: target_user_alternate_id
+      - name: user.full_name
+        from: target_user_display_name
+      - name: user.type
+        literal: User
+      - name: user.type_id
+        expr: CAST(1 AS INT)
+      - name: src_endpoint.ip
+        from: client_ip
+      - name: src_endpoint.location.city
+        from: geo_city
+      - name: src_endpoint.location.country
+        from: geo_country
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: Okta System Log
+      - name: metadata.product.vendor_name
+        literal: Okta
+      - name: metadata.uid
+        from: uuid
+      - name: metadata.event_code
+        from: event_type
+      - name: metadata.log_format
+        literal: JSON
+      - name: metadata.log_name
+        literal: system_log
+      - name: metadata.log_provider
+        literal: okta
+      - name: metadata.log_version
+        literal: "okta@system_log:version@1.0"
+      - name: metadata.logged_time
+        from: time
+      - name: metadata.processed_time
+        expr: CURRENT_TIMESTAMP()
+      - name: observables
+        expr: |
+          filter(array(
+            CASE WHEN actor_alternate_id IS NOT NULL THEN named_struct('name', 'actor.user.name', 'type', 'User Name', 'value', actor_alternate_id) ELSE NULL END,
+            CASE WHEN target_user_alternate_id IS NOT NULL THEN named_struct('name', 'user.name', 'type', 'User Name', 'value', target_user_alternate_id) ELSE NULL END,
+            CASE WHEN target_group_name IS NOT NULL THEN named_struct('name', 'group.name', 'type', 'Group Name', 'value', target_group_name) ELSE NULL END
+          ), x -> x IS NOT NULL)
+      - name: enrichments
+        expr: |
+          filter(array(
+            CASE WHEN sec_isp IS NOT NULL THEN named_struct('name', 'isp', 'value', sec_isp, 'data', CAST(NULL AS VARIANT), 'desc', CAST(NULL AS STRING)) ELSE NULL END
+          ), x -> x IS NOT NULL)
+      - name: raw_data
+        expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
+      - name: unmapped
+        expr: |
+          to_variant_object(named_struct(
+            'uuid', uuid,
+            'event_type', event_type,
+            'legacy_event_type', legacy_event_type,
+            'actor_type', actor_type,
+            'client_device', client_device,
+            'client_os', client_os,
+            'client_user_agent', client_user_agent,
+            'sec_is_proxy', sec_is_proxy,
+            'sec_domain', sec_domain,
+            'debug_request_uri', debug_request_uri,
+            'transaction_id', transaction_id
+          ))

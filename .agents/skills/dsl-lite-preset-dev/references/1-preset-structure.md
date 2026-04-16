@@ -36,6 +36,7 @@ autoloader:
 # ── Bronze ─────────────────────────────────────────────────────────────────────
 bronze:
   name: <source>_<source_type>_bronze
+  clusterBy: [time]             # always include — ensures time-ordered writes
 
   # JSON ONLY — keeps the entire JSON record as a VARIANT column named `data`
   # Omit for text/syslog (raw line → `value` STRING) and CSV
@@ -114,6 +115,7 @@ bronze:
 silver:
   transform:
     - name: <source>_<source_type>_silver
+      clusterBy: [time]         # always include — ensures time-ordered writes
 
       # Optional — row filter (applied before field extraction)
       # filter: facility IN ('AAA', 'SEC_LOGIN')
@@ -178,6 +180,8 @@ gold:
     # filter: field = 'value'        # optional — row filter before mapping
     # clusterBy: ["time", "field"]   # SSS mode ONLY (not supported in SDP)
     fields:
+      - name: time                    # ALWAYS first — Delta clustering requires clustered cols in first 32
+        from: time
       - name: category_uid
         expr: CAST(<N> AS INT)        # e.g. 4 for Network Activity
       - name: category_name

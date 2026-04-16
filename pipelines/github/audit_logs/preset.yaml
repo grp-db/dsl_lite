@@ -10,6 +10,7 @@ autoloader:
 
 bronze:
   name: github_audit_logs_bronze
+  clusterBy: [time]
   loadAsSingleVariant: true
   preTransform:
     -
@@ -24,6 +25,7 @@ bronze:
 silver:
   transform:
     - name: github_audit_logs_silver
+      clusterBy: [time]
       fields:
         - name: event_id
           expr: try_variant_get(data, '$.id', 'STRING')
@@ -189,7 +191,7 @@ gold:
       - name: metadata.log_name
         literal: audit_logs
       - name: metadata.log_provider
-        from: source
+        literal: github
       - name: metadata.log_version
         literal: "github@audit_logs:version@1.0"
       - name: metadata.logged_time
@@ -338,7 +340,7 @@ gold:
       - name: metadata.log_name
         literal: audit_logs
       - name: metadata.log_provider
-        from: source
+        literal: github
       - name: metadata.log_version
         literal: "github@audit_logs:version@1.0"
       - name: metadata.logged_time
@@ -496,7 +498,7 @@ gold:
       - name: metadata.log_name
         literal: audit_logs
       - name: metadata.log_provider
-        from: source
+        literal: github
       - name: metadata.log_version
         literal: "github@audit_logs:version@1.0"
       - name: metadata.logged_time
@@ -672,7 +674,7 @@ gold:
       - name: metadata.log_name
         literal: audit_logs
       - name: metadata.log_provider
-        from: source
+        literal: github
       - name: metadata.log_version
         literal: "github@audit_logs:version@1.0"
       - name: metadata.logged_time
@@ -847,7 +849,7 @@ gold:
       - name: metadata.log_name
         literal: audit_logs
       - name: metadata.log_provider
-        from: source
+        literal: github
       - name: metadata.log_version
         literal: "github@audit_logs:version@1.0"
       - name: metadata.logged_time
@@ -999,7 +1001,7 @@ gold:
       - name: metadata.log_name
         literal: audit_logs
       - name: metadata.log_provider
-        from: source
+        literal: github
       - name: metadata.log_version
         literal: "github@audit_logs:version@1.0"
       - name: metadata.logged_time
@@ -1127,7 +1129,7 @@ gold:
       - name: metadata.log_name
         literal: audit_logs
       - name: metadata.log_provider
-        from: source
+        literal: github
       - name: metadata.log_version
         literal: "github@audit_logs:version@1.0"
       - name: metadata.logged_time
