@@ -59,6 +59,7 @@ DSL Lite implements a three-layer medallion architecture — **Bronze** (ingest 
 | **Cisco IOS** | `cisco_ios_bronze` | `cisco_ios_silver` | `authentication`, `authorize_session`, `network_activity`, `process_activity` |
 | **Cloudflare Gateway DNS** | `cloudflare_gateway_dns_bronze` | `cloudflare_gateway_dns_silver` | `dns_activity` |
 | **GitHub Audit Logs** | `github_audit_logs_bronze` | `github_audit_logs_silver` | `account_change`, `authentication`, `authorize_session`, `user_access`, `group_management` |
+| **Okta System Log** | `okta_system_log_bronze` | `okta_system_log_silver` | `authentication`, `account_change`, `group_management` |
 | **Zeek Conn** | `zeek_conn_bronze` | `zeek_conn_silver` | `network_activity` |
 | **AWS VPC Flow Logs** | `aws_vpc_flowlogs_bronze` | `aws_vpc_flowlogs_silver` | `network_activity` |
 
@@ -124,6 +125,7 @@ The `bundles/` directory contains ready-to-deploy Declarative Automation Bundles
 | `cisco/ios` | `cisco_ios_sdp` | `cisco_ios_sss` |
 | `cloudflare/gateway_dns` | `cloudflare_gateway_dns_sdp` | `cloudflare_gateway_dns_sss` |
 | `github/audit_logs` | `github_audit_logs_sdp` | `github_audit_logs_sss` |
+| `okta/system_log` | `okta_system_log_sdp` | `okta_system_log_sss` |
 | `zeek/conn` | `zeek_conn_sdp` | `zeek_conn_sss` |
 | `aws/vpc_flowlogs` | `aws_vpc_flowlogs_sdp` | `aws_vpc_flowlogs_sss` |
 
@@ -362,7 +364,7 @@ Support for streaming sources (Kafka, Event Hubs, Kinesis, Zerobus) can be added
 ## Limitations
 
 - **File-based ingestion only.** Ingestion is via Databricks Auto Loader only. There is no built-in support for Kafka, Event Hubs, Kinesis, Zerobus or other streaming sources; those would require custom integration.
-b- **Auto Loader: one stream per path.** Each path in `autoloader.inputs` is a separate stream with its own checkpoint.
+- **Auto Loader: one stream per path.** Each path in `autoloader.inputs` is a separate stream with its own checkpoint.
 - **SDP (Spark Declarative Pipeline) mode.** With SDP deployment, confirm in your environment whether pipelines support continuous execution or only trigger-based (e.g. "Trigger now") runs. Behavior may depend on Databricks runtime and Lakeflow configuration.
 - **No interactive `display()` in pipeline execution.** The framework runs as batch/streaming jobs. There is no built-in interactive notebook experience with `df.display()` for ad-hoc preview of pipeline output; use the [DASL Preset Tool](https://github.com/grp-db/preset_tool) or run queries against the tables after the job.
 - **One pipeline per log source.** Each log source (e.g. Cisco IOS, Zeek conn, Cloudflare DNS, GitHub Audit Logs, AWS VPC Flow Logs) is configured as a separate preset and typically a separate pipeline. Multi-source aggregation happens in the gold OCSF tables, not in a single preset.
