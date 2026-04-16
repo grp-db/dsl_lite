@@ -6,7 +6,7 @@ Built with ❤️ by Databricks Field Engineering & Professional Services
 Copyright © Databricks, Inc.
 """
 
-from yaml import load, SafeLoader
+from yaml import safe_load
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import broadcast, col as spark_col, explode_outer, from_json, to_json, expr
 from typing import Optional, Dict, Any, List, Union
@@ -17,7 +17,7 @@ def load_config_file(config_file: str):
     if not config_file:
         raise Exception("No config file name provided")
     with open(config_file, "r") as f:
-        config_data = load(f, Loader=SafeLoader)
+        config_data = safe_load(f)
     if not config_data:
         raise Exception(f"Can't read config file {config_file}" )
 
