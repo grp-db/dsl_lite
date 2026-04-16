@@ -1,0 +1,56 @@
+resources:
+  jobs:
+    okta_system_log_sss:
+      name: "[${bundle.target}] DSL Lite - Okta System Log (SSS)"
+
+      job_clusters:
+        - job_cluster_key: pipeline_cluster
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id:  ${var.node_type_id}
+            num_workers: 2
+
+      tasks:
+
+        - task_key: bronze
+          description: "Ingest Okta System Log events into the Bronze Delta table via Auto Loader."
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: "${var.repo_path}/src/sss_bronze.py"
+            base_parameters:
+              preset_file:          "${var.repo_path}/pipelines/${var.source}/${var.source_type}/preset.yaml"
+              bronze_database:      "${var.bronze_database}"
+              checkpoints_location: "${var.sss_checkpoints_base}/${var.source}_${var.source_type}"
+              continuous:           "False"
+
+        - task_key: silver
+          description: "Parse and structure Bronze data into the Silver Delta table."
+          depends_on:
+            - task_key: bronze
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: "${var.repo_path}/src/sss_silver.py"
+            base_parameters:
+              preset_file:          "${var.repo_path}/pipelines/${var.source}/${var.source_type}/preset.yaml"
+              bronze_database:      "${var.bronze_database}"
+              silver_database:      "${var.silver_database}"
+              checkpoints_location: "${var.sss_checkpoints_base}/${var.source}_${var.source_type}"
+              continuous:           "False"
+
+        - task_key: gold
+          description: "Map Silver data to OCSF-compliant Gold tables (authentication, account_change, group_management)."
+          depends_on:
+            - task_key: silver
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: "${var.repo_path}/src/sss_gold.py"
+            base_parameters:
+              preset_file:          "${var.repo_path}/pipelines/${var.source}/${var.source_type}/preset.yaml"
+              silver_database:      "${var.silver_database}"
+              gold_database:        "${var.gold_database}"
+              checkpoints_location: "${var.sss_checkpoints_base}/${var.source}_${var.source_type}"
+              continuous:           "False"
+
+      permissions:
+        - level: CAN_VIEW
+          group_name: users
