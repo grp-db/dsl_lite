@@ -1,0 +1,123 @@
+# DSL Lite — Okta System Log Bundle
+#
+# Quick start:
+#   cd bundles/okta/system_log
+#   databricks bundle validate -t dev
+#   databricks bundle deploy -t dev
+#   databricks bundle run okta_system_log_sdp -t dev
+
+bundle:
+  name: dsl_lite_okta_system_log
+
+# ── Execution mode ─────────────────────────────────────────────────────────────
+# Option 1: SDP — Lakeflow Spark Declarative Pipeline (recommended, serverless)
+include:
+  - resources/sdp.yml
+#
+# Option 2: SSS — Spark Structured Streaming, classic compute
+# include:
+#   - resources/sss.yml
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── File sync ──────────────────────────────────────────────────────────────────
+# Syncs src/ and pipelines/ from the repo root alongside this bundle directory.
+# DABs uses the nearest common ancestor (repo root) as the sync root, so all
+# three folders land directly under ${workspace.file_path}/ on deploy.
+sync:
+  paths:
+    - .
+    - ../../../src
+    - ../../../pipelines
+# ─────────────────────────────────────────────────────────────────────────────
+
+variables:
+
+  # --- Metadata ---
+  source:
+    description: "Log source identifier (e.g. aws, cloudflare, cisco)."
+    default: "okta"
+
+  source_type:
+    description: "Log source type identifier (e.g. vpc_flowlogs, gateway_dns)."
+    default: "system_log"
+
+  repo_path:
+    description: >
+      Workspace path where DABs synced the repository files.
+      Automatically resolves to the bundle's file_path on deploy.
+    default: "${workspace.file_path}"
+
+  # --- Catalogs ---
+  bronze_catalog:
+    description: "Catalog for Bronze tables. Leave empty to use database name only."
+    default: ""
+
+  silver_catalog:
+    description: "Catalog for Silver tables. Leave empty to use database name only."
+    default: ""
+
+  gold_catalog:
+    description: "Catalog for Gold (OCSF) tables."
+    default: ""
+
+  # --- Databases ---
+  bronze_database:
+    description: "Bronze schema for this pipeline."
+    default: "okta"
+
+  silver_database:
+    description: "Silver schema for this pipeline."
+    default: "okta"
+
+  gold_database:
+    description: "Gold (OCSF) schema."
+    default: "ocsf"
+
+  # --- SSS only ---
+  sss_checkpoints_base:
+    description: "Base Volume path for SSS checkpoints. Not used by SDP."
+    default: "/Volumes/main/ocsf/checkpoints"
+
+  spark_version:
+    description: "DBR version for SSS classic job clusters."
+    default: "16.4.x-scala2.12"
+
+  node_type_id:
+    description: "Worker instance type. AWS: i3.xlarge | Azure: Standard_D4ds_v5 | GCP: n2-highmem-4"
+    default: "i3.xlarge"
+
+targets:
+
+  dev:
+    default: true
+    mode: development
+    workspace:
+      host: ""
+      profile: DEFAULT
+      root_path: "/Workspace/dsl_lite_bundles/.bundle/${bundle.name}/${bundle.target}"
+    variables:
+      bronze_catalog: ""
+      silver_catalog: ""
+      gold_catalog:   ""
+
+  staging:
+    mode: development
+    workspace:
+      host: ""
+      profile: DEFAULT
+      root_path: "/Workspace/dsl_lite_bundles/.bundle/${bundle.name}/${bundle.target}"
+    variables:
+      bronze_catalog: ""
+      silver_catalog: ""
+      gold_catalog:   ""
+
+  prod:
+    mode: production
+    workspace:
+      host: ""
+      profile: DEFAULT
+      root_path: "/Workspace/dsl_lite_bundles/.bundle/${bundle.name}/${bundle.target}"
+    variables:
+      bronze_catalog: ""
+      silver_catalog: ""
+      gold_catalog:   ""

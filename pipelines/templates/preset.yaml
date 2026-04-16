@@ -33,6 +33,7 @@ autoloader:
 # Adjust the time-parsing expression to match your log's timestamp format.
 bronze:
   name: <source>_<source_type>_bronze
+  clusterBy: [time]
 
   # loadAsSingleVariant: true  # Uncomment for JSON — keeps the whole record as VARIANT
 
@@ -58,6 +59,7 @@ bronze:
 silver:
   transform:
     - name: <source>_<source_type>_silver
+      clusterBy: [time]
       fields:
         # Text example — use REGEXP_EXTRACT to pull fields from `value`
         - name: field_one

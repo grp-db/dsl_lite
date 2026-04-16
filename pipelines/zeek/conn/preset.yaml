@@ -8,6 +8,7 @@ autoloader:
 
 bronze:
   name: zeek_conn_bronze
+  clusterBy: [time]
   loadAsSingleVariant: true
   preTransform:
     -
@@ -23,6 +24,7 @@ bronze:
 silver:
   transform:
     - name: zeek_conn_silver
+      clusterBy: [time]
       fields:
         - name: id_origin_host
           expr: try_cast(data:['id.orig_h'] as STRING)
@@ -53,6 +55,8 @@ gold:
     # database: my_database  # Optional: database name (required if catalog is specified)
     # clusterBy: ["time", "src_endpoint.ip"]  # Only works in SSS mode (src/sss_gold.py)
     fields:
+      - name: time
+        from: time
       - name: activity_id
         expr: |
           cast(
@@ -109,8 +113,6 @@ gold:
         expr: CAST(class_uid * 100 + activity_id AS BIGINT)
       - name: type_name
         expr: "concat('Network Activity: ', activity_name)"
-      - name: time
-        from: time
       - name: start_time
         from: time
       - name: end_time
