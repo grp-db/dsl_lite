@@ -40,12 +40,12 @@
 dbutils.widgets.text(    "source_table",          "",                                    "Source UC Table (catalog.schema.table)")
 dbutils.widgets.text(    "source_name",           "",                                    "Preset source (e.g. cisco)")
 dbutils.widgets.text(    "source_type",           "",                                    "Preset source_type (e.g. ios)")
-dbutils.widgets.text(    "ocsf_classes",          "",                                    "Target OCSF class(es), comma-separated (e.g. authentication,network_activity)")
+dbutils.widgets.text(    "ocsf_classes",          "",                                    "(Optional) target OCSF class(es), comma-separated — leave blank to let the model infer")
 dbutils.widgets.dropdown("input_layer",           "silver", ["silver", "raw"],           "Input layer (silver → gold-only; raw → full preset)")
 dbutils.widgets.text(    "existing_preset_path",  "",                                    "(Optional) existing preset.yaml — silver mode splices new gold in")
 dbutils.widgets.text(    "skill_path",            "/Workspace/Shared/dsl_lite/skills/dsl-lite-preset-dev", "Skill folder (SKILL.md + references/)")
 dbutils.widgets.text(    "model_endpoint",        "databricks-meta-llama-3-3-70b-instruct", "Serving endpoint name")
-dbutils.widgets.text(    "sample_rows",           "5",                                   "Rows to sample from source table")
+dbutils.widgets.text(    "sample_rows",           "auto",                                "Rows to sample — integer or 'auto' to pack as many as fit the prompt budget")
 dbutils.widgets.text(    "output_path",           "",                                    "(Optional) full path to write preset.yaml")
 
 # COMMAND ----------
@@ -87,30 +87,33 @@ print(f"Loaded {len(skill_parts)} skill file(s), {len(skill_context):,} chars")
 
 # COMMAND ----------
 
-import json
-
-source_table  = dbutils.widgets.get("source_table").strip()
-n_sample      = int(dbutils.widgets.get("sample_rows") or "5")
+source_table     = dbutils.widgets.get("source_table").strip()
+sample_rows_raw  = (dbutils.widgets.get("sample_rows") or "auto").strip().lower()
 
 assert source_table, "source_table widget is required"
 
-schema_rows   = spark.sql(f"DESCRIBE TABLE EXTENDED {source_table}").collect()
-schema_text   = "\n".join(f"{r['col_name']:40s} {r['data_type'] or '':30s} {r['comment'] or ''}" for r in schema_rows if r['col_name'])
+# In 'auto' mode we fetch an upper-bound number of rows to the driver, then
+# the prompt-builder packs as many as fit the remaining context budget.
+# 200 rows × ~40 KB/row worst case = ~8 MB, safely under driver memory.
+_AUTO_ROW_UPPER_BOUND = 200
+if sample_rows_raw == "auto":
+    n_sample    = _AUTO_ROW_UPPER_BOUND
+    auto_sample = True
+else:
+    n_sample    = int(sample_rows_raw)
+    auto_sample = False
 
-sample_rows   = spark.sql(f"SELECT to_json(struct(*)) AS _row FROM {source_table} LIMIT {n_sample}").collect()
-sample_json   = "[\n" + ",\n".join("  " + r["_row"] for r in sample_rows) + "\n]"
+schema_rows = spark.sql(f"DESCRIBE TABLE EXTENDED {source_table}").collect()
+schema_text = "\n".join(f"{r['col_name']:40s} {r['data_type'] or '':30s} {r['comment'] or ''}" for r in schema_rows if r['col_name'])
 
-# Hard cap on sample payload sent to the model. Wide/variant-heavy rows can balloon
-# well past the serving endpoint's context window; 40 KB ≈ ~10K tokens is plenty for
-# the model to infer field patterns without eating the whole prompt budget.
-_SAMPLE_JSON_MAX = 40_000
-if len(sample_json) > _SAMPLE_JSON_MAX:
-    sample_json = sample_json[:_SAMPLE_JSON_MAX] + "\n... [truncated]"
+row_json_strs = [r["_row"] for r in spark.sql(
+    f"SELECT to_json(struct(*)) AS _row FROM {source_table} LIMIT {n_sample}"
+).collect()]
 
 print("── SCHEMA ──────────────────────────────────────────────")
 print(schema_text[:2000] + ("..." if len(schema_text) > 2000 else ""))
-print("\n── SAMPLE ROWS ─────────────────────────────────────────")
-print(sample_json[:2000] + ("..." if len(sample_json) > 2000 else ""))
+print(f"\n── Pulled {len(row_json_strs)} sample row(s), "
+      f"{sum(len(s) for s in row_json_strs):,} chars total (mode={'auto' if auto_sample else 'fixed'})")
 
 # COMMAND ----------
 
@@ -169,15 +172,62 @@ source_type   = dbutils.widgets.get("source_type").strip()
 ocsf_classes  = [c.strip() for c in dbutils.widgets.get("ocsf_classes").split(",") if c.strip()]
 
 assert source_name and source_type, "source_name and source_type widgets are required"
-assert ocsf_classes,                 "ocsf_classes widget is required (comma-separated)"
+
+# Prompt budget. Use a conservative floor that works across the common Databricks FMAPI
+# endpoints (Llama 3.3 70B = 128K tokens, Claude Sonnet 4 = 200K, etc.). 400K chars ≈
+# 100K tokens leaves ~28K tokens of headroom on the smallest supported endpoint.
+MODEL_INPUT_CHAR_BUDGET = 400_000
+RESERVED_OUTPUT_CHARS   = 32_000   # matches max_tokens=8000 (~4 chars/token)
+RESERVED_OVERHEAD_CHARS = 4_000    # scaffolding around the sample block
+
+bs_len            = len(existing_bronze_silver) if existing_bronze_silver else 0
+budget_for_sample = max(
+    0,
+    MODEL_INPUT_CHAR_BUDGET
+    - len(skill_context)
+    - len(schema_text)
+    - bs_len
+    - RESERVED_OUTPUT_CHARS
+    - RESERVED_OVERHEAD_CHARS,
+)
+
+# Pack row JSONs one at a time until we'd blow the budget. Respects an explicit
+# integer sample_rows value too — the loop simply stops at whatever the budget allows.
+_packed = []
+_running = 2  # opening + closing brackets
+for _s in row_json_strs:
+    _delta = len(_s) + 4  # "  " indent + ",\n"
+    if _running + _delta > budget_for_sample:
+        break
+    _packed.append(_s)
+    _running += _delta
+
+_truncated = len(_packed) < len(row_json_strs)
+sample_json = "[\n" + ",\n".join("  " + s for s in _packed) + ("\n... [truncated]" if _truncated else "") + "\n]"
+print(f"packed {len(_packed)}/{len(row_json_strs)} sample rows → sample_json {len(sample_json):,} chars "
+      f"(budget {budget_for_sample:,} chars)")
+print("\n── SAMPLE ROWS (preview) ───────────────────────────────")
+print(sample_json[:2000] + ("..." if len(sample_json) > 2000 else ""))
+
+# OCSF classes: user-provided list, else delegate selection to the model.
+if ocsf_classes:
+    ocsf_line  = ", ".join(ocsf_classes)
+    ocsf_note  = "Map fields to the listed OCSF classes using the skill's gold-table rules."
+else:
+    ocsf_line  = "(not specified — infer 1–3 appropriate classes from the schema + sample)"
+    ocsf_note  = (
+        "No OCSF classes were specified. Pick 1–3 appropriate OCSF gold classes from the "
+        "skill's class catalog based on the schema and sample rows, emit a gold section for "
+        "each, and include a top-of-file YAML comment listing the classes you selected and why."
+    )
 
 if input_layer == "silver":
     system_prompt = (
         "You are a DSL Lite preset author. You produce ONLY a valid YAML document — "
         "no prose, no code fences, no commentary outside the YAML. The input UC table is "
         "ALREADY the silver layer (parsed, typed, normalized). You MUST emit ONLY a top-level "
-        "`gold:` key mapping silver columns to the requested OCSF classes. DO NOT emit "
-        "`bronze:` or `silver:` keys — those layers already exist and must not be altered. "
+        "`gold:` key mapping silver columns to OCSF classes. DO NOT emit `bronze:` or `silver:` "
+        "keys — those layers already exist and must not be altered. "
         "Follow every convention in the skill reference below exactly.\n\n"
         + skill_context
     )
@@ -192,10 +242,10 @@ Source identifiers:
 - source_type: {source_type}
 - target path: pipelines/{source_name}/{source_type}/preset.yaml
 
-Target OCSF gold classes: {", ".join(ocsf_classes)}
+Target OCSF gold classes: {ocsf_line}
 
 The input table below is the SILVER layer (already parsed). Map its columns to the
-requested OCSF gold classes per the skill's gold-table rules.
+OCSF gold classes per the skill's gold-table rules.
 
 Source Unity Catalog table (silver): `{source_table}`
 
@@ -213,7 +263,7 @@ Requirements:
 - Output a YAML document whose ONLY top-level key is `gold:`.
 - Do NOT include `bronze:` or `silver:` keys under any circumstance.
 - Include metadata + endpoint structs per the OCSF templates.
-- Map fields to the listed OCSF classes using the skill's gold-table rules.
+- {ocsf_note}
 - Output ONLY the YAML. Do not wrap it in triple backticks.
 """
 else:
@@ -230,7 +280,7 @@ Source identifiers:
 - source_type: {source_type}
 - target path: pipelines/{source_name}/{source_type}/preset.yaml
 
-Target OCSF gold classes: {", ".join(ocsf_classes)}
+Target OCSF gold classes: {ocsf_line}
 
 Source Unity Catalog table (raw): `{source_table}`
 
@@ -248,14 +298,14 @@ Requirements:
 - Produce bronze, silver, and gold sections consistent with the skill references.
 - Use `try_variant_get` for JSON payloads when appropriate.
 - Include metadata + endpoint structs per the OCSF templates.
-- Map fields to the listed OCSF classes using the skill's gold-table rules.
+- {ocsf_note}
 - Output ONLY the YAML document. Do not wrap it in triple backticks.
 """
 
 _total_chars = len(system_prompt) + len(user_prompt)
-print(f"system prompt: {len(system_prompt):,} chars")
+print(f"\nsystem prompt: {len(system_prompt):,} chars")
 print(f"user prompt:   {len(user_prompt):,} chars")
-print(f"total:         {_total_chars:,} chars  (~{_total_chars // 4:,} tokens, Llama 3.3 70B limit is 128K)")
+print(f"total:         {_total_chars:,} chars  (~{_total_chars // 4:,} tokens; budget {MODEL_INPUT_CHAR_BUDGET:,} chars)")
 
 # COMMAND ----------
 
