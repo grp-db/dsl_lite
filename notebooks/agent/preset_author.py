@@ -49,6 +49,7 @@ dbutils.widgets.text(    "skill_path",            "/Workspace/Shared/dsl_lite/sk
 dbutils.widgets.text(    "model_endpoint",        "databricks-meta-llama-3-3-70b-instruct", "Serving endpoint name")
 dbutils.widgets.text(    "sample_rows",           "auto",                                "Rows to sample — integer or 'auto' to pack as many as fit the prompt budget")
 dbutils.widgets.text(    "output_path",           "",                                    "(Optional) full path to write preset.yaml")
+dbutils.widgets.dropdown("overwrite",             "false", ["false", "true"],           "Allow overwrite if output_path already exists")
 
 # COMMAND ----------
 
@@ -468,12 +469,35 @@ def _splice_gold(base_text: str, generated_yaml_text: str) -> str:
     return before + after
 
 if input_layer == "silver" and existing_preset_text is not None:
+    # _splice_gold already calls yaml.safe_load on the model response, so the result
+    # is guaranteed to parse. No second validation needed here.
     final_yaml = _splice_gold(existing_preset_text, preset_yaml)
     print("── SPLICED PRESET (existing bronze/silver + new gold) ──")
 else:
     final_yaml = preset_yaml
     print("── FINAL PRESET ────────────────────────────────────────")
 
+# Validate the final document parses as YAML before we let the user save or downstream
+# consumers pick it up. Uses SafeLoader via yaml.safe_load — no arbitrary Python
+# object deserialization. Required by customer security posture.
+try:
+    parsed_final = yaml.safe_load(final_yaml)
+except yaml.YAMLError as e:
+    raise RuntimeError(
+        f"Generated preset is not valid YAML — refuse to save. Parser error: {e}"
+    ) from e
+if not isinstance(parsed_final, dict):
+    raise RuntimeError(
+        f"Generated preset did not parse to a YAML mapping. Got: {type(parsed_final).__name__}"
+    )
+expected_keys = {"gold"} if input_layer == "silver" and existing_preset_text is None else {"bronze", "silver", "gold"} if input_layer == "raw" else None
+if expected_keys and not expected_keys.issubset(parsed_final.keys()):
+    missing = expected_keys - set(parsed_final.keys())
+    raise RuntimeError(
+        f"Generated preset is missing required top-level keys: {sorted(missing)}. "
+        f"Got: {sorted(parsed_final.keys())}"
+    )
+print(f"✓ YAML validated via SafeLoader (top-level keys: {sorted(parsed_final.keys())})")
 print(final_yaml[:4000] + ("..." if len(final_yaml) > 4000 else ""))
 
 # COMMAND ----------
@@ -487,14 +511,21 @@ print(final_yaml[:4000] + ("..." if len(final_yaml) > 4000 else ""))
 # COMMAND ----------
 
 output_path = dbutils.widgets.get("output_path").strip()
+overwrite   = dbutils.widgets.get("overwrite").strip().lower() == "true"
 
 if output_path:
-    if output_path.startswith("/Workspace/") or output_path.startswith("/Volumes/"):
-        with open(output_path, "w") as f:
-            f.write(final_yaml)
-        print(f"Wrote {len(final_yaml):,} chars → {output_path}")
-    else:
+    if not (output_path.startswith("/Workspace/") or output_path.startswith("/Volumes/")):
         raise ValueError("output_path must start with /Workspace/ or /Volumes/")
+    if os.path.exists(output_path) and not overwrite:
+        raise FileExistsError(
+            f"{output_path} already exists and overwrite=false. "
+            f"Set the overwrite widget to 'true' to replace it, or pick a new output_path."
+        )
+    if os.path.exists(output_path) and overwrite:
+        print(f"⚠ Overwriting existing file at {output_path}")
+    with open(output_path, "w") as f:
+        f.write(final_yaml)
+    print(f"Wrote {len(final_yaml):,} chars → {output_path}")
 else:
     print("output_path is empty — not saving. Copy the YAML above into your repo manually.")
 
