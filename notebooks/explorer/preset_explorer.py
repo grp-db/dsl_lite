@@ -18,6 +18,11 @@
 # MAGIC
 # MAGIC See `tutorials/building-a-preset-end-to-end.md` for a full walkthrough.
 # MAGIC
+# MAGIC > **⚠️ Serverless environment version**
+# MAGIC > This notebook imports `pyyaml`, which is bundled in serverless environment **v2+**.
+# MAGIC > If you see `ModuleNotFoundError: No module named 'yaml'`, open the **Environment**
+# MAGIC > side panel on the right and switch to the latest environment version.
+# MAGIC
 # MAGIC ---
 # MAGIC
 # MAGIC ### Note on `data` column type (JSON presets)
