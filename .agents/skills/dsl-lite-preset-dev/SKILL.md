@@ -47,7 +47,7 @@ Every preset begins with an identity block — all four keys (`name`, `title`, `
 name: <source>_<source_type>           # e.g. cisco_ios
 title: "<Display Title>"               # human-readable, e.g. "Cisco IOS"
 description: "<short description>"     # e.g. "Cisco IOS syslog events"
-author: "<handle>"                     # e.g. "grp" — attribution for the preset
+author: "<handle>"                     # e.g. "initials" — attribution for the preset
 
 autoloader:
   inputs:
