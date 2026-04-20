@@ -167,7 +167,7 @@ print(f"\n── Pulled {len(sample_items)} sample item(s), "
 
 # COMMAND ----------
 
-import yaml
+from yaml import safe_load, YAMLError
 
 input_layer          = dbutils.widgets.get("input_layer").strip()
 existing_preset_path = dbutils.widgets.get("existing_preset_path").strip()
@@ -196,7 +196,7 @@ if existing_preset_path:
         existing_preset_text = f.read()
     # safe_load purely for validation — surfaces a clear error if the file is malformed
     # before we waste a model call on garbage context.
-    parsed = yaml.safe_load(existing_preset_text)
+    parsed = safe_load(existing_preset_text)
     if not isinstance(parsed, dict):
         raise ValueError(f"{existing_preset_path} must be a YAML mapping at top level.")
     before_gold, _ = _split_at_gold(existing_preset_text)
@@ -444,7 +444,7 @@ print(preset_yaml)
 # MAGIC ## 6. Assemble final preset (splice if silver mode + existing preset)
 # MAGIC
 # MAGIC In silver mode with an existing preset, the model returned only a `gold:` block.
-# MAGIC We validate it with `yaml.safe_load` and then do a text-level splice: everything in
+# MAGIC We validate it with `safe_load` and then do a text-level splice: everything in
 # MAGIC your existing preset up to the old `gold:` line is kept verbatim, and the model's
 # MAGIC new `gold:` block replaces whatever came after. This preserves your bronze/silver
 # MAGIC bytes, comments, and key order exactly — no YAML round-tripping involved.
@@ -470,7 +470,7 @@ _provenance = "\n".join([
 def _splice_gold(base_text: str, generated_yaml_text: str, provenance: str = "") -> str:
     """Concat `base_text` (bytes before its top-level `gold:`) with the model's gold block."""
     # Validate the model's response parses and has a top-level `gold:` key.
-    gen = yaml.safe_load(generated_yaml_text)
+    gen = safe_load(generated_yaml_text)
     if not isinstance(gen, dict) or "gold" not in gen:
         keys = list(gen.keys()) if isinstance(gen, dict) else type(gen).__name__
         raise ValueError(
@@ -485,7 +485,7 @@ def _splice_gold(base_text: str, generated_yaml_text: str, provenance: str = "")
     return before + provenance + after
 
 if input_layer == "silver" and existing_preset_text is not None:
-    # _splice_gold already calls yaml.safe_load on the model response, so the result
+    # _splice_gold already calls safe_load on the model response, so the result
     # is guaranteed to parse. Provenance is inserted just above the new gold: block.
     final_yaml = _splice_gold(existing_preset_text, preset_yaml, provenance=_provenance)
     print("── SPLICED PRESET (existing bronze/silver + new gold) ──")
@@ -497,8 +497,8 @@ else:
 # consumers pick it up. Uses SafeLoader via yaml.safe_load — no arbitrary Python
 # object deserialization. Required by customer security posture.
 try:
-    parsed_final = yaml.safe_load(final_yaml)
-except yaml.YAMLError as e:
+    parsed_final = safe_load(final_yaml)
+except YAMLError as e:
     raise RuntimeError(
         f"Generated preset is not valid YAML — refuse to save. Parser error: {e}"
     ) from e
