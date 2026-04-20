@@ -6,9 +6,11 @@ Full annotated reference for all preset.yaml options. Delete or comment sections
 
 ```yaml
 # ── Identity ───────────────────────────────────────────────────────────────────
+# All four identity keys are REQUIRED — documentation + attribution.
 name: <source>_<source_type>           # machine name, e.g. cisco_ios
 title: "<Display Title>"               # human-readable, e.g. "Cisco IOS"
 description: "<short description>"     # e.g. "Cisco IOS syslog events"
+author: "<handle>"                     # attribution, e.g. "grp"
 
 
 # ── Auto Loader ────────────────────────────────────────────────────────────────

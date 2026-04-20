@@ -40,10 +40,14 @@ Pipelines (SDP) — no Python changes required.
 
 ## Preset YAML Structure
 
+Every preset begins with an identity block — all four keys (`name`, `title`, `description`,
+`author`) are required for documentation and attribution.
+
 ```yaml
 name: <source>_<source_type>           # e.g. cisco_ios
-title: "<Display Title>"
-description: "<short description>"
+title: "<Display Title>"               # human-readable, e.g. "Cisco IOS"
+description: "<short description>"     # e.g. "Cisco IOS syslog events"
+author: "<handle>"                     # e.g. "grp" — attribution for the preset
 
 autoloader:
   inputs:
@@ -233,6 +237,7 @@ See [references/5-lookup-joins.md](references/5-lookup-joins.md) for the full co
 
 ## Critical Rules
 
+- **Identity block is required on every preset** — `name`, `title`, `description`, and `author` must all appear at the top of `preset.yaml`. Attribution (`author`) is not optional.
 - **`loadAsSingleVariant: true`** — JSON sources only. Raw JSON stored as VARIANT in `data`. Text/syslog data is always in `value` STRING column.
 - **`"on"` must be quoted** in YAML — unquoted `on` is parsed as boolean `True`
 - **Double backslashes in regex** — YAML unquoted strings and `|` block scalars: `\\d`, `\\S`, `\\w`. Avoid double-quoted YAML strings for regex (requires `\\\\d`)
