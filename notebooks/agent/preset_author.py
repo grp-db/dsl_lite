@@ -37,7 +37,8 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text(    "source_table",          "",                                    "Source UC Table (catalog.schema.table)")
+dbutils.widgets.text(    "source_table",          "",                                    "Source UC Table (catalog.schema.table) — used for silver input or raw landing table")
+dbutils.widgets.text(    "raw_sample_path",       "",                                    "(Raw mode, no table yet) volume path to a file or folder of raw log samples")
 dbutils.widgets.text(    "source_name",           "",                                    "Preset source (e.g. cisco)")
 dbutils.widgets.text(    "source_type",           "",                                    "Preset source_type (e.g. ios)")
 dbutils.widgets.text(    "ocsf_classes",          "",                                    "(Optional) target OCSF class(es), comma-separated — leave blank to let the model infer")
@@ -80,21 +81,31 @@ print(f"Loaded {len(skill_parts)} skill file(s), {len(skill_context):,} chars")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. Introspect the source table
+# MAGIC ## 2. Introspect the input
 # MAGIC
-# MAGIC Pulls schema and a small sample. Data stays in the workspace — only the schema and
-# MAGIC sample rows are sent to the serving endpoint (which is itself Databricks-hosted).
+# MAGIC Two supported inputs:
+# MAGIC - **`source_table`** (UC table) — we pull schema + JSON-encoded sample rows. Works for
+# MAGIC   silver tables, or raw-landing tables with a single variant column.
+# MAGIC - **`raw_sample_path`** (volume path) — used when there's no UC table yet. We read a
+# MAGIC   handful of files from the folder (or the single file) verbatim and ship their
+# MAGIC   contents as the "sample" block. Intended for `input_layer=raw` bootstrapping.
+# MAGIC
+# MAGIC Data stays in the workspace — only schema/samples reach the serving endpoint.
 
 # COMMAND ----------
 
+import os
+
 source_table     = dbutils.widgets.get("source_table").strip()
+raw_sample_path  = dbutils.widgets.get("raw_sample_path").strip()
 sample_rows_raw  = (dbutils.widgets.get("sample_rows") or "auto").strip().lower()
 
-assert source_table, "source_table widget is required"
+assert source_table or raw_sample_path, (
+    "Provide either source_table (UC table) or raw_sample_path (volume path with raw log files)"
+)
 
-# In 'auto' mode we fetch an upper-bound number of rows to the driver, then
-# the prompt-builder packs as many as fit the remaining context budget.
-# 200 rows × ~40 KB/row worst case = ~8 MB, safely under driver memory.
+# In 'auto' mode we fetch an upper-bound number of items, then the prompt-builder
+# packs as many as fit the remaining context budget.
 _AUTO_ROW_UPPER_BOUND = 200
 if sample_rows_raw == "auto":
     n_sample    = _AUTO_ROW_UPPER_BOUND
@@ -103,17 +114,42 @@ else:
     n_sample    = int(sample_rows_raw)
     auto_sample = False
 
-schema_rows = spark.sql(f"DESCRIBE TABLE EXTENDED {source_table}").collect()
-schema_text = "\n".join(f"{r['col_name']:40s} {r['data_type'] or '':30s} {r['comment'] or ''}" for r in schema_rows if r['col_name'])
+# Fill: schema_text, sample_items (list of strings to pack), sample_kind, sample_source_desc.
+if source_table:
+    schema_rows  = spark.sql(f"DESCRIBE TABLE EXTENDED {source_table}").collect()
+    schema_text  = "\n".join(
+        f"{r['col_name']:40s} {r['data_type'] or '':30s} {r['comment'] or ''}"
+        for r in schema_rows if r['col_name']
+    )
+    sample_items = [r["_row"] for r in spark.sql(
+        f"SELECT to_json(struct(*)) AS _row FROM {source_table} LIMIT {n_sample}"
+    ).collect()]
+    sample_kind        = "table_rows"
+    sample_source_desc = f"Unity Catalog table: `{source_table}`"
+else:
+    # Raw volume path: read 1 file directly or list a folder and take up to n_sample files.
+    if os.path.isdir(raw_sample_path):
+        files = sorted(
+            os.path.join(raw_sample_path, f)
+            for f in os.listdir(raw_sample_path)
+            if not f.startswith(".") and os.path.isfile(os.path.join(raw_sample_path, f))
+        )[:n_sample]
+    else:
+        files = [raw_sample_path]
+    sample_items = []
+    for fp in files:
+        with open(fp, "r", errors="replace") as fh:
+            sample_items.append(f"# FILE: {fp}\n{fh.read()}")
+    schema_text        = "(no UC table — raw files; model must design bronze ingestion)"
+    sample_kind        = "raw_files"
+    sample_source_desc = f"Raw log files from volume path: `{raw_sample_path}`"
 
-row_json_strs = [r["_row"] for r in spark.sql(
-    f"SELECT to_json(struct(*)) AS _row FROM {source_table} LIMIT {n_sample}"
-).collect()]
-
-print("── SCHEMA ──────────────────────────────────────────────")
+print("── INPUT SOURCE ────────────────────────────────────────")
+print(sample_source_desc)
+print("\n── SCHEMA ──────────────────────────────────────────────")
 print(schema_text[:2000] + ("..." if len(schema_text) > 2000 else ""))
-print(f"\n── Pulled {len(row_json_strs)} sample row(s), "
-      f"{sum(len(s) for s in row_json_strs):,} chars total (mode={'auto' if auto_sample else 'fixed'})")
+print(f"\n── Pulled {len(sample_items)} sample item(s), "
+      f"{sum(len(s) for s in sample_items):,} chars total (mode={'auto' if auto_sample else 'fixed'})")
 
 # COMMAND ----------
 
@@ -191,23 +227,31 @@ budget_for_sample = max(
     - RESERVED_OVERHEAD_CHARS,
 )
 
-# Pack row JSONs one at a time until we'd blow the budget. Respects an explicit
-# integer sample_rows value too — the loop simply stops at whatever the budget allows.
-_packed = []
-_running = 2  # opening + closing brackets
-for _s in row_json_strs:
-    _delta = len(_s) + 4  # "  " indent + ",\n"
+# Pack items one at a time until we'd blow the budget. Works for both table rows
+# (each item is a JSON string) and raw files (each item is a whole file body).
+_packed  = []
+_running = 2  # array brackets / file separators
+for _s in sample_items:
+    _delta = len(_s) + 4
     if _running + _delta > budget_for_sample:
         break
     _packed.append(_s)
     _running += _delta
 
-_truncated = len(_packed) < len(row_json_strs)
-sample_json = "[\n" + ",\n".join("  " + s for s in _packed) + ("\n... [truncated]" if _truncated else "") + "\n]"
-print(f"packed {len(_packed)}/{len(row_json_strs)} sample rows → sample_json {len(sample_json):,} chars "
+_truncated = len(_packed) < len(sample_items)
+if sample_kind == "table_rows":
+    sample_block = "[\n" + ",\n".join("  " + s for s in _packed) + ("\n... [truncated]" if _truncated else "") + "\n]"
+    sample_fence = "json"
+    sample_label = "Sample rows (JSON)"
+else:
+    sample_block = "\n\n---\n\n".join(_packed) + ("\n\n... [truncated additional files]" if _truncated else "")
+    sample_fence = ""
+    sample_label = "Raw sample file contents"
+
+print(f"packed {len(_packed)}/{len(sample_items)} sample item(s) → {len(sample_block):,} chars "
       f"(budget {budget_for_sample:,} chars)")
-print("\n── SAMPLE ROWS (preview) ───────────────────────────────")
-print(sample_json[:2000] + ("..." if len(sample_json) > 2000 else ""))
+print(f"\n── {sample_label.upper()} (preview) ────────────────────")
+print(sample_block[:2000] + ("..." if len(sample_block) > 2000 else ""))
 
 # OCSF classes: user-provided list, else delegate selection to the model.
 if ocsf_classes:
@@ -220,6 +264,15 @@ else:
         "skill's class catalog based on the schema and sample rows, emit a gold section for "
         "each, and include a top-of-file YAML comment listing the classes you selected and why."
     )
+
+# Silver mode is only coherent if we have a real silver TABLE to map against —
+# raw files alone don't define a silver schema.
+if input_layer == "silver" and sample_kind == "raw_files":
+    raise ValueError(
+        "input_layer=silver requires a UC source_table. For raw files, switch input_layer=raw."
+    )
+
+sample_fenced = f"```{sample_fence}\n{sample_block}\n```" if sample_fence else sample_block
 
 if input_layer == "silver":
     system_prompt = (
@@ -247,17 +300,15 @@ Target OCSF gold classes: {ocsf_line}
 The input table below is the SILVER layer (already parsed). Map its columns to the
 OCSF gold classes per the skill's gold-table rules.
 
-Source Unity Catalog table (silver): `{source_table}`
+Input: {sample_source_desc}
 
 Silver table schema (col_name / data_type / comment):
 ```
 {schema_text}
 ```
 
-Sample silver rows (JSON):
-```json
-{sample_json}
-```
+{sample_label}:
+{sample_fenced}
 {existing_bs_block}
 Requirements:
 - Output a YAML document whose ONLY top-level key is `gold:`.
@@ -273,6 +324,22 @@ else:
         "Follow every convention in the skill reference below exactly.\n\n"
         + skill_context
     )
+    # Raw-file mode gives the model file contents instead of a parsed schema;
+    # the model needs to design the bronze ingestion pattern from scratch.
+    if sample_kind == "raw_files":
+        input_block = (
+            f"Input: {sample_source_desc}\n\n"
+            f"No UC table exists yet — design the bronze ingestion pipeline (e.g. Auto Loader "
+            f"over the volume path, variant column for unparsed payload) based on the raw file "
+            f"contents below.\n\n"
+            f"{sample_label}:\n{sample_fenced}\n"
+        )
+    else:
+        input_block = (
+            f"Input: {sample_source_desc}\n\n"
+            f"Table schema (col_name / data_type / comment):\n```\n{schema_text}\n```\n\n"
+            f"{sample_label}:\n{sample_fenced}\n"
+        )
     user_prompt = f"""Author a complete `preset.yaml` for this data source.
 
 Source identifiers:
@@ -282,18 +349,7 @@ Source identifiers:
 
 Target OCSF gold classes: {ocsf_line}
 
-Source Unity Catalog table (raw): `{source_table}`
-
-Table schema (col_name / data_type / comment):
-```
-{schema_text}
-```
-
-Sample rows (JSON):
-```json
-{sample_json}
-```
-
+{input_block}
 Requirements:
 - Produce bronze, silver, and gold sections consistent with the skill references.
 - Use `try_variant_get` for JSON payloads when appropriate.
