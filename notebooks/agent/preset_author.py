@@ -38,7 +38,7 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text(    "source_table",          "",                                    "Source UC Table (catalog.schema.table) — used for silver input or raw landing table")
+dbutils.widgets.text(    "source_table",          "",                                    "(Optional if raw_sample_path set) Source UC Table (catalog.schema.table) — used for silver input or raw landing table")
 dbutils.widgets.text(    "raw_sample_path",       "",                                    "(Raw mode, no table yet) volume path to a file or folder of raw log samples")
 dbutils.widgets.text(    "source_name",           "",                                    "Preset source (e.g. cisco)")
 dbutils.widgets.text(    "source_type",           "",                                    "Preset source_type (e.g. ios)")
