@@ -19,8 +19,8 @@
 # MAGIC 4. Build a single system + user prompt. In `silver` mode, ask the model for ONLY the
 # MAGIC    `gold:` section. In `raw` mode, ask for a full bronze/silver/gold preset.
 # MAGIC 5. Call a Databricks-hosted foundation model via the serving endpoint.
-# MAGIC 6. In silver mode, splice the generated `gold:` into the existing preset using
-# MAGIC    `ruamel.yaml` — your bronze/silver bytes, key order, and comments stay intact.
+# MAGIC 6. In silver mode, splice the generated `gold:` into the existing preset via a
+# MAGIC    text-level concat — your bronze/silver bytes, key order, and comments stay intact.
 # MAGIC 7. Review the final `preset.yaml` and (optionally) save it into the repo tree.
 # MAGIC
 # MAGIC **When to use**
@@ -160,34 +160,48 @@ print(f"\n── Pulled {len(sample_items)} sample item(s), "
 # MAGIC `gold:` section. The existing bronze/silver YAML is passed to the model as context so
 # MAGIC it can reference real silver column names when authoring the OCSF mappings.
 # MAGIC
-# MAGIC Uses `ruamel.yaml` to preserve key order and comments in the untouched sections.
+# MAGIC Uses PyYAML's `safe_load` (preinstalled on Databricks serverless — no `%pip install`
+# MAGIC needed) for parsing, and text-level splicing so your existing bronze/silver bytes,
+# MAGIC comments, and key order are preserved byte-for-byte.
 
 # COMMAND ----------
 
-from ruamel.yaml import YAML
-from io import StringIO
+import yaml
 
 input_layer          = dbutils.widgets.get("input_layer").strip()
 existing_preset_path = dbutils.widgets.get("existing_preset_path").strip()
 
-_yaml = YAML()
-_yaml.preserve_quotes = True
-_yaml.indent(mapping=2, sequence=4, offset=2)
-_yaml.width = 200
+def _is_top_level_gold(line: str) -> bool:
+    """True if `line` is a top-level `gold:` mapping key (col 0, no indent)."""
+    if not line.startswith("gold:"):
+        return False
+    # accept: "gold:", "gold: ", "gold:\n", "gold:# comment" etc.
+    return len(line) == 5 or line[5] in (" ", "\t", "\n", "\r", "#")
 
-existing_preset_doc    = None          # parsed YAML doc, used for splicing on save
-existing_bronze_silver = None          # YAML string passed into the prompt
+def _split_at_gold(yaml_text: str) -> tuple[str, str]:
+    """Return (text before top-level `gold:`, text from `gold:` onward).
+    If no top-level `gold:` is found, returns (full_text, '')."""
+    lines = yaml_text.splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        if _is_top_level_gold(line):
+            return "".join(lines[:i]), "".join(lines[i:])
+    return yaml_text, ""
+
+existing_preset_text   = None   # raw bytes of the existing preset, used for splicing
+existing_bronze_silver = None   # everything in the existing preset before `gold:` — prompt context
 
 if existing_preset_path:
     with open(existing_preset_path, "r") as f:
-        existing_preset_doc = _yaml.load(f)
-    subset = {k: existing_preset_doc[k] for k in ("bronze", "silver") if k in existing_preset_doc}
-    if subset:
-        buf = StringIO()
-        _yaml.dump(subset, buf)
-        existing_bronze_silver = buf.getvalue()
+        existing_preset_text = f.read()
+    # safe_load purely for validation — surfaces a clear error if the file is malformed
+    # before we waste a model call on garbage context.
+    parsed = yaml.safe_load(existing_preset_text)
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{existing_preset_path} must be a YAML mapping at top level.")
+    before_gold, _ = _split_at_gold(existing_preset_text)
+    existing_bronze_silver = before_gold if before_gold.strip() else None
     print(f"Loaded existing preset from {existing_preset_path} "
-          f"(sections: {list(existing_preset_doc.keys()) if existing_preset_doc else []})")
+          f"(top-level keys: {list(parsed.keys())})")
 else:
     print("No existing_preset_path — model will emit a fresh preset.")
 
@@ -411,27 +425,33 @@ print(preset_yaml)
 # MAGIC %md
 # MAGIC ## 6. Assemble final preset (splice if silver mode + existing preset)
 # MAGIC
-# MAGIC In silver mode with an existing preset, the model only returned a `gold:` block.
-# MAGIC Here we parse it and splice it into the existing preset, preserving the original
-# MAGIC bronze/silver bytes, key order, and comments via `ruamel.yaml`.
+# MAGIC In silver mode with an existing preset, the model returned only a `gold:` block.
+# MAGIC We validate it with `yaml.safe_load` and then do a text-level splice: everything in
+# MAGIC your existing preset up to the old `gold:` line is kept verbatim, and the model's
+# MAGIC new `gold:` block replaces whatever came after. This preserves your bronze/silver
+# MAGIC bytes, comments, and key order exactly — no YAML round-tripping involved.
 
 # COMMAND ----------
 
-def _splice_gold(base_doc, generated_yaml_text):
-    """Replace base_doc['gold'] with the gold: block from the model response."""
-    generated = _yaml.load(generated_yaml_text)
-    if not isinstance(generated, dict) or "gold" not in generated:
+def _splice_gold(base_text: str, generated_yaml_text: str) -> str:
+    """Concat `base_text` (bytes before its top-level `gold:`) with the model's gold block."""
+    # Validate the model's response parses and has a top-level `gold:` key.
+    gen = yaml.safe_load(generated_yaml_text)
+    if not isinstance(gen, dict) or "gold" not in gen:
+        keys = list(gen.keys()) if isinstance(gen, dict) else type(gen).__name__
         raise ValueError(
-            "Model response in silver mode must be a YAML doc with a top-level `gold:` key. "
-            f"Got top-level keys: {list(generated.keys()) if isinstance(generated, dict) else type(generated).__name__}"
+            f"Model response in silver mode must be a YAML doc with a top-level `gold:` key. "
+            f"Got top-level keys: {keys}"
         )
-    base_doc["gold"] = generated["gold"]
-    buf = StringIO()
-    _yaml.dump(base_doc, buf)
-    return buf.getvalue()
+    before_gold, _ = _split_at_gold(base_text)
+    before = before_gold.rstrip() + "\n\n" if before_gold.strip() else ""
+    after  = generated_yaml_text.lstrip()
+    if not after.endswith("\n"):
+        after += "\n"
+    return before + after
 
-if input_layer == "silver" and existing_preset_doc is not None:
-    final_yaml = _splice_gold(existing_preset_doc, preset_yaml)
+if input_layer == "silver" and existing_preset_text is not None:
+    final_yaml = _splice_gold(existing_preset_text, preset_yaml)
     print("── SPLICED PRESET (existing bronze/silver + new gold) ──")
 else:
     final_yaml = preset_yaml
@@ -492,8 +512,8 @@ if feedback.strip() and not feedback.strip().startswith("#"):
     ]))
 
     preset_yaml = refined
-    if input_layer == "silver" and existing_preset_doc is not None:
-        final_yaml = _splice_gold(existing_preset_doc, preset_yaml)
+    if input_layer == "silver" and existing_preset_text is not None:
+        final_yaml = _splice_gold(existing_preset_text, preset_yaml)
     else:
         final_yaml = preset_yaml
     print(final_yaml)
