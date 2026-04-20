@@ -1,6 +1,11 @@
+# AWS VPC Flow Logs → OCSF Network Activity
+# Covers: VPC traffic ACCEPT/REJECT events with src/dst IP, ports, protocol, packets, bytes,
+#         and log_status (OK/NODATA/SKIPDATA)
+# Raw logs assumed at volume path; bronze parses space-delimited text format; silver/gold align with OCSF network_activity schema.
 name: aws_vpc_flowlogs
 description: "AWS VPC Flowlogs"
 title: "AWS VPC Flowlogs"
+author: "grp"
 autoloader:
   inputs:
   - /Volumes/logs/logs/logs/dsl_grp/aws/vpc_flowlogs/ # CHANGE ME! /Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
@@ -32,7 +37,7 @@ silver:
       clusterBy: [time]
       fields:
         - name: version
-          expr: CAST(NULLIF(SPLIT(value, ' ')[0], '-') AS INT)
+          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[0], '-') AS INT)
         - name: account_id
           expr: CAST(NULLIF(SPLIT(value, ' ')[1], '-') AS STRING)
         - name: interface_id
@@ -42,19 +47,19 @@ silver:
         - name: dstaddr
           expr: CAST(NULLIF(SPLIT(value, ' ')[4], '-') AS STRING)
         - name: srcport
-          expr: CAST(NULLIF(SPLIT(value, ' ')[5], '-') AS INT)
+          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[5], '-') AS INT)
         - name: dstport
-          expr: CAST(NULLIF(SPLIT(value, ' ')[6], '-') AS INT)
+          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[6], '-') AS INT)
         - name: protocol
-          expr: CAST(NULLIF(SPLIT(value, ' ')[7], '-') AS INT)
+          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[7], '-') AS INT)
         - name: packets
-          expr: CAST(NULLIF(SPLIT(value, ' ')[8], '-') AS BIGINT)
+          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[8], '-') AS BIGINT)
         - name: bytes
-          expr: CAST(NULLIF(SPLIT(value, ' ')[9], '-') AS INT)
+          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[9], '-') AS INT)
         - name: start
-          expr: CAST(NULLIF(SPLIT(value, ' ')[10], '-') AS BIGINT)
+          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[10], '-') AS BIGINT)
         - name: end
-          expr: CAST(NULLIF(SPLIT(value, ' ')[11], '-') AS BIGINT)
+          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[11], '-') AS BIGINT)
         - name: action
           expr: CAST(NULLIF(SPLIT(value, ' ')[12], '-') AS STRING)
         - name: log_status
@@ -122,6 +127,10 @@ gold:
         expr: CAST('4001' AS INT)
       - name: class_name
         literal: Network Activity
+      - name: type_uid
+        expr: CAST(4001 * 100 + activity_id AS BIGINT)
+      - name: type_name
+        expr: "CONCAT('Network Activity: ', activity_name)"
       # status fields
       - name: status_id
         expr: |
@@ -349,11 +358,7 @@ gold:
       # unmapped fields
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'account_id', account_id,
-                'interface_id', interface_id
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'account_id', account_id,
+            'interface_id', interface_id
+          ))

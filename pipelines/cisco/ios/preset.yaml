@@ -1,6 +1,11 @@
+# Cisco IOS → OCSF (Authentication, Authorize Session, Network Activity, Process Activity)
+# Covers: LOGIN/LOGOUT (AAA/SEC_LOGIN/SYS), EXEC_FAILED/CLI_DENIED/ACCESS_DENIED authorization,
+#         LINK/LINEPROTO UPDOWN interface events, SYS/CPU/MEM/ENV process/system events
+# Raw logs assumed at volume path; bronze parses IOS syslog text; silver extracts facility/severity/mnemonic via regex.
 name: cisco_ios
 description: "Cisco IOS logs"
 title: "Cisco IOS"
+author: "grp"
 autoloader:
   inputs:
   - /Volumes/logs/logs/logs/dsl_grp/cisco/ios/ # CHANGE ME! /Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
@@ -55,28 +60,22 @@ gold:
       - name: time
         from: time
       - name: category_uid
-        expr: CAST('3' AS INT)
+        expr: CAST(3 AS INT)
       - name: category_name
         literal: Identity & Access Management
       - name: class_uid
-        expr: CAST('3002' AS INT)
+        expr: CAST(3002 AS INT)
       - name: class_name
         literal: Authentication
       - name: type_uid
-        expr: |
-          CASE 
-            WHEN mnemonic = 'LOGOUT' THEN CAST('300202' AS BIGINT)
-            WHEN UPPER(mnemonic) LIKE '%SUCCESS%' OR severity = '5' THEN CAST('300201' AS BIGINT)
-            WHEN UPPER(mnemonic) LIKE '%FAIL%' OR severity = '4' THEN CAST('300202' AS BIGINT)
-            ELSE CAST('300200' AS BIGINT)
-          END
+        expr: CAST(3002 * 100 + activity_id AS BIGINT)
       - name: activity_id
         expr: |
           CASE 
-            WHEN mnemonic = 'LOGOUT' THEN CAST('2' AS INT)
-            WHEN UPPER(mnemonic) LIKE '%SUCCESS%' OR severity = '5' THEN CAST('1' AS INT)
-            WHEN UPPER(mnemonic) LIKE '%FAIL%' OR severity = '4' THEN CAST('2' AS INT)
-            ELSE CAST('0' AS INT)
+            WHEN mnemonic = 'LOGOUT' THEN CAST(2 AS INT)
+            WHEN UPPER(mnemonic) LIKE '%SUCCESS%' OR severity = '5' THEN CAST(1 AS INT)
+            WHEN UPPER(mnemonic) LIKE '%FAIL%' OR severity = '4' THEN CAST(2 AS INT)
+            ELSE CAST(0 AS INT)
           END
       - name: activity_name
         expr: |
@@ -111,9 +110,9 @@ gold:
       - name: status_id
         expr: |
           CASE 
-            WHEN UPPER(mnemonic) LIKE '%SUCCESS%' OR severity = '5' OR mnemonic = 'LOGOUT' THEN CAST('1' AS INT)
-            WHEN UPPER(mnemonic) LIKE '%FAIL%' OR severity = '4' THEN CAST('2' AS INT)
-            ELSE CAST('99' AS INT)
+            WHEN UPPER(mnemonic) LIKE '%SUCCESS%' OR severity = '5' OR mnemonic = 'LOGOUT' THEN CAST(1 AS INT)
+            WHEN UPPER(mnemonic) LIKE '%FAIL%' OR severity = '4' THEN CAST(2 AS INT)
+            ELSE CAST(99 AS INT)
           END
       - name: status
         expr: |
@@ -143,15 +142,15 @@ gold:
       - name: severity_id
         expr: |
           CASE 
-            WHEN CAST(severity AS INT) = 0 THEN CAST('6' AS INT)
-            WHEN CAST(severity AS INT) = 1 THEN CAST('5' AS INT)
-            WHEN CAST(severity AS INT) = 2 THEN CAST('5' AS INT)
-            WHEN CAST(severity AS INT) = 3 THEN CAST('4' AS INT)
-            WHEN CAST(severity AS INT) = 4 THEN CAST('3' AS INT)
-            WHEN CAST(severity AS INT) = 5 THEN CAST('2' AS INT)
-            WHEN CAST(severity AS INT) = 6 THEN CAST('1' AS INT)
-            WHEN CAST(severity AS INT) = 7 THEN CAST('1' AS INT)
-            ELSE CAST('99' AS INT)
+            WHEN CAST(severity AS INT) = 0 THEN CAST(6 AS INT)
+            WHEN CAST(severity AS INT) = 1 THEN CAST(5 AS INT)
+            WHEN CAST(severity AS INT) = 2 THEN CAST(5 AS INT)
+            WHEN CAST(severity AS INT) = 3 THEN CAST(4 AS INT)
+            WHEN CAST(severity AS INT) = 4 THEN CAST(3 AS INT)
+            WHEN CAST(severity AS INT) = 5 THEN CAST(2 AS INT)
+            WHEN CAST(severity AS INT) = 6 THEN CAST(1 AS INT)
+            WHEN CAST(severity AS INT) = 7 THEN CAST(1 AS INT)
+            ELSE CAST(99 AS INT)
           END
       - name: severity
         expr: |
@@ -257,17 +256,13 @@ gold:
         expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'seq_no', seq_no,
-                'facility', facility,
-                'severity', severity,
-                'mnemonic', mnemonic,
-                'timestamp', timestamp
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'seq_no', seq_no,
+            'facility', facility,
+            'severity', severity,
+            'mnemonic', mnemonic,
+            'timestamp', timestamp
+          ))
   - name: authorize_session
     input: cisco_ios_silver
     # catalog: my_catalog  # Optional: Unity Catalog catalog name
@@ -277,15 +272,15 @@ gold:
       - name: time
         from: time
       - name: category_uid
-        expr: CAST('3' AS INT)
+        expr: CAST(3 AS INT)
       - name: category_name
         literal: Identity & Access Management
       - name: class_uid
-        expr: CAST('3003' AS INT)
+        expr: CAST(3003 AS INT)
       - name: class_name
         literal: Authorize Session
       - name: type_uid
-        expr: CAST('300399' AS BIGINT)
+        expr: CAST(3003 * 100 + activity_id AS BIGINT)
       - name: activity_id
         expr: CAST(99 AS INT)
       - name: activity_name
@@ -305,15 +300,15 @@ gold:
       - name: severity_id
         expr: |
           CASE 
-            WHEN CAST(severity AS INT) = 0 THEN CAST('6' AS INT)
-            WHEN CAST(severity AS INT) = 1 THEN CAST('5' AS INT)
-            WHEN CAST(severity AS INT) = 2 THEN CAST('5' AS INT)
-            WHEN CAST(severity AS INT) = 3 THEN CAST('4' AS INT)
-            WHEN CAST(severity AS INT) = 4 THEN CAST('3' AS INT)
-            WHEN CAST(severity AS INT) = 5 THEN CAST('2' AS INT)
-            WHEN CAST(severity AS INT) = 6 THEN CAST('1' AS INT)
-            WHEN CAST(severity AS INT) = 7 THEN CAST('1' AS INT)
-            ELSE CAST('99' AS INT)
+            WHEN CAST(severity AS INT) = 0 THEN CAST(6 AS INT)
+            WHEN CAST(severity AS INT) = 1 THEN CAST(5 AS INT)
+            WHEN CAST(severity AS INT) = 2 THEN CAST(5 AS INT)
+            WHEN CAST(severity AS INT) = 3 THEN CAST(4 AS INT)
+            WHEN CAST(severity AS INT) = 4 THEN CAST(3 AS INT)
+            WHEN CAST(severity AS INT) = 5 THEN CAST(2 AS INT)
+            WHEN CAST(severity AS INT) = 6 THEN CAST(1 AS INT)
+            WHEN CAST(severity AS INT) = 7 THEN CAST(1 AS INT)
+            ELSE CAST(99 AS INT)
           END
       - name: severity
         expr: |
@@ -364,17 +359,13 @@ gold:
         expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'seq_no', seq_no,
-                'facility', facility,
-                'severity', severity,
-                'mnemonic', mnemonic,
-                'timestamp', timestamp
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'seq_no', seq_no,
+            'facility', facility,
+            'severity', severity,
+            'mnemonic', mnemonic,
+            'timestamp', timestamp
+          ))
   - name: network_activity
     input: cisco_ios_silver
     # catalog: my_catalog  # Optional: Unity Catalog catalog name
@@ -384,26 +375,21 @@ gold:
       - name: time
         from: time
       - name: category_uid
-        expr: CAST('4' AS INT)
+        expr: CAST(4 AS INT)
       - name: category_name
         literal: Network Activity
       - name: class_uid
-        expr: CAST('4001' AS INT)
+        expr: CAST(4001 AS INT)
       - name: class_name
         literal: Network Activity
       - name: type_uid
-        expr: |
-          CASE 
-            WHEN mnemonic = 'UPDOWN' AND UPPER(description) LIKE '%UP%' THEN CAST('400101' AS BIGINT)
-            WHEN mnemonic = 'UPDOWN' AND UPPER(description) LIKE '%DOWN%' THEN CAST('400102' AS BIGINT)
-            ELSE CAST('400199' AS BIGINT)
-          END
+        expr: CAST(4001 * 100 + activity_id AS BIGINT)
       - name: activity_id
         expr: |
           CASE 
-            WHEN mnemonic = 'UPDOWN' AND UPPER(description) LIKE '%UP%' THEN CAST('1' AS INT)
-            WHEN mnemonic = 'UPDOWN' AND UPPER(description) LIKE '%DOWN%' THEN CAST('2' AS INT)
-            ELSE CAST('99' AS INT)
+            WHEN mnemonic = 'UPDOWN' AND UPPER(description) LIKE '%UP%' THEN CAST(1 AS INT)
+            WHEN mnemonic = 'UPDOWN' AND UPPER(description) LIKE '%DOWN%' THEN CAST(2 AS INT)
+            ELSE CAST(99 AS INT)
           END
       - name: activity_name
         expr: |
@@ -434,7 +420,7 @@ gold:
             ELSE 99
           END AS INT)
       - name: status_id
-        expr: CAST('99' AS INT)
+        expr: CAST(99 AS INT)
       - name: status
         literal: Other
       - name: status_code
@@ -458,15 +444,15 @@ gold:
       - name: severity_id
         expr: |
           CASE 
-            WHEN CAST(severity AS INT) = 0 THEN CAST('6' AS INT)
-            WHEN CAST(severity AS INT) = 1 THEN CAST('5' AS INT)
-            WHEN CAST(severity AS INT) = 2 THEN CAST('5' AS INT)
-            WHEN CAST(severity AS INT) = 3 THEN CAST('4' AS INT)
-            WHEN CAST(severity AS INT) = 4 THEN CAST('3' AS INT)
-            WHEN CAST(severity AS INT) = 5 THEN CAST('2' AS INT)
-            WHEN CAST(severity AS INT) = 6 THEN CAST('1' AS INT)
-            WHEN CAST(severity AS INT) = 7 THEN CAST('1' AS INT)
-            ELSE CAST('99' AS INT)
+            WHEN CAST(severity AS INT) = 0 THEN CAST(6 AS INT)
+            WHEN CAST(severity AS INT) = 1 THEN CAST(5 AS INT)
+            WHEN CAST(severity AS INT) = 2 THEN CAST(5 AS INT)
+            WHEN CAST(severity AS INT) = 3 THEN CAST(4 AS INT)
+            WHEN CAST(severity AS INT) = 4 THEN CAST(3 AS INT)
+            WHEN CAST(severity AS INT) = 5 THEN CAST(2 AS INT)
+            WHEN CAST(severity AS INT) = 6 THEN CAST(1 AS INT)
+            WHEN CAST(severity AS INT) = 7 THEN CAST(1 AS INT)
+            ELSE CAST(99 AS INT)
           END
       - name: severity
         expr: |
@@ -530,17 +516,13 @@ gold:
         expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'seq_no', seq_no,
-                'facility', facility,
-                'severity', severity,
-                'mnemonic', mnemonic,
-                'timestamp', timestamp
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'seq_no', seq_no,
+            'facility', facility,
+            'severity', severity,
+            'mnemonic', mnemonic,
+            'timestamp', timestamp
+          ))
   - name: process_activity
     input: cisco_ios_silver
     # catalog: my_catalog  # Optional: Unity Catalog catalog name
@@ -550,20 +532,15 @@ gold:
       - name: time
         from: time
       - name: category_uid
-        expr: CAST('1' AS INT)
+        expr: CAST(1 AS INT)
       - name: category_name
         literal: System Activity
       - name: class_uid
-        expr: CAST('1007' AS INT)
+        expr: CAST(1007 AS INT)
       - name: class_name
         literal: Process Activity
       - name: type_uid
-        expr: |
-          CASE 
-            WHEN mnemonic = 'RELOAD' THEN CAST('100799' AS BIGINT)
-            WHEN mnemonic LIKE '%FAILURE%' THEN CAST('100799' AS BIGINT)
-            ELSE CAST('100799' AS BIGINT)
-          END
+        expr: CAST(1007 * 100 + activity_id AS BIGINT)
       - name: activity_id
         expr: CAST(99 AS INT)
       - name: activity_name
@@ -613,15 +590,15 @@ gold:
       - name: severity_id
         expr: |
           CASE 
-            WHEN CAST(severity AS INT) = 0 THEN CAST('6' AS INT)
-            WHEN CAST(severity AS INT) = 1 THEN CAST('5' AS INT)
-            WHEN CAST(severity AS INT) = 2 THEN CAST('5' AS INT)
-            WHEN CAST(severity AS INT) = 3 THEN CAST('4' AS INT)
-            WHEN CAST(severity AS INT) = 4 THEN CAST('3' AS INT)
-            WHEN CAST(severity AS INT) = 5 THEN CAST('2' AS INT)
-            WHEN CAST(severity AS INT) = 6 THEN CAST('1' AS INT)
-            WHEN CAST(severity AS INT) = 7 THEN CAST('1' AS INT)
-            ELSE CAST('99' AS INT)
+            WHEN CAST(severity AS INT) = 0 THEN CAST(6 AS INT)
+            WHEN CAST(severity AS INT) = 1 THEN CAST(5 AS INT)
+            WHEN CAST(severity AS INT) = 2 THEN CAST(5 AS INT)
+            WHEN CAST(severity AS INT) = 3 THEN CAST(4 AS INT)
+            WHEN CAST(severity AS INT) = 4 THEN CAST(3 AS INT)
+            WHEN CAST(severity AS INT) = 5 THEN CAST(2 AS INT)
+            WHEN CAST(severity AS INT) = 6 THEN CAST(1 AS INT)
+            WHEN CAST(severity AS INT) = 7 THEN CAST(1 AS INT)
+            ELSE CAST(99 AS INT)
           END
       - name: severity
         expr: |
@@ -675,14 +652,10 @@ gold:
         expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'seq_no', seq_no,
-                'facility', facility,
-                'severity', severity,
-                'mnemonic', mnemonic,
-                'timestamp', timestamp
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'seq_no', seq_no,
+            'facility', facility,
+            'severity', severity,
+            'mnemonic', mnemonic,
+            'timestamp', timestamp
+          ))

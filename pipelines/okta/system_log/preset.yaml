@@ -1,9 +1,11 @@
 # Okta System Log → OCSF IAM (Authentication, Account Change, Group Management)
 # Covers: user.session.start/end, user.authentication.sso/mfa, user.lifecycle.*, user.account.*,
 #         group.user_membership.*, group.lifecycle.*
+# Raw logs assumed at volume path; bronze parses Okta JSON; silver flattens nested actor/target/client fields.
 name: okta_system_log
 description: "Okta System Log"
 title: "Okta System Log"
+author: "grp"
 autoloader:
   inputs:
     - /Volumes/logs/logs/logs/dsl_grp/okta/system_log/  # CHANGE ME: /Volumes/<catalog>/<schema>/raw/okta/system_log/
@@ -259,12 +261,7 @@ gold:
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_uid
-        expr: |
-          CAST(300200 + CASE
-            WHEN event_type LIKE '%session.start' OR event_type LIKE '%.sso' OR event_type LIKE '%auth_via%' OR event_type LIKE '%verify_push_approve' THEN 1
-            WHEN event_type LIKE '%session.end' THEN 2
-            ELSE 99
-          END AS BIGINT)
+        expr: CAST(3002 * 100 + activity_id AS BIGINT)
       - name: type_name
         expr: |
           CONCAT('Authentication: ', CASE
@@ -435,15 +432,7 @@ gold:
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_uid
-        expr: |
-          CAST(300100 + CASE
-            WHEN event_type = 'user.lifecycle.create' THEN 1
-            WHEN event_type IN ('user.lifecycle.activate', 'user.lifecycle.reactivate', 'user.account.unlock') THEN 2
-            WHEN event_type LIKE '%reset_password' OR event_type LIKE '%update_password' THEN 3
-            WHEN event_type = 'user.lifecycle.deactivate' THEN 4
-            WHEN event_type = 'user.lifecycle.delete_initiated' THEN 5
-            ELSE 99
-          END AS BIGINT)
+        expr: CAST(3001 * 100 + activity_id AS BIGINT)
       - name: type_name
         expr: |
           CONCAT('Account Change: ', CASE
@@ -607,14 +596,7 @@ gold:
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_uid
-        expr: |
-          CAST(300600 + CASE
-            WHEN event_type = 'group.lifecycle.create' THEN 1
-            WHEN event_type = 'group.lifecycle.delete' THEN 4
-            WHEN event_type = 'group.user_membership.add' THEN 5
-            WHEN event_type = 'group.user_membership.remove' THEN 6
-            ELSE 99
-          END AS BIGINT)
+        expr: CAST(3006 * 100 + activity_id AS BIGINT)
       - name: type_name
         expr: |
           CONCAT('Group Management: ', CASE
