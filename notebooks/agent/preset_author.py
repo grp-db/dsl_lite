@@ -91,8 +91,15 @@ assert source_table, "source_table widget is required"
 schema_rows   = spark.sql(f"DESCRIBE TABLE EXTENDED {source_table}").collect()
 schema_text   = "\n".join(f"{r['col_name']:40s} {r['data_type'] or '':30s} {r['comment'] or ''}" for r in schema_rows if r['col_name'])
 
-sample_pdf    = spark.sql(f"SELECT * FROM {source_table} LIMIT {n_sample}").toPandas()
-sample_json   = sample_pdf.to_json(orient="records", indent=2, date_format="iso", default_handler=str)
+sample_rows   = spark.sql(f"SELECT to_json(struct(*)) AS _row FROM {source_table} LIMIT {n_sample}").collect()
+sample_json   = "[\n" + ",\n".join("  " + r["_row"] for r in sample_rows) + "\n]"
+
+# Hard cap on sample payload sent to the model. Wide/variant-heavy rows can balloon
+# well past the serving endpoint's context window; 40 KB ≈ ~10K tokens is plenty for
+# the model to infer field patterns without eating the whole prompt budget.
+_SAMPLE_JSON_MAX = 40_000
+if len(sample_json) > _SAMPLE_JSON_MAX:
+    sample_json = sample_json[:_SAMPLE_JSON_MAX] + "\n... [truncated]"
 
 print("── SCHEMA ──────────────────────────────────────────────")
 print(schema_text[:2000] + ("..." if len(schema_text) > 2000 else ""))
@@ -149,8 +156,10 @@ Requirements:
 - Output ONLY the YAML document. Do not wrap it in triple backticks.
 """
 
+_total_chars = len(system_prompt) + len(user_prompt)
 print(f"system prompt: {len(system_prompt):,} chars")
 print(f"user prompt:   {len(user_prompt):,} chars")
+print(f"total:         {_total_chars:,} chars  (~{_total_chars // 4:,} tokens, Llama 3.3 70B limit is 128K)")
 
 # COMMAND ----------
 
@@ -169,15 +178,26 @@ from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
 model_endpoint = dbutils.widgets.get("model_endpoint").strip()
 w              = WorkspaceClient()
 
-response = w.serving_endpoints.query(
+query_kwargs = dict(
     name=model_endpoint,
     messages=[
         ChatMessage(role=ChatMessageRole.SYSTEM, content=system_prompt),
         ChatMessage(role=ChatMessageRole.USER,   content=user_prompt),
     ],
     max_tokens=8000,
-    temperature=0.1,
 )
+
+# Claude extended-thinking endpoints (e.g. Opus 4.x) reject non-1.0 temperature;
+# for other Claude variants temperature works but we default to 0 for determinism.
+# Llama / other OSS endpoints accept the usual 0–1 range.
+if "claude-opus" in model_endpoint or "thinking" in model_endpoint:
+    pass  # omit temperature entirely
+elif "claude" in model_endpoint:
+    query_kwargs["temperature"] = 0.0
+else:
+    query_kwargs["temperature"] = 0.1
+
+response = w.serving_endpoints.query(**query_kwargs)
 
 preset_yaml = response.choices[0].message.content.strip()
 
