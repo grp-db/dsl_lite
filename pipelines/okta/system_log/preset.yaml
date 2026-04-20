@@ -92,69 +92,48 @@ silver:
         # target — first User target
         - name: target_user_id
           expr: |
-            try_variant_get(
-              filter(
-                from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
-                t -> t.type = 'User'
-              )[0],
-              '$.id', 'STRING'
-            )
+            filter(
+              from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+              t -> t.type = 'User'
+            )[0].id
         - name: target_user_alternate_id
           expr: |
-            try_variant_get(
-              filter(
-                from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
-                t -> t.type = 'User'
-              )[0],
-              '$.alternateId', 'STRING'
-            )
+            filter(
+              from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+              t -> t.type = 'User'
+            )[0].alternateId
         - name: target_user_display_name
           expr: |
-            try_variant_get(
-              filter(
-                from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
-                t -> t.type = 'User'
-              )[0],
-              '$.displayName', 'STRING'
-            )
+            filter(
+              from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+              t -> t.type = 'User'
+            )[0].displayName
         # target — first UserGroup target
         - name: target_group_id
           expr: |
-            try_variant_get(
-              filter(
-                from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
-                t -> t.type = 'UserGroup'
-              )[0],
-              '$.id', 'STRING'
-            )
+            filter(
+              from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+              t -> t.type = 'UserGroup'
+            )[0].id
         - name: target_group_name
           expr: |
-            try_variant_get(
-              filter(
-                from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
-                t -> t.type = 'UserGroup'
-              )[0],
-              '$.displayName', 'STRING'
-            )
+            filter(
+              from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+              t -> t.type = 'UserGroup'
+            )[0].displayName
         # target — first AppInstance target
         - name: target_app_id
           expr: |
-            try_variant_get(
-              filter(
-                from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
-                t -> t.type = 'AppInstance'
-              )[0],
-              '$.id', 'STRING'
-            )
+            filter(
+              from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+              t -> t.type = 'AppInstance'
+            )[0].id
         - name: target_app_name
           expr: |
-            try_variant_get(
-              filter(
-                from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
-                t -> t.type = 'AppInstance'
-              )[0],
-              '$.displayName', 'STRING'
-            )
+            filter(
+              from_json(to_json(try_variant_get(data, '$.target')), 'ARRAY<STRUCT<id:STRING,type:STRING,alternateId:STRING,displayName:STRING>>'),
+              t -> t.type = 'AppInstance'
+            )[0].displayName
         # transaction
         - name: transaction_id
           expr: try_variant_get(data, '$.transaction.id', 'STRING')
