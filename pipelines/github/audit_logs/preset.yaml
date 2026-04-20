@@ -1,8 +1,12 @@
-# GitHub Audit Logs → OCSF IAM (Account Change, Authentication, Authorize Session, User Access, Group Management)
+# GitHub Audit Logs → OCSF (Account Change, Authentication, Authorize Session, User Access, Group Management, Entity Management, API Activity)
+# Covers: org.add_member/remove_member/update_member, user.login/logout, oauth_authorization.create/destroy,
+#         repo.add_member/protected_branch.*, org.update_member/add_billing_manager, team.*,
+#         repo.create/destroy/rename/archived, git.clone/fetch/push, pull_request.*, deploy.*, workflow.run, release.*
 # Raw logs assumed at volume path; bronze/silver/gold align with notebooks/create_ocsf_tables.py schemas.
 name: github_audit_logs
 description: "GitHub Audit Logs"
 title: "GitHub Audit Logs"
+author: "grp"
 autoloader:
   inputs:
   - /Volumes/logs/logs/logs/dsl_grp/github/audit_logs/  # CHANGE ME: /Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
@@ -143,13 +147,7 @@ gold:
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_uid
-        expr: |
-          CAST(300100 + CASE
-            WHEN action LIKE '%created' THEN 1
-            WHEN action LIKE '%updated' OR action LIKE '%renamed' THEN 3
-            WHEN action LIKE '%deleted' THEN 4
-            ELSE 99
-          END AS BIGINT)
+        expr: CAST(3001 * 100 + activity_id AS BIGINT)
       - name: type_name
         expr: |
           CONCAT('Account Change: ', CASE
@@ -230,34 +228,30 @@ gold:
         expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'raw_data', to_json(data),
-                'event_id', event_id,
-                'action', action,
-                'created_at_ms', created_at_ms,
-                'actor', actor,
-                'user', user,
-                'organization', organization,
-                'repository', repository,
-                'actor_country_code', actor_country_code,
-                'actor_country', actor_country,
-                'actor_region', actor_region,
-                'actor_city', actor_city,
-                'actor_ip', actor_ip,
-                'email', email,
-                'ref', ref,
-                'head', head,
-                'base', base,
-                'target_login', target_login,
-                'permission', permission,
-                'team', team,
-                'visibility', visibility,
-                'hook_id', hook_id
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'raw_data', to_json(data),
+            'event_id', event_id,
+            'action', action,
+            'created_at_ms', created_at_ms,
+            'actor', actor,
+            'user', user,
+            'organization', organization,
+            'repository', repository,
+            'actor_country_code', actor_country_code,
+            'actor_country', actor_country,
+            'actor_region', actor_region,
+            'actor_city', actor_city,
+            'actor_ip', actor_ip,
+            'email', email,
+            'ref', ref,
+            'head', head,
+            'base', base,
+            'target_login', target_login,
+            'permission', permission,
+            'team', team,
+            'visibility', visibility,
+            'hook_id', hook_id
+          ))
 
   # --- Authentication (3002): user.login, user.logout, oauth_authorization.create/destroy ---
   - name: authentication
@@ -312,12 +306,7 @@ gold:
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_uid
-        expr: |
-          CAST(300200 + CASE
-            WHEN action LIKE '%login' OR action = 'oauth_authorization.create' THEN 1
-            WHEN action LIKE '%logout' OR action = 'oauth_authorization.destroy' THEN 2
-            ELSE 99
-          END AS BIGINT)
+        expr: CAST(3002 * 100 + activity_id AS BIGINT)
       - name: type_name
         expr: |
           CONCAT('Authentication: ', CASE
@@ -385,34 +374,30 @@ gold:
         expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'raw_data', to_json(data),
-                'event_id', event_id,
-                'action', action,
-                'created_at_ms', created_at_ms,
-                'actor', actor,
-                'user', user,
-                'organization', organization,
-                'repository', repository,
-                'actor_country_code', actor_country_code,
-                'actor_country', actor_country,
-                'actor_region', actor_region,
-                'actor_city', actor_city,
-                'actor_ip', actor_ip,
-                'email', email,
-                'ref', ref,
-                'head', head,
-                'base', base,
-                'target_login', target_login,
-                'permission', permission,
-                'team', team,
-                'visibility', visibility,
-                'hook_id', hook_id
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'raw_data', to_json(data),
+            'event_id', event_id,
+            'action', action,
+            'created_at_ms', created_at_ms,
+            'actor', actor,
+            'user', user,
+            'organization', organization,
+            'repository', repository,
+            'actor_country_code', actor_country_code,
+            'actor_country', actor_country,
+            'actor_region', actor_region,
+            'actor_city', actor_city,
+            'actor_ip', actor_ip,
+            'email', email,
+            'ref', ref,
+            'head', head,
+            'base', base,
+            'target_login', target_login,
+            'permission', permission,
+            'team', team,
+            'visibility', visibility,
+            'hook_id', hook_id
+          ))
 
   # --- Authorize Session (3003): repo add/remove/update_member, protected_branch create/destroy ---
   - name: authorize_session
@@ -470,12 +455,7 @@ gold:
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_uid
-        expr: |
-          CAST(300300 + CASE
-            WHEN action LIKE '%add%' THEN 5
-            WHEN action LIKE '%remove%' THEN 6
-            ELSE 99
-          END AS BIGINT)
+        expr: CAST(3003 * 100 + activity_id AS BIGINT)
       - name: type_name
         expr: |
           CONCAT('Authorize Session: ', CASE
@@ -549,34 +529,30 @@ gold:
         expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'raw_data', to_json(data),
-                'event_id', event_id,
-                'action', action,
-                'created_at_ms', created_at_ms,
-                'actor', actor,
-                'user', user,
-                'organization', organization,
-                'repository', repository,
-                'actor_country_code', actor_country_code,
-                'actor_country', actor_country,
-                'actor_region', actor_region,
-                'actor_city', actor_city,
-                'actor_ip', actor_ip,
-                'email', email,
-                'ref', ref,
-                'head', head,
-                'base', base,
-                'target_login', target_login,
-                'permission', permission,
-                'team', team,
-                'visibility', visibility,
-                'hook_id', hook_id
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'raw_data', to_json(data),
+            'event_id', event_id,
+            'action', action,
+            'created_at_ms', created_at_ms,
+            'actor', actor,
+            'user', user,
+            'organization', organization,
+            'repository', repository,
+            'actor_country_code', actor_country_code,
+            'actor_country', actor_country,
+            'actor_region', actor_region,
+            'actor_city', actor_city,
+            'actor_ip', actor_ip,
+            'email', email,
+            'ref', ref,
+            'head', head,
+            'base', base,
+            'target_login', target_login,
+            'permission', permission,
+            'team', team,
+            'visibility', visibility,
+            'hook_id', hook_id
+          ))
 
   # --- User Access (3005): org.update_member, org.add_billing_manager ---
   - name: user_access
@@ -644,13 +620,7 @@ gold:
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_uid
-        expr: |
-          CAST(300500 + CASE
-            WHEN action LIKE '%add%' THEN 5
-            WHEN action LIKE '%remove%' THEN 6
-            WHEN action LIKE '%update%' THEN 3
-            ELSE 99
-          END AS BIGINT)
+        expr: CAST(3005 * 100 + activity_id AS BIGINT)
       - name: type_name
         expr: |
           CONCAT('User Access: ', CASE
@@ -719,34 +689,30 @@ gold:
         expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'raw_data', to_json(data),
-                'event_id', event_id,
-                'action', action,
-                'created_at_ms', created_at_ms,
-                'actor', actor,
-                'user', user,
-                'organization', organization,
-                'repository', repository,
-                'actor_country_code', actor_country_code,
-                'actor_country', actor_country,
-                'actor_region', actor_region,
-                'actor_city', actor_city,
-                'actor_ip', actor_ip,
-                'email', email,
-                'ref', ref,
-                'head', head,
-                'base', base,
-                'target_login', target_login,
-                'permission', permission,
-                'team', team,
-                'visibility', visibility,
-                'hook_id', hook_id
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'raw_data', to_json(data),
+            'event_id', event_id,
+            'action', action,
+            'created_at_ms', created_at_ms,
+            'actor', actor,
+            'user', user,
+            'organization', organization,
+            'repository', repository,
+            'actor_country_code', actor_country_code,
+            'actor_country', actor_country,
+            'actor_region', actor_region,
+            'actor_city', actor_city,
+            'actor_ip', actor_ip,
+            'email', email,
+            'ref', ref,
+            'head', head,
+            'base', base,
+            'target_login', target_login,
+            'permission', permission,
+            'team', team,
+            'visibility', visibility,
+            'hook_id', hook_id
+          ))
 
   # --- Group Management (3006): team.add_member, team.remove_member, team.create, team.destroy ---
   - name: group_management
@@ -817,14 +783,7 @@ gold:
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_uid
-        expr: |
-          CAST(300600 + CASE
-            WHEN action LIKE '%create' THEN 1
-            WHEN action LIKE '%destroy' THEN 4
-            WHEN action LIKE '%add_member' THEN 5
-            WHEN action LIKE '%remove_member' THEN 6
-            ELSE 99
-          END AS BIGINT)
+        expr: CAST(3006 * 100 + activity_id AS BIGINT)
       - name: type_name
         expr: |
           CONCAT('Group Management: ', CASE
@@ -894,33 +853,29 @@ gold:
         expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'event_id', event_id,
-                'action', action,
-                'created_at_ms', created_at_ms,
-                'actor', actor,
-                'user', user,
-                'organization', organization,
-                'repository', repository,
-                'actor_country_code', actor_country_code,
-                'actor_country', actor_country,
-                'actor_region', actor_region,
-                'actor_city', actor_city,
-                'actor_ip', actor_ip,
-                'email', email,
-                'ref', ref,
-                'head', head,
-                'base', base,
-                'target_login', target_login,
-                'permission', permission,
-                'team', team,
-                'visibility', visibility,
-                'hook_id', hook_id
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'event_id', event_id,
+            'action', action,
+            'created_at_ms', created_at_ms,
+            'actor', actor,
+            'user', user,
+            'organization', organization,
+            'repository', repository,
+            'actor_country_code', actor_country_code,
+            'actor_country', actor_country,
+            'actor_region', actor_region,
+            'actor_city', actor_city,
+            'actor_ip', actor_ip,
+            'email', email,
+            'ref', ref,
+            'head', head,
+            'base', base,
+            'target_login', target_login,
+            'permission', permission,
+            'team', team,
+            'visibility', visibility,
+            'hook_id', hook_id
+          ))
 
   # --- Entity Management (3004): repo.create/destroy/rename, org.rename ---
   - name: entity_management
@@ -982,7 +937,7 @@ gold:
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_uid
-        expr: CAST(300400 + activity_id AS BIGINT)
+        expr: CAST(3004 * 100 + activity_id AS BIGINT)
       - name: type_name
         expr: |
           CONCAT('Entity Management: ', activity_name)
@@ -1047,18 +1002,14 @@ gold:
         expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'event_id', event_id,
-                'action', action,
-                'actor', actor,
-                'organization', organization,
-                'repository', repository,
-                'visibility', visibility
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'event_id', event_id,
+            'action', action,
+            'actor', actor,
+            'organization', organization,
+            'repository', repository,
+            'visibility', visibility
+          ))
 
   # --- API Activity (6003): git.clone/fetch/push, pull_request, deploy, workflow.run, release ---
   - name: api_activity
@@ -1110,7 +1061,7 @@ gold:
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       - name: type_uid
-        expr: CAST(600300 + activity_id AS BIGINT)
+        expr: CAST(6003 * 100 + activity_id AS BIGINT)
       - name: type_name
         expr: |
           CONCAT('API Activity: ', activity_name)
@@ -1173,17 +1124,13 @@ gold:
         expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'event_id', event_id,
-                'action', action,
-                'actor', actor,
-                'organization', organization,
-                'repository', repository,
-                'ref', ref,
-                'head', head,
-                'base', base
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'event_id', event_id,
+            'action', action,
+            'actor', actor,
+            'organization', organization,
+            'repository', repository,
+            'ref', ref,
+            'head', head,
+            'base', base
+          ))

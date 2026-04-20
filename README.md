@@ -80,9 +80,11 @@ dsl_lite/
 ├── notebooks/                    # Databricks notebooks
 │   ├── ddl/
 │   │   └── create_ocsf_tables.py    # OCSF gold table creation
-│   └── explorer/
-│       ├── explorer_helpers.py      # Batch transform functions (loaded via %run)
-│       └── preset_explorer.py       # Interactive preset development notebook
+│   ├── explorer/
+│   │   ├── explorer_helpers.py      # Batch transform functions (loaded via %run)
+│   │   └── preset_explorer.py       # Interactive preset development notebook
+│   └── agent/
+│       └── preset_author.py         # Agent notebook to build presets via Databricks Foundation Model API
 ├── bundles/                      # Declarative Automation Bundles — one per source/source_type (see bundles/README.md)
 ├── pipelines/                    # Configuration presets (Cisco, Zeek, Cloudflare, GitHub, AWS, etc.)
 ├── ocsf_templates/              # OCSF mapping templates (21 standardized templates)
@@ -330,6 +332,8 @@ DSL Lite provides starter templates in the `ocsf_templates/` directory for commo
 ## Development & Testing Tools
 
 **Preferred: Preset Explorer** — The interactive notebook [`notebooks/explorer/preset_explorer.py`](notebooks/explorer/preset_explorer.py) (with [`explorer_helpers.py`](notebooks/explorer/explorer_helpers.py)) is the recommended way to develop and test presets in Databricks: run bronze, silver, and gold transforms in batch against sample logs, preview outputs, and iterate on YAML before production deployment. See [Building a preset end-to-end](tutorials/building-a-preset-end-to-end.md) for a walkthrough.
+
+**Agent-assisted authoring: Preset Author** — The notebook [`notebooks/agent/preset_author.py`](notebooks/agent/preset_author.py) is an agent notebook to build presets via the Databricks Foundation Model API. It loads the preset-authoring skill, introspects a Unity Catalog table's schema and a small sample, and generates a first-draft `preset.yaml` entirely inside the workspace — useful when raw data cannot leave the customer environment and no local IDE-based agent is available.
 
 **Alternative: DASL Preset Tool** — The [DASL Preset Tool repository](https://github.com/grp-db/preset_tool) offers a separate interactive workflow for creating, testing, and iterating on preset configurations with sample log files before deploying with DSL Lite.
 

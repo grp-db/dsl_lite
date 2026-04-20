@@ -1,6 +1,11 @@
+# Cloudflare Gateway DNS → OCSF DNS Activity
+# Covers: resolver decisions (allow/block/challenge), DNS query types, matched policy categories,
+#         device posture, and source user/device identity
+# Raw logs assumed at volume path; bronze parses Cloudflare JSON; silver/gold align with OCSF dns_activity schema.
 name: cloudflare_gateway_dns
 description: "Cloudflare Gateway DNS logs"
 title: "Cloudflare Gateway DNS"
+author: "grp"
 autoloader:
   inputs:
   - /Volumes/logs/logs/logs/dsl_grp/cloudflare/gateway_dns/ # CHANGE ME! /Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
@@ -388,7 +393,7 @@ gold:
       - name: type_name
         expr: "CONCAT('DNS Activity: ', activity_name, ' [', QueryTypeName, ']')"
       - name: type_uid
-        expr: CAST(class_uid*100 + activity_id as long)
+        expr: CAST(class_uid * 100 + activity_id AS BIGINT)
       - name: action
         expr: |
           CASE
@@ -515,59 +520,55 @@ gold:
         expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       - name: unmapped
         expr: |
-          CAST(
-            to_json(
-              named_struct(
-                'AccountID', AccountID,
-                'ApplicationID', ApplicationID,
-                'AuthoritativeNameServerIPs', AuthoritativeNameServerIPs,
-                'CNAMECategoryIDs', CNAMECategoryIDs,
-                'CNAMECategoryNames', CNAMECategoryNames,
-                'CNAMEs', CNAMEs,
-                'CNAMEsReversed', CNAMEsReversed,
-                'ColoCode', ColoCode,
-                'ColoID', ColoID,
-                'CustomResolveDurationMs', CustomResolveDurationMs,
-                'CustomResolverAddress', CustomResolverAddress,
-                'CustomResolverPolicyID', CustomResolverPolicyID,
-                'CustomResolverPolicyName', CustomResolverPolicyName,
-                'CustomResolverResponse', CustomResolverResponse,
-                'DoHSubdomain', DoHSubdomain,
-                'DoTSubdomain', DoTSubdomain,
-                'EDEErrors', EDEErrors,
-                'Email', Email,
-                'InitialCategoryIDs', InitialCategoryIDs,
-                'InitialCategoryNames', InitialCategoryNames,
-                'InitialResolvedIPs', InitialResolvedIPs,
-                'InternalDNSFallbackStrategy', InternalDNSFallbackStrategy,
-                'InternalDNSRCode', InternalDNSRCode,
-                'InternalDNSViewID', InternalDNSViewID,
-                'InternalDNSZoneID', InternalDNSZoneID,
-                'IsResponseCached', IsResponseCached,
-                'MatchedCategoryIDs', MatchedCategoryIDs,
-                'MatchedIndicatorFeedIDs', MatchedIndicatorFeedIDs,
-                'QueryApplicationIDs', QueryApplicationIDs,
-                'QueryApplicationNames', QueryApplicationNames,
-                'QueryCategoryIDs', QueryCategoryIDs,
-                'QueryCategoryNames', QueryCategoryNames,
-                'QueryID', QueryID,
-                'QueryIndicatorFeedIDs', QueryIndicatorFeedIDs,
-                'QueryIndicatorFeedNames', QueryIndicatorFeedNames,
-                'QueryNameReversed', QueryNameReversed,
-                'QueryType', QueryType,
-                'RData', RData,
-                'RedirectTargetURI', RedirectTargetURI,
-                'RegistrationID', RegistrationID,
-                'RequestContextCategoryIDs', RequestContextCategoryIDs,
-                'RequestContextCategoryNames', RequestContextCategoryNames,
-                'ResolvedIPCategoryIDs', ResolvedIPCategoryIDs,
-                'ResolvedIPCategoryNames', ResolvedIPCategoryNames,
-                'ResolverDecision', ResolverDecision,
-                'ResolverPolicyID', ResolverPolicyID,
-                'ResolverPolicyName', ResolverPolicyName,
-                'ResourceRecords', ResourceRecords,
-                'TimeZone', TimeZone,
-                'TimeZoneInferredMethod', TimeZoneInferredMethod
-              )
-            )
-          AS VARIANT)
+          to_variant_object(named_struct(
+            'AccountID', AccountID,
+            'ApplicationID', ApplicationID,
+            'AuthoritativeNameServerIPs', AuthoritativeNameServerIPs,
+            'CNAMECategoryIDs', CNAMECategoryIDs,
+            'CNAMECategoryNames', CNAMECategoryNames,
+            'CNAMEs', CNAMEs,
+            'CNAMEsReversed', CNAMEsReversed,
+            'ColoCode', ColoCode,
+            'ColoID', ColoID,
+            'CustomResolveDurationMs', CustomResolveDurationMs,
+            'CustomResolverAddress', CustomResolverAddress,
+            'CustomResolverPolicyID', CustomResolverPolicyID,
+            'CustomResolverPolicyName', CustomResolverPolicyName,
+            'CustomResolverResponse', CustomResolverResponse,
+            'DoHSubdomain', DoHSubdomain,
+            'DoTSubdomain', DoTSubdomain,
+            'EDEErrors', EDEErrors,
+            'Email', Email,
+            'InitialCategoryIDs', InitialCategoryIDs,
+            'InitialCategoryNames', InitialCategoryNames,
+            'InitialResolvedIPs', InitialResolvedIPs,
+            'InternalDNSFallbackStrategy', InternalDNSFallbackStrategy,
+            'InternalDNSRCode', InternalDNSRCode,
+            'InternalDNSViewID', InternalDNSViewID,
+            'InternalDNSZoneID', InternalDNSZoneID,
+            'IsResponseCached', IsResponseCached,
+            'MatchedCategoryIDs', MatchedCategoryIDs,
+            'MatchedIndicatorFeedIDs', MatchedIndicatorFeedIDs,
+            'QueryApplicationIDs', QueryApplicationIDs,
+            'QueryApplicationNames', QueryApplicationNames,
+            'QueryCategoryIDs', QueryCategoryIDs,
+            'QueryCategoryNames', QueryCategoryNames,
+            'QueryID', QueryID,
+            'QueryIndicatorFeedIDs', QueryIndicatorFeedIDs,
+            'QueryIndicatorFeedNames', QueryIndicatorFeedNames,
+            'QueryNameReversed', QueryNameReversed,
+            'QueryType', QueryType,
+            'RData', RData,
+            'RedirectTargetURI', RedirectTargetURI,
+            'RegistrationID', RegistrationID,
+            'RequestContextCategoryIDs', RequestContextCategoryIDs,
+            'RequestContextCategoryNames', RequestContextCategoryNames,
+            'ResolvedIPCategoryIDs', ResolvedIPCategoryIDs,
+            'ResolvedIPCategoryNames', ResolvedIPCategoryNames,
+            'ResolverDecision', ResolverDecision,
+            'ResolverPolicyID', ResolverPolicyID,
+            'ResolverPolicyName', ResolverPolicyName,
+            'ResourceRecords', ResourceRecords,
+            'TimeZone', TimeZone,
+            'TimeZoneInferredMethod', TimeZoneInferredMethod
+          ))
