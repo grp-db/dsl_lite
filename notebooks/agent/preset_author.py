@@ -13,10 +13,14 @@
 # MAGIC 1. Load the preset-authoring skill (`SKILL.md` + `references/`) from a workspace path or
 # MAGIC    Unity Catalog volume.
 # MAGIC 2. Introspect the source table (`DESCRIBE TABLE EXTENDED` + a small `SELECT` sample).
-# MAGIC 3. Build a single system + user prompt: skill content as the system message, table
-# MAGIC    metadata + task instructions as the user message.
-# MAGIC 4. Call a Databricks-hosted foundation model via the serving endpoint.
-# MAGIC 5. Review the generated `preset.yaml` and (optionally) save it into the repo tree.
+# MAGIC 3. If the input is an already-built silver table and you point at an existing
+# MAGIC    `preset.yaml`, load its `bronze:` + `silver:` sections as read-only context.
+# MAGIC 4. Build a single system + user prompt. In `silver` mode, ask the model for ONLY the
+# MAGIC    `gold:` section. In `raw` mode, ask for a full bronze/silver/gold preset.
+# MAGIC 5. Call a Databricks-hosted foundation model via the serving endpoint.
+# MAGIC 6. In silver mode, splice the generated `gold:` into the existing preset using
+# MAGIC    `ruamel.yaml` — your bronze/silver bytes, key order, and comments stay intact.
+# MAGIC 7. Review the final `preset.yaml` and (optionally) save it into the repo tree.
 # MAGIC
 # MAGIC **When to use**
 # MAGIC - The customer cannot share sample data externally, and no local IDE-based agent is
@@ -33,14 +37,16 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("source_table",   "",                                    "Source UC Table (catalog.schema.table)")
-dbutils.widgets.text("source_name",    "",                                    "Preset source (e.g. cisco)")
-dbutils.widgets.text("source_type",    "",                                    "Preset source_type (e.g. ios)")
-dbutils.widgets.text("ocsf_classes",   "",                                    "Target OCSF class(es), comma-separated (e.g. authentication,network_activity)")
-dbutils.widgets.text("skill_path",     "/Workspace/Shared/dsl_lite/skills/dsl-lite-preset-dev", "Skill folder (SKILL.md + references/)")
-dbutils.widgets.text("model_endpoint", "databricks-meta-llama-3-3-70b-instruct", "Serving endpoint name")
-dbutils.widgets.text("sample_rows",    "5",                                   "Rows to sample from source table")
-dbutils.widgets.text("output_path",    "",                                    "(Optional) full path to write preset.yaml")
+dbutils.widgets.text(    "source_table",          "",                                    "Source UC Table (catalog.schema.table)")
+dbutils.widgets.text(    "source_name",           "",                                    "Preset source (e.g. cisco)")
+dbutils.widgets.text(    "source_type",           "",                                    "Preset source_type (e.g. ios)")
+dbutils.widgets.text(    "ocsf_classes",          "",                                    "Target OCSF class(es), comma-separated (e.g. authentication,network_activity)")
+dbutils.widgets.dropdown("input_layer",           "silver", ["silver", "raw"],           "Input layer (silver → gold-only; raw → full preset)")
+dbutils.widgets.text(    "existing_preset_path",  "",                                    "(Optional) existing preset.yaml — silver mode splices new gold in")
+dbutils.widgets.text(    "skill_path",            "/Workspace/Shared/dsl_lite/skills/dsl-lite-preset-dev", "Skill folder (SKILL.md + references/)")
+dbutils.widgets.text(    "model_endpoint",        "databricks-meta-llama-3-3-70b-instruct", "Serving endpoint name")
+dbutils.widgets.text(    "sample_rows",           "5",                                   "Rows to sample from source table")
+dbutils.widgets.text(    "output_path",           "",                                    "(Optional) full path to write preset.yaml")
 
 # COMMAND ----------
 
@@ -109,7 +115,52 @@ print(sample_json[:2000] + ("..." if len(sample_json) > 2000 else ""))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Build the prompt
+# MAGIC ## 3. Load existing preset (optional, silver mode only)
+# MAGIC
+# MAGIC When `input_layer=silver` and `existing_preset_path` is set, we keep the existing
+# MAGIC `bronze:` + `silver:` sections verbatim and only ask the model to (re)generate the
+# MAGIC `gold:` section. The existing bronze/silver YAML is passed to the model as context so
+# MAGIC it can reference real silver column names when authoring the OCSF mappings.
+# MAGIC
+# MAGIC Uses `ruamel.yaml` to preserve key order and comments in the untouched sections.
+
+# COMMAND ----------
+
+from ruamel.yaml import YAML
+from io import StringIO
+
+input_layer          = dbutils.widgets.get("input_layer").strip()
+existing_preset_path = dbutils.widgets.get("existing_preset_path").strip()
+
+_yaml = YAML()
+_yaml.preserve_quotes = True
+_yaml.indent(mapping=2, sequence=4, offset=2)
+_yaml.width = 200
+
+existing_preset_doc    = None          # parsed YAML doc, used for splicing on save
+existing_bronze_silver = None          # YAML string passed into the prompt
+
+if existing_preset_path:
+    with open(existing_preset_path, "r") as f:
+        existing_preset_doc = _yaml.load(f)
+    subset = {k: existing_preset_doc[k] for k in ("bronze", "silver") if k in existing_preset_doc}
+    if subset:
+        buf = StringIO()
+        _yaml.dump(subset, buf)
+        existing_bronze_silver = buf.getvalue()
+    print(f"Loaded existing preset from {existing_preset_path} "
+          f"(sections: {list(existing_preset_doc.keys()) if existing_preset_doc else []})")
+else:
+    print("No existing_preset_path — model will emit a fresh preset.")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4. Build the prompt
+# MAGIC
+# MAGIC System prompt holds the skill bundle. User prompt varies by mode:
+# MAGIC - **silver**: ask for only the `gold:` section (and show existing bronze/silver if available).
+# MAGIC - **raw**: ask for the full bronze/silver/gold preset (original behavior).
 
 # COMMAND ----------
 
@@ -120,14 +171,21 @@ ocsf_classes  = [c.strip() for c in dbutils.widgets.get("ocsf_classes").split(",
 assert source_name and source_type, "source_name and source_type widgets are required"
 assert ocsf_classes,                 "ocsf_classes widget is required (comma-separated)"
 
-system_prompt = (
-    "You are a DSL Lite preset author. You produce ONLY a valid preset.yaml file — "
-    "no prose, no code fences, no commentary outside the YAML. "
-    "Follow every convention in the skill reference below exactly.\n\n"
-    + skill_context
-)
-
-user_prompt = f"""Author a complete `preset.yaml` for this data source.
+if input_layer == "silver":
+    system_prompt = (
+        "You are a DSL Lite preset author. You produce ONLY a valid YAML document — "
+        "no prose, no code fences, no commentary outside the YAML. The input UC table is "
+        "ALREADY the silver layer (parsed, typed, normalized). You MUST emit ONLY a top-level "
+        "`gold:` key mapping silver columns to the requested OCSF classes. DO NOT emit "
+        "`bronze:` or `silver:` keys — those layers already exist and must not be altered. "
+        "Follow every convention in the skill reference below exactly.\n\n"
+        + skill_context
+    )
+    existing_bs_block = (
+        f"\n\nExisting bronze/silver sections (read-only reference — DO NOT re-emit):\n"
+        f"```yaml\n{existing_bronze_silver}```\n"
+    ) if existing_bronze_silver else ""
+    user_prompt = f"""Author ONLY the `gold:` section of `preset.yaml` for this data source.
 
 Source identifiers:
 - source:      {source_name}
@@ -136,7 +194,45 @@ Source identifiers:
 
 Target OCSF gold classes: {", ".join(ocsf_classes)}
 
-Source Unity Catalog table: `{source_table}`
+The input table below is the SILVER layer (already parsed). Map its columns to the
+requested OCSF gold classes per the skill's gold-table rules.
+
+Source Unity Catalog table (silver): `{source_table}`
+
+Silver table schema (col_name / data_type / comment):
+```
+{schema_text}
+```
+
+Sample silver rows (JSON):
+```json
+{sample_json}
+```
+{existing_bs_block}
+Requirements:
+- Output a YAML document whose ONLY top-level key is `gold:`.
+- Do NOT include `bronze:` or `silver:` keys under any circumstance.
+- Include metadata + endpoint structs per the OCSF templates.
+- Map fields to the listed OCSF classes using the skill's gold-table rules.
+- Output ONLY the YAML. Do not wrap it in triple backticks.
+"""
+else:
+    system_prompt = (
+        "You are a DSL Lite preset author. You produce ONLY a valid preset.yaml file — "
+        "no prose, no code fences, no commentary outside the YAML. "
+        "Follow every convention in the skill reference below exactly.\n\n"
+        + skill_context
+    )
+    user_prompt = f"""Author a complete `preset.yaml` for this data source.
+
+Source identifiers:
+- source:      {source_name}
+- source_type: {source_type}
+- target path: pipelines/{source_name}/{source_type}/preset.yaml
+
+Target OCSF gold classes: {", ".join(ocsf_classes)}
+
+Source Unity Catalog table (raw): `{source_table}`
 
 Table schema (col_name / data_type / comment):
 ```
@@ -164,7 +260,7 @@ print(f"total:         {_total_chars:,} chars  (~{_total_chars // 4:,} tokens, L
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. Call the Databricks Foundation Model API
+# MAGIC ## 5. Call the Databricks Foundation Model API
 # MAGIC
 # MAGIC Uses the Databricks SDK to query a serving endpoint in the current workspace. The
 # MAGIC endpoint is configurable via the `model_endpoint` widget — any chat-completions
@@ -178,41 +274,70 @@ from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
 model_endpoint = dbutils.widgets.get("model_endpoint").strip()
 w              = WorkspaceClient()
 
-query_kwargs = dict(
-    name=model_endpoint,
-    messages=[
-        ChatMessage(role=ChatMessageRole.SYSTEM, content=system_prompt),
-        ChatMessage(role=ChatMessageRole.USER,   content=user_prompt),
-    ],
-    max_tokens=8000,
-)
+def _query_model(messages):
+    """Call the serving endpoint, handling Claude/Llama temperature quirks."""
+    kwargs = dict(name=model_endpoint, messages=messages, max_tokens=8000)
+    # Claude extended-thinking endpoints reject non-1.0 temperature; other Claude
+    # variants accept 0 for determinism; Llama/others take the usual range.
+    if "claude-opus" in model_endpoint or "thinking" in model_endpoint:
+        pass
+    elif "claude" in model_endpoint:
+        kwargs["temperature"] = 0.0
+    else:
+        kwargs["temperature"] = 0.1
+    return w.serving_endpoints.query(**kwargs).choices[0].message.content.strip()
 
-# Claude extended-thinking endpoints (e.g. Opus 4.x) reject non-1.0 temperature;
-# for other Claude variants temperature works but we default to 0 for determinism.
-# Llama / other OSS endpoints accept the usual 0–1 range.
-if "claude-opus" in model_endpoint or "thinking" in model_endpoint:
-    pass  # omit temperature entirely
-elif "claude" in model_endpoint:
-    query_kwargs["temperature"] = 0.0
-else:
-    query_kwargs["temperature"] = 0.1
+def _strip_fences(s: str) -> str:
+    if s.startswith("```"):
+        s = "\n".join(s.splitlines()[1:])
+        if s.rstrip().endswith("```"):
+            s = s.rstrip().rstrip("`").rstrip()
+    return s
 
-response = w.serving_endpoints.query(**query_kwargs)
-
-preset_yaml = response.choices[0].message.content.strip()
-
-# Strip accidental fences the model may add despite instructions
-if preset_yaml.startswith("```"):
-    preset_yaml = "\n".join(preset_yaml.splitlines()[1:])
-    if preset_yaml.rstrip().endswith("```"):
-        preset_yaml = preset_yaml.rstrip().rstrip("`").rstrip()
+preset_yaml = _strip_fences(_query_model([
+    ChatMessage(role=ChatMessageRole.SYSTEM, content=system_prompt),
+    ChatMessage(role=ChatMessageRole.USER,   content=user_prompt),
+]))
 
 print(preset_yaml)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5. (Optional) Save the generated preset
+# MAGIC ## 6. Assemble final preset (splice if silver mode + existing preset)
+# MAGIC
+# MAGIC In silver mode with an existing preset, the model only returned a `gold:` block.
+# MAGIC Here we parse it and splice it into the existing preset, preserving the original
+# MAGIC bronze/silver bytes, key order, and comments via `ruamel.yaml`.
+
+# COMMAND ----------
+
+def _splice_gold(base_doc, generated_yaml_text):
+    """Replace base_doc['gold'] with the gold: block from the model response."""
+    generated = _yaml.load(generated_yaml_text)
+    if not isinstance(generated, dict) or "gold" not in generated:
+        raise ValueError(
+            "Model response in silver mode must be a YAML doc with a top-level `gold:` key. "
+            f"Got top-level keys: {list(generated.keys()) if isinstance(generated, dict) else type(generated).__name__}"
+        )
+    base_doc["gold"] = generated["gold"]
+    buf = StringIO()
+    _yaml.dump(base_doc, buf)
+    return buf.getvalue()
+
+if input_layer == "silver" and existing_preset_doc is not None:
+    final_yaml = _splice_gold(existing_preset_doc, preset_yaml)
+    print("── SPLICED PRESET (existing bronze/silver + new gold) ──")
+else:
+    final_yaml = preset_yaml
+    print("── FINAL PRESET ────────────────────────────────────────")
+
+print(final_yaml[:4000] + ("..." if len(final_yaml) > 4000 else ""))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 7. (Optional) Save the final preset
 # MAGIC
 # MAGIC Set the `output_path` widget to a workspace path (`/Workspace/...`) or a UC volume
 # MAGIC path (`/Volumes/...`) to persist the file. Leave blank to skip.
@@ -224,8 +349,8 @@ output_path = dbutils.widgets.get("output_path").strip()
 if output_path:
     if output_path.startswith("/Workspace/") or output_path.startswith("/Volumes/"):
         with open(output_path, "w") as f:
-            f.write(preset_yaml)
-        print(f"Wrote {len(preset_yaml):,} chars → {output_path}")
+            f.write(final_yaml)
+        print(f"Wrote {len(final_yaml):,} chars → {output_path}")
     else:
         raise ValueError("output_path must start with /Workspace/ or /Volumes/")
 else:
@@ -234,41 +359,39 @@ else:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6. Refine with feedback (optional)
+# MAGIC ## 8. Refine with feedback (optional)
 # MAGIC
 # MAGIC Edit the `feedback` string below and re-run this cell to iterate on the generated
-# MAGIC preset without re-introspecting the table.
+# MAGIC preset without re-introspecting the table. In silver mode the model is told to
+# MAGIC return only the `gold:` block, and we re-splice into the existing preset.
 
 # COMMAND ----------
 
 feedback = """
 # Example refinements — replace with your own:
-# - Move src_endpoint population to the silver layer
-# - Add a lookup join for user_id → user_name on the silver layer
+# - Add a lookup join for user_id → user_name
 # - Map field `event.action` to activity_id per OCSF authentication class
 """
 
 if feedback.strip() and not feedback.strip().startswith("#"):
-    refine_messages = [
-        ChatMessage(role=ChatMessageRole.SYSTEM, content=system_prompt),
-        ChatMessage(role=ChatMessageRole.USER,   content=user_prompt),
+    scope_note = (
+        "Return ONLY an updated `gold:` YAML block (no bronze/silver)."
+        if input_layer == "silver"
+        else "Return the full updated preset.yaml."
+    )
+    refined = _strip_fences(_query_model([
+        ChatMessage(role=ChatMessageRole.SYSTEM,    content=system_prompt),
+        ChatMessage(role=ChatMessageRole.USER,      content=user_prompt),
         ChatMessage(role=ChatMessageRole.ASSISTANT, content=preset_yaml),
-        ChatMessage(role=ChatMessageRole.USER,   content=f"Apply these refinements and return the full updated preset.yaml:\n\n{feedback}"),
-    ]
-    refined = w.serving_endpoints.query(
-        name=model_endpoint,
-        messages=refine_messages,
-        max_tokens=8000,
-        temperature=0.1,
-    ).choices[0].message.content.strip()
-
-    if refined.startswith("```"):
-        refined = "\n".join(refined.splitlines()[1:])
-        if refined.rstrip().endswith("```"):
-            refined = refined.rstrip().rstrip("`").rstrip()
+        ChatMessage(role=ChatMessageRole.USER,      content=f"Apply these refinements. {scope_note}\n\n{feedback}"),
+    ]))
 
     preset_yaml = refined
-    print(preset_yaml)
+    if input_layer == "silver" and existing_preset_doc is not None:
+        final_yaml = _splice_gold(existing_preset_doc, preset_yaml)
+    else:
+        final_yaml = preset_yaml
+    print(final_yaml)
 else:
     print("No feedback supplied — skipping refinement.")
 
