@@ -10,9 +10,14 @@ DSL Lite is a declarative data pipeline framework for ingesting and normalizing 
 - `pipelines/<source>/<source_type>/preset.yaml` — Data ingestion presets (one per log source)
 - `pipelines/templates/preset.yaml` — Annotated template for new presets
 - `bundles/` — Databricks Asset Bundle definitions for deployment
-- `ocsf_templates/` — Ready-made OCSF field lists for all 22 event classes
+- `ocsf_templates/` — Ready-made OCSF field lists for all event classes
 - `docs/dsl_lite_features/` — Architecture, lookup joins, and advanced configuration docs
-- `notebooks/explorer/` — Interactive preset development and testing notebook
+- `notebooks/explorer/` — Interactive preset development and testing (`preset_explorer.py`)
+- `notebooks/agent/` — Foundation-model-powered preset author (`preset_author.py`)
+- `notebooks/ddl/` — OCSF table DDL / UC setup scripts
+- `tutorials/` — End-to-end guides for preset authoring and bundle deployment
+- `vault/` — Preset validators, template sync scripts, source-lookup utilities
+- `.agents/skills/dsl-lite-preset-dev/` — Skill bundle loaded by AI tooling (SKILL.md + references/)
 - `raw_logs/` — Sample log files for testing presets
 
 ## Working on Presets
