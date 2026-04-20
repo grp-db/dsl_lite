@@ -287,6 +287,21 @@ if input_layer == "silver" and sample_kind == "raw_files":
 
 sample_fenced = f"```{sample_fence}\n{sample_block}\n```" if sample_fence else sample_block
 
+# Universal blueprint requirements enforced on every generation. The skill references
+# teach the details; these are the checks most worth hammering in the prompt itself
+# because past runs have shown models hallucinate them when the skill context is long.
+UNIVERSAL_REQUIREMENTS = [
+    "Include `metadata:` on every gold class — it is always required (version, product.name, product.vendor_name, log_provider, log_name, log_format, logged_time, processed_time).",
+    "Include the class-appropriate objects per the skill's mapping reference: `src_endpoint`/`dst_endpoint` for Network (4xxx) and IAM/Authentication (3xxx); `device` for Process / File / Script activity. Never mix endpoint and device on the same class.",
+    "Set `activity_id`, `category_uid`, `class_uid`, `type_uid`, and `severity_id` to values defined by the OCSF enum for each target class — do not invent values.",
+    "Preserve the source event time in the `time` field as unix milliseconds; populate `metadata.logged_time` from the bronze ingestion timestamp.",
+    "Use `try_variant_get` (not `variant_get`) for any VARIANT/JSON payload access so missing keys yield NULL instead of runtime errors.",
+    "Use OCSF field names exactly (snake_case, dotted paths like `src_endpoint.ip`). Do not invent fields that are not in the OCSF schema for the target class.",
+    "Include `raw_data` or `unmapped` reference back to the bronze record for traceability when the skill pattern calls for it.",
+    "Output ONLY the YAML document. Do not wrap it in triple backticks, do not add prose before or after.",
+]
+_UNIV_BULLETS = "\n".join(f"- {r}" for r in UNIVERSAL_REQUIREMENTS)
+
 if input_layer == "silver":
     system_prompt = (
         "You are a DSL Lite preset author. You produce ONLY a valid YAML document — "
@@ -323,12 +338,13 @@ Silver table schema (col_name / data_type / comment):
 {sample_label}:
 {sample_fenced}
 {existing_bs_block}
-Requirements:
+Mode-specific requirements (silver → gold-only):
 - Output a YAML document whose ONLY top-level key is `gold:`.
-- Do NOT include `bronze:` or `silver:` keys under any circumstance.
-- Include metadata + endpoint structs per the OCSF templates.
+- Do NOT include `bronze:` or `silver:` keys under any circumstance — those layers already exist and must not be altered.
 - {ocsf_note}
-- Output ONLY the YAML. Do not wrap it in triple backticks.
+
+Universal preset requirements (apply to every gold class):
+{_UNIV_BULLETS}
 """
 else:
     system_prompt = (
@@ -363,12 +379,13 @@ Source identifiers:
 Target OCSF gold classes: {ocsf_line}
 
 {input_block}
-Requirements:
+Mode-specific requirements (raw → full preset):
 - Produce bronze, silver, and gold sections consistent with the skill references.
-- Use `try_variant_get` for JSON payloads when appropriate.
-- Include metadata + endpoint structs per the OCSF templates.
+- Bronze should preserve the raw payload (variant or string), silver should parse/normalize, gold should map to OCSF.
 - {ocsf_note}
-- Output ONLY the YAML document. Do not wrap it in triple backticks.
+
+Universal preset requirements (apply to every gold class):
+{_UNIV_BULLETS}
 """
 
 _total_chars = len(system_prompt) + len(user_prompt)
