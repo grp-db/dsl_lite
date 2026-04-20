@@ -5,14 +5,15 @@
 # MAGIC %md
 # MAGIC # DSL Lite — Preset Author Agent
 # MAGIC
-# MAGIC Generate a `preset.yaml` for a Unity Catalog table using the **Databricks Foundation
-# MAGIC Model API**. The notebook runs entirely inside your Databricks workspace — raw data,
-# MAGIC schema, and sample rows never leave your environment.
+# MAGIC Generate a `preset.yaml` from either a Unity Catalog table or raw log files on a
+# MAGIC volume, using the **Databricks Foundation Model API**. Runs entirely inside your
+# MAGIC workspace — schema and samples never leave your environment.
 # MAGIC
 # MAGIC **How it works**
 # MAGIC 1. Load the preset-authoring skill (`SKILL.md` + `references/`) from a workspace path or
 # MAGIC    Unity Catalog volume.
-# MAGIC 2. Introspect the source table (`DESCRIBE TABLE EXTENDED` + a small `SELECT` sample).
+# MAGIC 2. Introspect the input — a UC table (`DESCRIBE` + sample rows) or a volume path of
+# MAGIC    raw log files (read file contents directly).
 # MAGIC 3. If the input is an already-built silver table and you point at an existing
 # MAGIC    `preset.yaml`, load its `bronze:` + `silver:` sections as read-only context.
 # MAGIC 4. Build a single system + user prompt. In `silver` mode, ask the model for ONLY the
@@ -33,7 +34,7 @@
 # MAGIC   endpoint such as `databricks-meta-llama-3-3-70b-instruct`).
 # MAGIC - The skill bundle uploaded to a workspace folder or UC volume — typically a copy of
 # MAGIC   `.agents/skills/dsl-lite-preset-dev/` from this repo.
-# MAGIC - `SELECT` permission on the source table.
+# MAGIC - One of: `SELECT` on the source UC table, or `READ VOLUME` on the raw-sample volume.
 
 # COMMAND ----------
 
@@ -93,8 +94,6 @@ print(f"Loaded {len(skill_parts)} skill file(s), {len(skill_context):,} chars")
 # MAGIC Data stays in the workspace — only schema/samples reach the serving endpoint.
 
 # COMMAND ----------
-
-import os
 
 source_table     = dbutils.widgets.get("source_table").strip()
 raw_sample_path  = dbutils.widgets.get("raw_sample_path").strip()
