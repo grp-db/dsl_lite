@@ -77,7 +77,7 @@
 # MAGIC | Widget | Default | Purpose |
 # MAGIC |---|---|---|
 # MAGIC | `skill_path` | `/Workspace/Shared/dsl_lite/skills/dsl-lite-preset-dev` | Folder containing `SKILL.md` + `references/*.md`. |
-# MAGIC | `model_endpoint` | `databricks-claude-sonnet-4-7` | Serving endpoint name. Sonnet 4.7 produces clean YAML; Llama 3.3 frequently fails parse. |
+# MAGIC | `model_endpoint` | `databricks-claude-opus-4-7` | Serving endpoint name. Opus 4.7 is the most reliable for complex OCSF mappings; Sonnet 4.7 works and is cheaper; Llama 3.3 frequently fails YAML parse. |
 # MAGIC
 # MAGIC ### Save
 # MAGIC | Widget | Default | Purpose |
@@ -96,7 +96,7 @@ dbutils.widgets.dropdown("input_layer",           "silver", ["silver", "raw"],  
 dbutils.widgets.dropdown("target_layers",         "auto",   ["auto", "full", "bronze_silver", "gold"], "Layers to emit — auto infers from input_layer (silver→gold, raw→full)")
 dbutils.widgets.text(    "existing_preset_path",  "",                                    "(Optional, gold target) existing preset.yaml — splices the new gold: block in")
 dbutils.widgets.text(    "skill_path",            "/Workspace/Shared/dsl_lite/skills/dsl-lite-preset-dev", "Skill folder (SKILL.md + references/)")
-dbutils.widgets.text(    "model_endpoint",        "databricks-claude-sonnet-4-7",        "Serving endpoint name")
+dbutils.widgets.text(    "model_endpoint",        "databricks-claude-opus-4-7",          "Serving endpoint name")
 dbutils.widgets.text(    "sample_rows",           "auto",                                "Rows / files to sample — integer, 'auto' (pack to prompt budget), or 'all' (no cap)")
 dbutils.widgets.text(    "sample_filter",         "",                                    "(UC-table mode) optional SQL WHERE clause body to filter sample rows, e.g. `dns_record IS NOT NULL`")
 dbutils.widgets.text(    "max_file_bytes",        "65536",                               "(Raw mode) max bytes per file; 0 disables both per-file and cumulative caps — full opt-out")
