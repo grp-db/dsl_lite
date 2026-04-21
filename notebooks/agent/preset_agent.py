@@ -347,9 +347,11 @@ header = ("── SPLICED PRESET (existing bronze/silver + new gold) ──"
           if target_layers == "gold" and existing_preset_text is not None
           else "── FINAL PRESET ────────────────────────────────────────")
 print(header)
+# Print BEFORE validating so that a parse failure still shows the assembled text —
+# you can hand-edit `final_yaml` in a scratch cell and re-run validate + section 8.
+print(final_yaml[:4000] + ("..." if len(final_yaml) > 4000 else ""))
 
 validate_final_yaml(final_yaml, target_layers, existing_preset_text)
-print(final_yaml[:4000] + ("..." if len(final_yaml) > 4000 else ""))
 
 # COMMAND ----------
 

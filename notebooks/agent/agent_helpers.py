@@ -46,6 +46,7 @@ _AUTO_ROW_UPPER_BOUND = 200
 # Apply regardless of which layers we're emitting.
 OUTPUT_FORMAT_REQUIREMENTS = [
     "Use `try_variant_get` (not `variant_get`) for any VARIANT/JSON payload access so missing keys yield NULL instead of runtime errors.",
+    "YAML quoting: any scalar value whose body contains `: ` (colon + space), a leading `#`, a leading `-`, or a trailing `:` MUST be wrapped in double quotes. This is the #1 cause of parse failures in `expr:`, `filter:`, `postFilter:`, and `literal:` values that embed SQL string literals. Example — wrong: `expr: CONCAT('Authentication: ', 'Login')`; right: `expr: \"CONCAT('Authentication: ', 'Login')\"`.",
     "Output ONLY the YAML document. Do not wrap it in triple backticks, do not add prose before or after.",
 ]
 
@@ -428,19 +429,26 @@ def build_provenance(*, model_endpoint: str, skill_path: str, source_table: str,
 
 
 def splice_gold(base_text: str, generated_yaml_text: str, provenance: str = "") -> str:
-    """Concat `base_text` (bytes before its top-level `gold:`) with the model's gold block."""
-    try:
-        gen = safe_load(generated_yaml_text)
-    except YAMLError as e:
-        raise RuntimeError(
-            f"Model returned invalid YAML{yaml_error_context(generated_yaml_text, e)}. "
-            f"Common causes: unquoted colon in a value, tab indentation, or stray backticks."
-        ) from e
-    if not isinstance(gen, dict) or "gold" not in gen:
-        keys = list(gen.keys()) if isinstance(gen, dict) else type(gen).__name__
+    """
+    Concat `base_text` (bytes before its top-level `gold:`) with the model's gold block.
+
+    Text-level only: we do NOT parse `generated_yaml_text` here, so a YAML syntax
+    error inside the model's gold block still produces an assembled `final_yaml` the
+    caller can inspect. The single source of parse truth is `validate_final_yaml`,
+    which runs on the spliced result and reports errors with line/col in that file.
+    """
+    # The first non-comment, non-blank top-level line in the model output must be `gold:`.
+    first_real = None
+    for line in generated_yaml_text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        first_real = line
+        break
+    if first_real is None or not _is_top_level_gold(first_real):
         raise ValueError(
-            f"Model response in silver mode must be a YAML doc with a top-level `gold:` key. "
-            f"Got top-level keys: {keys}"
+            f"Model response in gold-target splice mode must start with a top-level `gold:` "
+            f"key (first non-comment line was: {first_real!r}). Inspect the `preset_yaml` "
+            f"print from section 6, or re-run section 9 with corrective feedback."
         )
     before_gold, _ = split_at_gold(base_text)
     before = before_gold.rstrip() + "\n\n" if before_gold.strip() else ""
