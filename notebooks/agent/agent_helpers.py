@@ -48,6 +48,7 @@ OUTPUT_FORMAT_REQUIREMENTS = [
     "Use `try_variant_get` (not `variant_get`) for any VARIANT/JSON payload access so missing keys yield NULL instead of runtime errors.",
     "YAML quoting: any scalar value whose body contains `: ` (colon + space), a leading `#`, a leading `-`, or a trailing `:` MUST be wrapped in double quotes. This is the #1 cause of parse failures in `expr:`, `filter:`, `postFilter:`, and `literal:` values that embed SQL string literals. Example — wrong: `expr: CONCAT('Authentication: ', 'Login')`; right: `expr: \"CONCAT('Authentication: ', 'Login')\"`.",
     "Output ONLY the YAML document. Do not wrap it in triple backticks, do not add prose before or after.",
+    "Silver `fields:` must NOT re-declare any of the 10 standard bronze columns: `data`, `value`, `file_name`, `file_path`, `time`, `date`, `source`, `sourcetype`, `processed_time`, `record_id`, `dsl_id`. All bronze columns are carried forward automatically by `utils.unreferencedColumns.preserve: true` — listing them in silver creates duplicate columns.",
 ]
 
 # Apply only when a `gold:` section is being emitted.
