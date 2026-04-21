@@ -258,9 +258,13 @@ _FMT_MAP = {
     "csv": "csv", "parquet": "parquet",
 }
 
-def read_bronze_batch(config: dict, sample_path: str, fmt: str, display_limit: int = 50) -> DataFrame:
+def read_bronze_batch(config: dict, sample_path: str, fmt: str,
+                      display_limit: int = 50, input_row_limit: int = 0) -> DataFrame:
     """
     Batch-read sample data and apply bronze preTransform, dsl_id, lookups, and postTransform.
+
+    input_row_limit: if > 0, caps rows at the initial read so downstream transforms and
+    lookups run against fewer records — useful for fast iteration on big folders. 0 = no cap.
 
     Returns:
         bronze DataFrame
@@ -296,6 +300,11 @@ def read_bronze_batch(config: dict, sample_path: str, fmt: str, display_limit: i
             reader = reader.schema(schema_str)
 
         df = reader.load(sample_path)
+
+    # Cap rows early so preTransform / lookups run against the limited set.
+    if input_row_limit and input_row_limit > 0:
+        df = df.limit(input_row_limit)
+        print(f"  input_row_limit : capped at {input_row_limit} rows before transforms")
 
     # preTransform — rewrite VARIANT-dependent expressions for batch compatibility
     for pt in bronze_conf.get("preTransform", []):
@@ -335,17 +344,25 @@ def read_bronze_batch(config: dict, sample_path: str, fmt: str, display_limit: i
 # Silver
 # =============================================================================
 
-def run_silver(config: dict, bronze_df: DataFrame, display_limit: int = 50) -> dict:
+def run_silver(config: dict, bronze_df: DataFrame, display_limit: int = 50,
+               table_filter: list = None) -> dict:
     """
-    Apply all silver transforms from the preset config.
+    Apply silver transforms from the preset config.
+
+    table_filter: if non-empty, only run the listed silver tables (by name).
+    Use to iterate on a single table in a preset that defines multiple.
 
     Returns:
         dict of {silver_table_name: DataFrame}
     """
     silver_dfs = {}
+    tf = set(table_filter or [])
 
     for tr_conf in config.get("silver", {}).get("transform", []):
         silver_name = tr_conf["name"]
+        if tf and silver_name not in tf:
+            print(f"  [skipped] silver table '{silver_name}' not in table_filter")
+            continue
         print(f"\n{'='*60}")
         print(f"Silver table: {silver_name}")
         print(f"{'='*60}")
@@ -404,11 +421,20 @@ def run_silver(config: dict, bronze_df: DataFrame, display_limit: int = 50) -> d
 # Gold
 # =============================================================================
 
-def run_gold(config: dict, silver_dfs: dict, display_limit: int = 50):
-    """Apply all gold table mappings from the preset config and display each."""
+def run_gold(config: dict, silver_dfs: dict, display_limit: int = 50,
+             table_filter: list = None):
+    """
+    Apply gold table mappings from the preset config and display each.
+
+    table_filter: if non-empty, only run the listed gold tables (by name).
+    """
+    tf = set(table_filter or [])
 
     for tr_conf in config.get("gold", []):
         gold_name = tr_conf["name"]
+        if tf and gold_name not in tf:
+            print(f"  [skipped] gold table '{gold_name}' not in table_filter")
+            continue
         print(f"\n{'='*60}")
         print(f"Gold table: {gold_name}")
         print(f"{'='*60}")
