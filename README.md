@@ -36,6 +36,7 @@ This accelerator was developed by the **Databricks Field Engineering and Profess
 - [Development & Testing Tools](#development--testing-tools)
 - [Key Features](#key-features)
 - [Supported Data Sources](#supported-data-sources)
+- [Schema Maintenance](#schema-maintenance)
 - [Limitations](#limitations)
 - [License & Attribution](#license--attribution)
 
@@ -379,6 +380,34 @@ DSL Lite uses Databricks Auto Loader to ingest data from file-based sources:
 **Example presets** (see [Example Pipeline Outputs](#example-pipeline-outputs)): Cisco IOS, Cloudflare Gateway DNS, GitHub Audit Logs, Zeek Conn, AWS VPC Flow Logs.
 
 Support for streaming sources (Kafka, Event Hubs, Kinesis, Zerobus) can be added based on customer requirements.
+
+---
+
+## Schema Maintenance
+
+### Renaming Columns (Delta Column Mapping)
+
+All DSL Lite tables are created with `delta.minReaderVersion = 3` and `delta.minWriterVersion = 7`, which already satisfies the minimum requirements for Delta column mapping. This means you can rename any column — including nested OCSF struct fields — with two metadata-only `ALTER TABLE` statements and **no data rewrite**.
+
+**Step 1 — enable column mapping on the table** (one-time per table):
+```sql
+ALTER TABLE catalog.schema.table_name
+SET TBLPROPERTIES ('delta.columnMapping.mode' = 'name');
+```
+
+**Step 2 — rename the column**:
+```sql
+-- Top-level column
+ALTER TABLE catalog.schema.table_name RENAME COLUMN old_col TO new_col;
+
+-- Nested struct field (e.g. OCSF src_endpoint, metadata, connection_info)
+ALTER TABLE catalog.schema.table_name RENAME COLUMN src_endpoint.ip TO src_endpoint.addr;
+ALTER TABLE catalog.schema.table_name RENAME COLUMN metadata.log_provider TO metadata.vendor;
+```
+
+Both operations are metadata-only — the underlying Parquet files are untouched and no version bump is needed since the tables already exceed the minimum reader/writer versions.
+
+> **Note:** Column mapping is not required by default and is only needed if you need to rename columns post-deployment. Bronze/silver tables store raw payload as VARIANT (`data`) or STRING (`value`), so source schema changes don't require column renames — they're handled by updating silver/gold expressions in the preset.
 
 ---
 
