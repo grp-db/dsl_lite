@@ -134,21 +134,30 @@ def resolve_sample_rows(sample_rows_raw: str) -> tuple:
     return int(raw), False
 
 
-def introspect_table(source_table: str, n_sample) -> dict:
-    """DESCRIBE + JSON-encoded sample rows from a UC table. n_sample=None disables LIMIT."""
+def introspect_table(source_table: str, n_sample, where_clause: str = "") -> dict:
+    """
+    DESCRIBE + JSON-encoded sample rows from a UC table.
+
+    n_sample=None disables LIMIT. where_clause (optional SQL WHERE body — no leading
+    `WHERE`) filters rows before sampling; useful to skip rows where key columns are
+    NULL so the model sees meaningful data (e.g. `dns_record IS NOT NULL`).
+    """
     schema_rows = spark.sql(f"DESCRIBE TABLE EXTENDED {source_table}").collect()
     schema_text = "\n".join(
         f"{r['col_name']:40s} {r['data_type'] or '':30s} {r['comment'] or ''}"
         for r in schema_rows if r['col_name']
     )
+    where_sql = f"WHERE {where_clause}" if (where_clause or "").strip() else ""
     if n_sample is None:
         print(f"  ⚠ sample_rows=all → collecting every row of {source_table}. "
               f"Safe only for small tables; the prompt packer trims to the budget either way.")
         limit_clause = ""
     else:
         limit_clause = f"LIMIT {n_sample}"
+    if where_sql:
+        print(f"  sample_filter applied: {where_clause}")
     sample_items = [r["_row"] for r in spark.sql(
-        f"SELECT to_json(struct(*)) AS _row FROM {source_table} {limit_clause}"
+        f"SELECT to_json(struct(*)) AS _row FROM {source_table} {where_sql} {limit_clause}"
     ).collect()]
     return {
         "schema_text":        schema_text,
@@ -227,15 +236,17 @@ def introspect_raw_files(raw_sample_path: str, n_sample,
 
 
 def introspect_input(source_table: str, raw_sample_path: str, n_sample,
-                     max_file_bytes: int = _DEFAULT_MAX_FILE_BYTES) -> dict:
+                     max_file_bytes: int = _DEFAULT_MAX_FILE_BYTES,
+                     where_clause: str = "") -> dict:
     """Dispatch to table or raw-files introspection based on which input was set."""
     assert source_table or raw_sample_path, (
         "Provide either source_table (UC table) or raw_sample_path (volume path with raw log files)"
     )
-    return (
-        introspect_table(source_table, n_sample) if source_table
-        else introspect_raw_files(raw_sample_path, n_sample, max_file_bytes)
-    )
+    if source_table:
+        return introspect_table(source_table, n_sample, where_clause)
+    if where_clause:
+        print("  (sample_filter ignored — raw-files mode has no WHERE clause)")
+    return introspect_raw_files(raw_sample_path, n_sample, max_file_bytes)
 
 
 def print_input_summary(intro: dict, packed_count: int, total_count: int, auto_sample: bool) -> None:

@@ -70,6 +70,7 @@
 # MAGIC | Widget | Default | Purpose |
 # MAGIC |---|---|---|
 # MAGIC | `sample_rows` | `auto` | Rows / files to sample. Integer, `auto` (pack to prompt budget, capped at 200), or `all` (no count cap). |
+# MAGIC | `sample_filter` | _(empty)_ | UC-table mode only. Optional SQL `WHERE` clause body (no leading `WHERE`) to filter sample rows before sampling. Use to skip rows where key columns are NULL so the model sees meaningful data — e.g. `dns_record IS NOT NULL`. |
 # MAGIC | `max_file_bytes` | `65536` | Raw mode only. Max bytes read per file (default 64KB). `0` = full opt-out of per-file and cumulative caps. |
 # MAGIC
 # MAGIC ### Environment
@@ -97,6 +98,7 @@ dbutils.widgets.text(    "existing_preset_path",  "",                           
 dbutils.widgets.text(    "skill_path",            "/Workspace/Shared/dsl_lite/skills/dsl-lite-preset-dev", "Skill folder (SKILL.md + references/)")
 dbutils.widgets.text(    "model_endpoint",        "databricks-claude-sonnet-4-7",        "Serving endpoint name")
 dbutils.widgets.text(    "sample_rows",           "auto",                                "Rows / files to sample — integer, 'auto' (pack to prompt budget), or 'all' (no cap)")
+dbutils.widgets.text(    "sample_filter",         "",                                    "(UC-table mode) optional SQL WHERE clause body to filter sample rows, e.g. `dns_record IS NOT NULL`")
 dbutils.widgets.text(    "max_file_bytes",        "65536",                               "(Raw mode) max bytes per file; 0 disables both per-file and cumulative caps — full opt-out")
 dbutils.widgets.text(    "output_path",           "",                                    "(Optional) full path to write preset.yaml")
 dbutils.widgets.dropdown("overwrite",             "false", ["false", "true"],           "Allow overwrite if output_path already exists")
@@ -119,6 +121,7 @@ existing_preset_path = dbutils.widgets.get("existing_preset_path").strip()
 skill_path           = dbutils.widgets.get("skill_path").rstrip("/")
 model_endpoint       = dbutils.widgets.get("model_endpoint").strip()
 sample_rows_raw      = dbutils.widgets.get("sample_rows")
+sample_filter        = dbutils.widgets.get("sample_filter").strip()
 max_file_bytes       = int(dbutils.widgets.get("max_file_bytes").strip() or "65536")
 output_path          = dbutils.widgets.get("output_path").strip()
 overwrite            = dbutils.widgets.get("overwrite").strip().lower() == "true"
@@ -153,7 +156,7 @@ skill_context = load_skill(skill_path)
 # COMMAND ----------
 
 n_sample, auto_sample = resolve_sample_rows(sample_rows_raw)
-intro = introspect_input(source_table, raw_sample_path, n_sample, max_file_bytes)
+intro = introspect_input(source_table, raw_sample_path, n_sample, max_file_bytes, sample_filter)
 
 # COMMAND ----------
 
