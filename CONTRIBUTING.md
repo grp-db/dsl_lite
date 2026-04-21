@@ -25,7 +25,16 @@ git checkout -b feature/my-source-sourcetype
 
 Follow [tutorials/building-a-preset-end-to-end.md](tutorials/building-a-preset-end-to-end.md).
 
-The short version:
+**Option A — Agent-assisted (recommended for new sources)**
+
+Use the **Preset Agent** notebook (`notebooks/agent/preset_agent.py`) in your Databricks workspace to generate a first-draft `preset.yaml` from a UC table or raw log samples via the Databricks Foundation Model API:
+
+1. Open `notebooks/agent/preset_agent.py` in your workspace.
+2. Set `source_name`, `source_type`, and point `source_table` or `raw_sample_path` at your data.
+3. Run — the agent produces a complete `preset.yaml` draft with bronze, silver, and gold layers.
+4. Copy the output into `pipelines/<source>/<source_type>/preset.yaml` and fill in the `author` placeholder.
+
+**Option B — Manual (copy the template)**
 
 ```bash
 mkdir -p pipelines/<source>/<source_type>
@@ -33,8 +42,9 @@ cp pipelines/templates/preset.yaml pipelines/<source>/<source_type>/preset.yaml
 # Edit the preset — replace all placeholders, add autoloader path, parse fields
 ```
 
-Use the **Preset Explorer** notebook (`notebooks/explorer/preset_explorer.py`) in your
-Databricks workspace to iterate on the preset interactively before committing.
+**Iterate with the Preset Explorer**
+
+Use the **Preset Explorer** notebook (`notebooks/explorer/preset_explorer.py`) in your Databricks workspace to run bronze, silver, and gold transforms interactively against real sample data and iterate on the YAML before committing.
 
 ### Step 2 — Validate the preset
 
