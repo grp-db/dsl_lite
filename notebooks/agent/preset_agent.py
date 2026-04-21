@@ -374,30 +374,33 @@ print(preset_yaml)
 
 # COMMAND ----------
 
-provenance = build_provenance(
-    model_endpoint=model_endpoint,
-    skill_path=skill_path,
-    source_table=source_table,
-    raw_sample_path=raw_sample_path,
-    input_layer=input_layer,
-    target_layers=target_layers,
-    ocsf_classes=ocsf_classes,
-)
 final_yaml = assemble_final(
     preset_yaml=preset_yaml,
     existing_preset_text=existing_preset_text,
     target_layers=target_layers,
-    provenance=provenance,
 )
-header = ("── SPLICED PRESET (existing bronze/silver + new gold) ──"
-          if target_layers == "gold" and existing_preset_text is not None
-          else "── FINAL PRESET ────────────────────────────────────────")
-print(header)
+
+print_header = ("── SPLICED PRESET (existing bronze/silver + new gold) ──"
+                if target_layers == "gold" and existing_preset_text is not None
+                else "── FINAL PRESET ────────────────────────────────────────")
+print(print_header)
 # Print BEFORE validating so that a parse failure still shows the assembled text —
 # you can hand-edit `final_yaml` in a scratch cell and re-run validate + section 8.
 print(final_yaml[:4000] + ("..." if len(final_yaml) > 4000 else ""))
 
-validate_final_yaml(final_yaml, target_layers, existing_preset_text)
+parsed = validate_final_yaml(final_yaml, target_layers, existing_preset_text)
+
+# Prepend the human-readable file header (skip for gold splice — existing header stays).
+if not (target_layers == "gold" and existing_preset_text is not None):
+    file_header = build_preset_header(
+        model_endpoint=model_endpoint,
+        source_name=source_name,
+        source_type=source_type,
+        raw_sample_path=raw_sample_path,
+        source_table=source_table,
+        preset_parsed=parsed,
+    )
+    final_yaml = file_header + final_yaml
 
 # COMMAND ----------
 
@@ -443,25 +446,25 @@ if feedback.strip() and not feedback.strip().startswith("#"):
         ChatMessage(role=ChatMessageRole.ASSISTANT, content=preset_yaml),
         ChatMessage(role=ChatMessageRole.USER,      content=f"Apply these refinements. {scope_note}\n\n{feedback}"),
     ]))
-    refined_provenance = build_provenance(
-        model_endpoint=model_endpoint,
-        skill_path=skill_path,
-        source_table=source_table,
-        raw_sample_path=raw_sample_path,
-        input_layer=input_layer,
-        target_layers=target_layers,
-        ocsf_classes=ocsf_classes,
-        refined=True,
-    )
     final_yaml = assemble_final(
         preset_yaml=preset_yaml,
         existing_preset_text=existing_preset_text,
         target_layers=target_layers,
-        provenance=refined_provenance,
     )
     print("── REFINED PRESET ──────────────────────────────────────")
-    validate_final_yaml(final_yaml, target_layers, existing_preset_text)
     print(final_yaml[:4000] + ("..." if len(final_yaml) > 4000 else ""))
+    refined_parsed = validate_final_yaml(final_yaml, target_layers, existing_preset_text)
+    if not (target_layers == "gold" and existing_preset_text is not None):
+        file_header = build_preset_header(
+            model_endpoint=model_endpoint,
+            source_name=source_name,
+            source_type=source_type,
+            raw_sample_path=raw_sample_path,
+            source_table=source_table,
+            preset_parsed=refined_parsed,
+            refined=True,
+        )
+        final_yaml = file_header + final_yaml
 else:
     print("No feedback supplied — skipping refinement.")
 
