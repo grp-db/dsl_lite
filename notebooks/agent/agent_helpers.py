@@ -474,7 +474,7 @@ def build_preset_header(*, model_endpoint: str, source_name: str, source_type: s
 
     # --- title line ---
     ocsf_display = ", ".join(_title(n) for n in gold_names) if gold_names else "(TBD)"
-    src_display  = f"{_title(source_name)} {_title(source_type)}"
+    src_display  = f"{source_name}@{source_type}"
     lines = [f"# {src_display} → OCSF ({ocsf_display})"]
 
     # --- covers: gold table + filter per entry ---
