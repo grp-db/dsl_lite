@@ -47,7 +47,7 @@ Every preset begins with an identity block — all four keys (`name`, `title`, `
 name: <source>_<source_type>           # e.g. cisco_ios
 title: "<Display Title>"               # human-readable, e.g. "Cisco IOS"
 description: "<short description>"     # e.g. "Cisco IOS syslog events"
-author: "<handle>"                     # e.g. "initials" — attribution for the preset
+author: "<initials>"                   # placeholder — fill in your initials before committing
 
 autoloader:
   inputs:
@@ -62,12 +62,15 @@ bronze:
   preTransform:
     -
       - "*"                             # or "data" for JSON
+      - "_metadata.file_name"
       - "_metadata.file_path"
       - <timestamp_expr> as time
       - CAST(time AS DATE) as date
       - CAST('<source>' AS STRING) AS source
       - CAST('<source_type>' AS STRING) AS sourcetype
       - CURRENT_TIMESTAMP() as processed_time
+      - md5(concat_ws('_', value, _metadata.file_name)) as record_id  # or to_json(data) for JSON
+      # dsl_id is auto-injected by the engine (10th column)
   lookups: []                           # optional enrichment joins
   postTransform: []                     # optional — runs after lookups
   drop: []                              # optional — remove columns by name
@@ -101,6 +104,8 @@ See [references/1-preset-structure.md](references/1-preset-structure.md) for the
 
 The bronze layer does **minimal transformation** — primarily extracting a timestamp and tagging the source. Original data is preserved in `data` (VARIANT, for JSON) or `value` (STRING, for text/syslog).
 
+**Always generate exactly 9 columns in `preTransform`** — the DSL engine auto-adds `dsl_id` as the 10th. See [references/2-bronze-patterns.md](references/2-bronze-patterns.md) for the full schema table.
+
 **JSON source** — use `loadAsSingleVariant: true`:
 ```yaml
 bronze:
@@ -109,12 +114,14 @@ bronze:
   preTransform:
     -
       - "data"
+      - "_metadata.file_name"
       - "_metadata.file_path"
       - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
       - CAST(time AS DATE) as date
       - CAST('vendor' AS STRING) AS source
       - CAST('product' AS STRING) AS sourcetype
       - CURRENT_TIMESTAMP() as processed_time
+      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
 ```
 
 **Text/syslog source** — omit `loadAsSingleVariant`, use `format: text`:
@@ -128,12 +135,14 @@ bronze:
   preTransform:
     -
       - "*"
+      - "_metadata.file_name"
       - "_metadata.file_path"
       - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
       - CAST(time AS DATE) as date
       - CAST('vendor' AS STRING) AS source
       - CAST('product' AS STRING) AS sourcetype
       - CURRENT_TIMESTAMP() as processed_time
+      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
 ```
 
 See [references/2-bronze-patterns.md](references/2-bronze-patterns.md) for timestamp patterns, multi-pass preTransform, and lookup joins.
@@ -159,6 +168,8 @@ Silver extracts structured fields from `data` (JSON VARIANT) or `value` (text/sy
 ```
 
 Always use `utils.unreferencedColumns.preserve: true` to pass unmapped columns to gold for `unmapped`/`raw_data`.
+
+**Do NOT re-declare bronze columns in silver `fields:`** — `preserve: true` carries all bronze columns forward automatically. Listing `time`, `date`, `source`, `sourcetype`, `processed_time`, `file_name`, `file_path`, `record_id`, `dsl_id`, `data`, or `value` in silver produces duplicate columns. Silver `fields:` should contain only columns that are *extracted or derived* from the bronze payload (e.g. parsed fields from `data`/`value`).
 
 See [references/3-silver-patterns.md](references/3-silver-patterns.md) for extraction patterns, type casting rules, REGEXP_EXTRACT gotchas, and multiple-transform routing.
 

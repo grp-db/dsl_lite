@@ -4,6 +4,27 @@ Deep reference for bronze layer configuration.
 
 ---
 
+## Standard 10-Column Bronze Schema
+
+Every bronze `preTransform` must produce **exactly these 9 columns**. The DSL engine automatically appends `dsl_id` to make the final table 10 columns wide — consistent across every preset:
+
+| # | Column | Type | Where it comes from |
+|---|--------|------|---------------------|
+| 1 | `data` / `value` | VARIANT / STRING | `"data"` (JSON) or `"*"` (text) — raw payload |
+| 2 | `file_name` | STRING | `_metadata.file_name` |
+| 3 | `file_path` | STRING | `_metadata.file_path` |
+| 4 | `time` | TIMESTAMP | Extracted from payload — see patterns below |
+| 5 | `date` | DATE | `CAST(time AS DATE) as date` |
+| 6 | `source` | STRING | `CAST('<vendor>' AS STRING) as source` |
+| 7 | `sourcetype` | STRING | `CAST('<product>' AS STRING) as sourcetype` |
+| 8 | `processed_time` | TIMESTAMP | `CURRENT_TIMESTAMP() as processed_time` |
+| 9 | `record_id` | STRING | `md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id` (JSON) or `md5(concat_ws('_', value, _metadata.file_name)) as record_id` (text) |
+| 10 | `dsl_id` | STRING | **Auto-injected by DSL engine** — do NOT add to preTransform |
+
+Do not add extra columns (e.g. `host`, `query`, extracted fields) to bronze `preTransform` — put those in silver.
+
+---
+
 ## loadAsSingleVariant Decision
 
 | Format | loadAsSingleVariant | Data column |
@@ -39,22 +60,24 @@ Deep reference for bronze layer configuration.
   ) as time
 ```
 
-**Cisco IOS syslog** (complete bronze preTransform):
+**Cisco IOS syslog** (complete bronze preTransform — 10-column standard):
 ```yaml
 bronze:
   name: cisco_ios_bronze
   preTransform:
     -
       - "*"
+      - "_metadata.file_name"
       - "_metadata.file_path"
       - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
       - CAST(time AS DATE) as date
       - CAST('cisco' AS STRING) AS source
       - CAST('ios' AS STRING) AS sourcetype
       - CURRENT_TIMESTAMP() as processed_time
+      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
 ```
 
-**Cloudflare Gateway DNS** (complete bronze preTransform):
+**Cloudflare Gateway DNS** (complete bronze preTransform — 10-column standard):
 ```yaml
 bronze:
   name: cloudflare_gateway_dns_bronze
@@ -62,13 +85,14 @@ bronze:
   preTransform:
     -
       - "data"
+      - "_metadata.file_name"
       - "_metadata.file_path"
       - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
       - CAST(time AS DATE) as date
-      - CAST(try_variant_get(data, '$.QueryName', 'STRING') AS STRING) as host
       - CAST('cloudflare' AS STRING) as source
       - CAST('gateway_dns' AS STRING) as sourcetype
       - CURRENT_TIMESTAMP() as processed_time
+      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
 ```
 
 ---
