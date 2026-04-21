@@ -43,6 +43,49 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Widget reference
+# MAGIC
+# MAGIC ### Source identity (required)
+# MAGIC | Widget | Default | Purpose |
+# MAGIC |---|---|---|
+# MAGIC | `source_name` | _(empty)_ | Preset source slug (e.g. `cisco`, `zeek`, `cloudflare`). Required. |
+# MAGIC | `source_type` | _(empty)_ | Preset source_type slug (e.g. `ios`, `conn`, `gateway_dns`). Required. |
+# MAGIC
+# MAGIC ### Input — one of these must be set
+# MAGIC | Widget | Default | Purpose |
+# MAGIC |---|---|---|
+# MAGIC | `source_table` | _(empty)_ | UC table `catalog.schema.table`. Use for an already-parsed silver table or a variant-style raw landing table. |
+# MAGIC | `raw_sample_path` | _(empty)_ | Volume path to a file **or folder** of raw log samples. Use when no UC table exists yet. |
+# MAGIC | `input_layer` | `silver` | `silver` = input is a parsed UC table. `raw` = input is raw log files. |
+# MAGIC
+# MAGIC ### Output control
+# MAGIC | Widget | Default | Purpose |
+# MAGIC |---|---|---|
+# MAGIC | `target_layers` | `auto` | What to emit. `auto` = silver→gold, raw→full. Explicit values: `full` (bronze+silver+gold), `bronze_silver`, `gold`. |
+# MAGIC | `ocsf_classes` | _(empty)_ | Comma-separated OCSF class(es) to map to. Leave blank to let the model infer 1–3. |
+# MAGIC | `existing_preset_path` | _(empty)_ | For `target_layers=gold` only: path to an existing `preset.yaml` — splices the new gold block in, preserving bronze/silver bytes. |
+# MAGIC
+# MAGIC ### Sampling (raw mode especially)
+# MAGIC | Widget | Default | Purpose |
+# MAGIC |---|---|---|
+# MAGIC | `sample_rows` | `auto` | Rows / files to sample. Integer, `auto` (pack to prompt budget, capped at 200), or `all` (no count cap). |
+# MAGIC | `max_file_bytes` | `65536` | Raw mode only. Max bytes read per file (default 64KB). `0` = full opt-out of per-file and cumulative caps. |
+# MAGIC
+# MAGIC ### Environment
+# MAGIC | Widget | Default | Purpose |
+# MAGIC |---|---|---|
+# MAGIC | `skill_path` | `/Workspace/Shared/dsl_lite/skills/dsl-lite-preset-dev` | Folder containing `SKILL.md` + `references/*.md`. |
+# MAGIC | `model_endpoint` | `databricks-claude-sonnet-4-7` | Serving endpoint name. Sonnet 4.7 produces clean YAML; Llama 3.3 frequently fails parse. |
+# MAGIC
+# MAGIC ### Save
+# MAGIC | Widget | Default | Purpose |
+# MAGIC |---|---|---|
+# MAGIC | `output_path` | _(empty)_ | Where to write the final YAML. Must start with `/Workspace/` or `/Volumes/`. Blank = skip save. |
+# MAGIC | `overwrite` | `false` | Allow overwriting an existing file at `output_path`. |
+
+# COMMAND ----------
+
 dbutils.widgets.text(    "source_table",          "",                                    "(Optional if raw_sample_path set) Source UC Table (catalog.schema.table) — used for silver input or raw landing table")
 dbutils.widgets.text(    "raw_sample_path",       "",                                    "(Raw mode, no table yet) volume path to a file or folder of raw log samples")
 dbutils.widgets.text(    "source_name",           "",                                    "Preset source (e.g. cisco)")
