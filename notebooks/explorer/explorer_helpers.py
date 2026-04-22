@@ -74,22 +74,51 @@ def _rewrite_expr(e: str) -> str:
     return e
 
 
-def _safe_array_index(e: str) -> str:
+def _rewrite_array_index(e: str) -> str:
     """
-    Wrap expressions containing [n] array indexing in try() so they return NULL
-    instead of throwing when the array is empty (e.g. filter(...)[0] on no match).
-    Preserves any trailing alias.
+    Rewrite expr[n] array indexing to get(expr, n) for NULL-safe access.
+    Only rewrites when [ is immediately preceded by ) (indexing a function result).
+    Uses balanced-paren scanning to find the full array expression boundary.
     """
     if not re.search(r'\)\[\d+\]', e):
         return e
-    m = re.search(r'(\s+as\s+(?:`[^`]+`|\w+))\s*$', e, re.IGNORECASE)
-    if m:
-        return f"try({e[:m.start()]}){m.group(1)}"
-    return f"try({e})"
+
+    result = []
+    i = 0
+    while i < len(e):
+        # Detect ')' followed by '[digits]'
+        if e[i] == ')':
+            ahead = re.match(r'\[(\d+)\]', e[i + 1:])
+            if ahead:
+                n = ahead.group(1)
+                # Build result_str including this closing paren, then find its matching open
+                result_str = ''.join(result) + ')'
+                depth, k = 0, len(result_str) - 1
+                while k >= 0:
+                    if result_str[k] == ')':
+                        depth += 1
+                    elif result_str[k] == '(':
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    k -= 1
+                # Walk back further to include the function/column name
+                p = k - 1
+                while p >= 0 and (result_str[p].isalnum() or result_str[p] == '_'):
+                    p -= 1
+                start = p + 1
+                array_expr = result_str[start:]
+                result = list(result_str[:start]) + list(f"get({array_expr}, {n})")
+                i += 1 + len(ahead.group(0))  # skip past '[n]'
+                continue
+        result.append(e[i])
+        i += 1
+
+    return ''.join(result)
 
 
 def _rewrite_exprs(exprs: list) -> list:
-    return [_safe_array_index(_rewrite_expr(e)) for e in exprs]
+    return [_rewrite_array_index(_rewrite_expr(e)) for e in exprs]
 
 
 # =============================================================================
