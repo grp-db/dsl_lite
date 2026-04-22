@@ -27,6 +27,13 @@ resources:
       event_log:
         catalog: ${var.bronze_catalog}
         schema:  ${var.bronze_database}
+        name:    ${var.source}_${var.source_type}_event_log
+
+      # ── Custom tags (optional) ────────────────────────────────────────────
+      # tags:
+      #   team:        security
+      #   environment: ${bundle.target}
+      #   source:      ${var.source}
 
       permissions:
         - level: CAN_VIEW
