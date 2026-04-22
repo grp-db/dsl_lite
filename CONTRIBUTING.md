@@ -6,6 +6,7 @@ DSL Lite is a Databricks Data & AI Forward Deployed Engineering accelerator. The
 - **New DAB bundles** — adding deployment config for a new pipeline
 - **Bug fixes** — correcting field expressions, regex patterns, or OCSF mappings
 - **Documentation** — improving tutorials, docs, or inline comments
+- **Augmentation** — improve or extend agent skills
 
 ---
 
