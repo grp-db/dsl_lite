@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DSL Lite — Cybersecurity Lakehouse Accelerator</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #1a2332;
+      background: #fff;
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, #1b3a4b 0%, #0d2233 100%);
+      color: #fff;
+      padding: 22px 28px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .header-left h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+    .header-left h1 span { color: #FF3621; }
+    .header-left .tagline {
+      font-size: 11px;
+      font-weight: 400;
+      color: #a8bcc8;
+      margin-top: 4px;
+    }
+    .header-right {
+      text-align: right;
+      font-size: 9.5px;
+      color: #a8bcc8;
+      line-height: 1.6;
+    }
+    .header-right strong { color: #fff; font-weight: 500; }
+
+    /* ── Hero band ───────────────────────────────────────────── */
+    .hero {
+      background: #FF3621;
+      color: #fff;
+      padding: 9px 28px;
+      font-size: 11px;
+      font-weight: 400;
+      line-height: 1.5;
+    }
+    .hero strong { font-weight: 600; }
+
+    /* ── Body layout ─────────────────────────────────────────── */
+    .body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      padding: 0 28px 0;
+    }
+
+    .col { padding: 14px 10px 0 0; }
+    .col + .col { padding: 14px 0 0 18px; border-left: 1px solid #e8edf2; }
+
+    /* ── Section titles ──────────────────────────────────────── */
+    .section { margin-bottom: 13px; }
+    .section-title {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #FF3621;
+      border-bottom: 1.5px solid #FF3621;
+      padding-bottom: 3px;
+      margin-bottom: 7px;
+    }
+
+    /* ── Architecture pills ──────────────────────────────────── */
+    .arch-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+    .arch-pill {
+      flex: 1;
+      border-radius: 4px;
+      padding: 6px 7px;
+      font-size: 9.5px;
+    }
+    .arch-pill .layer {
+      font-weight: 700;
+      font-size: 10px;
+      display: block;
+    }
+    .arch-pill .desc { color: #556370; font-size: 9px; }
+    .bronze { background: #fff3e0; border-left: 3px solid #e67e22; }
+    .silver { background: #ecf0f1; border-left: 3px solid #95a5a6; }
+    .gold   { background: #fefce8; border-left: 3px solid #f59e0b; }
+    .arch-arrow { color: #aab4be; font-size: 14px; font-weight: 300; }
+
+    /* ── Feature list ────────────────────────────────────────── */
+    .feature-list { list-style: none; }
+    .feature-list li {
+      padding: 3px 0 3px 14px;
+      position: relative;
+      font-size: 10.5px;
+      color: #2c3e50;
+      border-bottom: 1px solid #f0f3f6;
+    }
+    .feature-list li:last-child { border-bottom: none; }
+    .feature-list li::before {
+      content: '▸';
+      position: absolute;
+      left: 0;
+      color: #FF3621;
+      font-size: 9px;
+      top: 4px;
+    }
+    .feature-list li strong { font-weight: 600; }
+
+    /* ── Source grid ─────────────────────────────────────────── */
+    .source-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+    }
+    .source-item {
+      background: #f7f9fb;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      padding: 5px 7px;
+      font-size: 9.5px;
+    }
+    .source-item .source-name { font-weight: 600; color: #1a2332; }
+    .source-item .source-tables { color: #6b7f8e; font-size: 9px; margin-top: 1px; }
+
+    /* ── Tool cards ──────────────────────────────────────────── */
+    .tool-row { display: flex; flex-direction: column; gap: 5px; }
+    .tool-card {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      background: #f7f9fb;
+      border-radius: 4px;
+      padding: 6px 8px;
+      border-left: 3px solid #1b3a4b;
+    }
+    .tool-card .tool-icon { font-size: 14px; line-height: 1; padding-top: 1px; }
+    .tool-card .tool-name { font-weight: 600; font-size: 10px; color: #1a2332; }
+    .tool-card .tool-desc { font-size: 9.5px; color: #556370; margin-top: 1px; }
+
+    /* ── Requirements ────────────────────────────────────────── */
+    .req-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .req-badge {
+      background: #1b3a4b;
+      color: #fff;
+      border-radius: 3px;
+      padding: 2px 7px;
+      font-size: 9px;
+      font-weight: 500;
+    }
+
+    /* ── Deployment modes ────────────────────────────────────── */
+    .mode-row { display: flex; gap: 6px; }
+    .mode-card {
+      flex: 1;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      padding: 6px 8px;
+      background: #fff;
+    }
+    .mode-card .mode-name {
+      font-weight: 700;
+      font-size: 10px;
+      color: #1a2332;
+    }
+    .mode-card .mode-abbr {
+      display: inline-block;
+      background: #1b3a4b;
+      color: #fff;
+      font-size: 8px;
+      font-weight: 600;
+      border-radius: 2px;
+      padding: 1px 4px;
+      margin-left: 3px;
+      vertical-align: middle;
+    }
+    .mode-card .mode-desc { font-size: 9.5px; color: #556370; margin-top: 2px; }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+    .footer {
+      background: #1b3a4b;
+      color: #a8bcc8;
+      padding: 9px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9px;
+      margin-top: 14px;
+    }
+    .footer strong { color: #fff; }
+    .footer a { color: #7eb8d4; text-decoration: none; }
+
+    /* ── Print ───────────────────────────────────────────────── */
+    @media print {
+      body { width: 100%; }
+      @page { margin: 0; size: A4; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <h1>DSL <span>Lite</span></h1>
+      <div class="tagline">Cybersecurity Lakehouse Accelerator &nbsp;·&nbsp; Medallion Architecture &nbsp;·&nbsp; OCSF 1.7.0</div>
+    </div>
+    <div class="header-right">
+      <strong>Databricks Forward Deployed Engineering</strong><br>
+      Built for the Cyber Lakehouse<br>
+      github.com/grp-db/dsl_lite
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <div class="hero">
+    <strong>DSL Lite</strong> is a declarative, configuration-driven framework that transforms raw security logs from any source into
+    <strong>OCSF-compliant, analytics-ready tables</strong> on Databricks — with no custom Spark code required.
+    Security teams get a production-grade Bronze → Silver → Gold medallion pipeline in hours, not weeks.
+  </div>
+
+  <!-- Two-column body -->
+  <div class="body">
+
+    <!-- LEFT COLUMN -->
+    <div class="col">
+
+      <!-- Architecture -->
+      <div class="section">
+        <div class="section-title">Medallion Architecture</div>
+        <div class="arch-row">
+          <div class="arch-pill bronze">
+            <span class="layer">Bronze — Ingest &amp; Amend</span>
+            <span class="desc">Auto Loader incremental ingestion. Preserves raw payload (VARIANT or STRING) + 9 standard metadata columns + <em>dsl_id</em>.</span>
+          </div>
+          <div class="arch-arrow">›</div>
+          <div class="arch-pill silver">
+            <span class="layer">Silver — Parse &amp; Structure</span>
+            <span class="desc">Extracts typed fields via JSON flattening, regex, or <em>from_csv</em>. Applies filters and business logic.</span>
+          </div>
+          <div class="arch-arrow">›</div>
+          <div class="arch-pill gold">
+            <span class="layer">Gold — Map &amp; Normalize</span>
+            <span class="desc">Maps to OCSF-compliant schema. Shared Delta Sinks support multi-source aggregation into unified event tables.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Key Capabilities -->
+      <div class="section">
+        <div class="section-title">Key Capabilities</div>
+        <ul class="feature-list">
+          <li><strong>Zero Spark code</strong> — pipelines defined entirely in YAML preset files</li>
+          <li><strong>OCSF 1.7.0 compliance</strong> — gold tables map to standard event classes with <em>metadata</em> STRUCT versioning</li>
+          <li><strong>Multi-format ingestion</strong> — JSON / JSON Lines, CSV (with or without headers), Syslog / text</li>
+          <li><strong>Streaming &amp; batch</strong> — continuous streaming or <em>availableNow</em> triggered runs</li>
+          <li><strong>Schema evolution</strong> — Auto Loader handles upstream schema changes automatically</li>
+          <li><strong>Lookup enrichment</strong> — join bronze/silver fields against Delta or CSV reference tables</li>
+          <li><strong>Secret management</strong> — Databricks Secrets referenced inline in preset YAML</li>
+          <li><strong>Liquid Clustering</strong> — all layers cluster by <em>time</em> for fast security query performance</li>
+          <li><strong>Delta Column Mapping</strong> — rename OCSF fields post-deployment with no data rewrite</li>
+          <li><strong>One-command deployment</strong> — Databricks Asset Bundles (DABs) per log source</li>
+        </ul>
+      </div>
+
+      <!-- Deployment Modes -->
+      <div class="section">
+        <div class="section-title">Execution Modes</div>
+        <div class="mode-row">
+          <div class="mode-card">
+            <div class="mode-name">Spark Declarative Pipeline <span class="mode-abbr">SDP</span></div>
+            <div class="mode-desc">Lakeflow-managed pipeline. Serverless, continuous or triggered. Gold tables as Delta Sinks for cross-vendor aggregation.</div>
+          </div>
+          <div class="mode-card">
+            <div class="mode-name">Spark Structured Streaming <span class="mode-abbr">SSS</span></div>
+            <div class="mode-desc">Classic compute job. Three independent tasks (bronze / silver / gold) or a single medallion job. Full control over cluster configuration.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="col">
+
+      <!-- Supported Sources -->
+      <div class="section">
+        <div class="section-title">Included Presets &amp; OCSF Gold Outputs</div>
+        <div class="source-grid">
+          <div class="source-item">
+            <div class="source-name">Cisco IOS</div>
+            <div class="source-tables">authentication · authorize_session · network_activity · process_activity</div>
+          </div>
+          <div class="source-item">
+            <div class="source-name">Cloudflare Gateway DNS</div>
+            <div class="source-tables">dns_activity</div>
+          </div>
+          <div class="source-item">
+            <div class="source-name">GitHub Audit Logs</div>
+            <div class="source-tables">authentication · account_change · authorize_session · user_access · group_management</div>
+          </div>
+          <div class="source-item">
+            <div class="source-name">Okta System Log</div>
+            <div class="source-tables">authentication · account_change · group_management</div>
+          </div>
+          <div class="source-item">
+            <div class="source-name">Zeek Conn</div>
+            <div class="source-tables">network_activity</div>
+          </div>
+          <div class="source-item">
+            <div class="source-name">AWS VPC Flow Logs</div>
+            <div class="source-tables">network_activity</div>
+          </div>
+        </div>
+        <div style="margin-top:6px; font-size:9.5px; color:#6b7f8e;">
+          New sources are added by authoring a single <em>preset.yaml</em> — no framework changes required.
+          Ingest from S3, ADLS Gen2, GCS, Databricks Volumes, or DBFS.
+        </div>
+      </div>
+
+      <!-- Developer Tools -->
+      <div class="section">
+        <div class="section-title">Developer Experience</div>
+        <div class="tool-row">
+          <div class="tool-card">
+            <div class="tool-icon">🤖</div>
+            <div>
+              <div class="tool-name">Preset Agent</div>
+              <div class="tool-desc">Foundation-model-powered notebook. Introspects a Unity Catalog table and generates a first-draft <em>preset.yaml</em> — entirely inside the workspace. No data leaves the customer environment.</div>
+            </div>
+          </div>
+          <div class="tool-card">
+            <div class="tool-icon">🔍</div>
+            <div>
+              <div class="tool-name">Preset Explorer</div>
+              <div class="tool-desc">Interactive notebook for iterating on presets in batch mode against real sample data. Preview bronze, silver, and gold outputs before any pipeline deployment.</div>
+            </div>
+          </div>
+          <div class="tool-card">
+            <div class="tool-icon">📊</div>
+            <div>
+              <div class="tool-name">Pipeline Profiler</div>
+              <div class="tool-desc">Pre-deployment QA notebook. Runs schema diff, null-rate comparison, E2E sample run, and OCSF coverage checks against legacy tables. Saves a timestamped Markdown report to a Volume.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Requirements -->
+      <div class="section">
+        <div class="section-title">Platform Requirements</div>
+        <div class="req-row">
+          <span class="req-badge">Databricks Runtime 16.0+</span>
+          <span class="req-badge">Spark 4.1+</span>
+          <span class="req-badge">Unity Catalog</span>
+          <span class="req-badge">Databricks CLI ≥ 0.220</span>
+          <span class="req-badge">Serverless (SDP mode)</span>
+          <span class="req-badge">DBR 13.3+ (SSS mode)</span>
+          <span class="req-badge">PyYAML (env v2+)</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div>
+      <strong>DSL Lite</strong> &nbsp;·&nbsp; Cybersecurity Lakehouse Accelerator &nbsp;·&nbsp;
+      Copyright © Databricks, Inc. &nbsp;·&nbsp; Community-supported accelerator
+    </div>
+    <div>
+      <a href="https://github.com/grp-db/dsl_lite">github.com/grp-db/dsl_lite</a>
+      &nbsp;·&nbsp; Contact your Databricks account team
+    </div>
+  </div>
+
+</body>
+</html>
