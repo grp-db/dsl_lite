@@ -14,6 +14,7 @@ DSL Lite is a declarative data pipeline framework for ingesting and normalizing 
 - `docs/dsl_lite_features/` — Architecture, lookup joins, and advanced configuration docs
 - `notebooks/explorer/` — Interactive preset development and testing (`preset_explorer.py`)
 - `notebooks/agent/` — Foundation-model-powered preset agent (`preset_agent.py`)
+- `notebooks/profiler/` — Pipeline validation notebook (`pipeline_profiler.py`): schema diff, data profile, E2E sample run, OCSF coverage
 - `notebooks/ddl/` — OCSF table DDL / UC setup scripts
 - `tutorials/` — End-to-end guides for preset authoring and bundle deployment
 - `vault/` — Preset validators, template sync scripts, source-lookup utilities
