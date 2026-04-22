@@ -69,6 +69,7 @@ dbutils.widgets.dropdown("checks", "all",
 dbutils.widgets.text(    "sample_size",       "100",   "Sample size (rows)")
 dbutils.widgets.text(    "null_threshold",    "80",    "Null % warning threshold")
 dbutils.widgets.dropdown("flatten_schema",    "false", ["false", "true"], "Flatten struct fields in schema diff")
+dbutils.widgets.dropdown("ignore_case",       "false", ["false", "true"], "Match column names case-insensitively")
 dbutils.widgets.text(    "report_path",       "",      "Report output path (blank = no file saved)")
 
 # COMMAND ----------
@@ -89,6 +90,7 @@ checks           = dbutils.widgets.get("checks").strip()
 sample_size      = int(dbutils.widgets.get("sample_size").strip() or "100")
 null_threshold   = float(dbutils.widgets.get("null_threshold").strip() or "80")
 flatten_schema   = dbutils.widgets.get("flatten_schema").strip().lower() == "true"
+ignore_case      = dbutils.widgets.get("ignore_case").strip().lower() == "true"
 report_path      = dbutils.widgets.get("report_path").strip()
 
 run_schema_diff  = checks in ("all", "schema_diff")
@@ -108,6 +110,7 @@ print(f"checks={checks}")
 print(f"  schema_diff={run_schema_diff}  data_profile={run_data_profile}  e2e_sample={run_e2e}  ocsf_coverage={run_ocsf}")
 print(f"  source_table={source_table or '(not set)'}  target_table={target_table or '(not set)'}")
 print(f"  preset_file={preset_file or '(not set)'}  sample_size={sample_size}  null_threshold={null_threshold}%")
+print(f"  ignore_case={ignore_case}  flatten_schema={flatten_schema}")
 print(f"  report_path={report_path or '(not set — no file will be saved)'}")
 
 # COMMAND ----------
@@ -118,7 +121,7 @@ print(f"  report_path={report_path or '(not set — no file will be saved)'}")
 
 if run_schema_diff:
     if source_table and target_table:
-        schema_diff_df = compare_schemas(source_table, target_table, flatten=flatten_schema)
+        schema_diff_df = compare_schemas(source_table, target_table, flatten=flatten_schema, ignore_case=ignore_case)
     else:
         print("Skipped — set both source_table and target_table to run schema diff.")
 
@@ -131,7 +134,8 @@ if run_schema_diff:
 if run_data_profile:
     if source_table and target_table:
         profile_df = compare_profiles(source_table, target_table,
-                                      sample_size=sample_size, null_threshold=null_threshold)
+                                      sample_size=sample_size, null_threshold=null_threshold,
+                                      ignore_case=ignore_case)
     else:
         print("Skipped — set both source_table and target_table to run data profile.")
 

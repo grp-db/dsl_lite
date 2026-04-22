@@ -42,7 +42,8 @@ def _flatten_schema(schema: StructType, prefix: str = "") -> dict:
     return fields
 
 
-def compare_schemas(table_a: str, table_b: str, flatten: bool = False) -> DataFrame:
+def compare_schemas(table_a: str, table_b: str, flatten: bool = False,
+                    ignore_case: bool = False) -> DataFrame:
     """
     Print a column-by-column schema diff between two Delta tables.
     Returns the result DataFrame for report generation.
@@ -50,6 +51,7 @@ def compare_schemas(table_a: str, table_b: str, flatten: bool = False) -> DataFr
     table_a: source / legacy table
     table_b: target / new dsl_lite table
     flatten: if True, recurse into nested struct fields
+    ignore_case: if True, match column names case-insensitively (abc == aBc)
     """
     schema_a_raw = spark.table(table_a).schema
     schema_b_raw = spark.table(table_b).schema
@@ -60,6 +62,10 @@ def compare_schemas(table_a: str, table_b: str, flatten: bool = False) -> DataFr
     else:
         schema_a = {f.name: str(f.dataType) for f in schema_a_raw.fields}
         schema_b = {f.name: str(f.dataType) for f in schema_b_raw.fields}
+
+    if ignore_case:
+        schema_a = {k.lower(): v for k, v in schema_a.items()}
+        schema_b = {k.lower(): v for k, v in schema_b.items()}
 
     all_cols = sorted(set(schema_a) | set(schema_b))
     missing = type_mismatch = new_cols = 0
@@ -130,7 +136,8 @@ def profile_table(table_name: str, sample_size: int = 100) -> DataFrame:
 
 
 def compare_profiles(table_a: str, table_b: str, sample_size: int = 100,
-                     null_threshold: float = 80.0) -> DataFrame:
+                     null_threshold: float = 80.0,
+                     ignore_case: bool = False) -> DataFrame:
     """
     Compare null rates between source and target tables side by side.
     Returns the result DataFrame for report generation.
@@ -141,6 +148,10 @@ def compare_profiles(table_a: str, table_b: str, sample_size: int = 100,
     print(f"\nData profile comparison ({sample_size} rows each): {table_a}  →  {table_b}")
     prof_a = profile_table(table_a, sample_size)
     prof_b = profile_table(table_b, sample_size)
+
+    if ignore_case:
+        prof_a = prof_a.withColumn("column", F.lower(F.col("column")))
+        prof_b = prof_b.withColumn("column", F.lower(F.col("column")))
 
     joined = (
         prof_a.alias("a")
