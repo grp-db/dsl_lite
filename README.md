@@ -88,22 +88,32 @@ dsl_lite/
 │   └── agent/
 │       ├── agent_helpers.py        # Agent helper functions (loaded via %run)
 │       └── preset_agent.py         # Agent notebook to build presets via Databricks Foundation Model API
+├── .agents/                      # Augment AI agent skills
+│   └── skills/
+│       └── dsl-lite-preset-dev/  # Preset authoring skill (SKILL.md + references/)
 ├── bundles/                      # Declarative Automation Bundles — one per source/source_type (see bundles/README.md)
 ├── pipelines/                    # Configuration presets (Cisco, Zeek, Cloudflare, GitHub, AWS, etc.)
-├── ocsf_templates/              # OCSF mapping templates (21 standardized templates)
+├── ocsf_templates/               # OCSF mapping templates (21 standardized templates)
 ├── docs/                         # Reference documentation
-│   ├── dsl_lite_features/       # Pipeline & framework guides
-│   │   ├── architecture.md      # Medallion architecture, data flow, OCSF metadata, performance
+│   ├── dsl_lite_features/        # Pipeline & framework guides
+│   │   ├── architecture.md       # Medallion architecture, data flow, OCSF metadata, performance
 │   │   ├── advanced-configuration.md  # Skipping layers, per-table catalog/DB, fully qualified paths, checkpoint resets
-│   │   └── lookup-joins.md      # Lookup join configuration and examples
-│   ├── ocsf_spark_expressions/  # Gold-layer Spark SQL (CASE WHEN, named_struct)
-│   ├── ocsf_event_categories/   # OCSF table docs by category (network, IAM, system)
-│   └── ocsf_ddl_fields/         # DDL/reference for common structs (metadata, endpoint, ids, etc.)
-├── images/                      # Screenshots and pipeline graph images for documentation
-│   └── pipeline_graph.png      # Example pipeline graph (bronze → silver → gold)
-├── vault/                       # Maintenance utilities for template management
-├── raw_logs/                    # Sample logs for testing
-└── README.md                    # This file
+│   │   └── lookup-joins.md       # Lookup join configuration and examples
+│   ├── ocsf_spark_expressions/   # Gold-layer Spark SQL (CASE WHEN, named_struct)
+│   ├── ocsf_event_categories/    # OCSF table docs by category (network, IAM, system)
+│   └── ocsf_ddl_fields/          # DDL/reference for common structs (metadata, endpoint, ids, etc.)
+├── tutorials/                    # Step-by-step guides
+│   ├── building-a-preset-end-to-end.md
+│   └── adding-a-bundle.md
+├── images/                       # Screenshots and pipeline graph images for documentation
+│   └── pipeline_graph.png        # Example pipeline graph (bronze → silver → gold)
+├── vault/                        # Maintenance utilities for template management
+├── raw_logs/                     # Sample logs for testing (one per source/source_type)
+├── .github/
+│   └── CODEOWNERS                # Requires maintainer approval for all PRs to main
+├── requirements.txt              # Python dependencies
+├── Makefile                      # Dev shortcuts (validate-presets, etc.)
+└── README.md                     # This file
 ```
 
 ---
