@@ -32,24 +32,44 @@ def _rewrite_expr(e: str) -> str:
     Rewrite expressions that use VARIANT-dependent functions so they work in
     batch/Spark-Connect mode without requiring the VARIANT type.
 
+    - to_json(try_variant_get(col, '$.path' [, 'TYPE'])) → get_json_object(col, '$.path')
+      (combined form — Okta/nested patterns wrap try_variant_get in to_json)
     - try_variant_get(col, '$.path', 'TYPE') → get_json_object(col, '$.path')
-      (drops the type arg; outer TRY_CAST wrappers in the expression handle typing)
+    - try_variant_get(col, '$.path') → get_json_object(col, '$.path')  [2-arg form]
     - CAST(... AS VARIANT) → CAST(... AS STRING)
-      (raw_data / unmapped / enrichments fields — fine for display)
+    - to_json(data) → data
     """
-    # Replace try_variant_get with get_json_object (drop the third type argument)
+    # 1. to_json(try_variant_get(col, 'path', 'type')) → get_json_object(col, 'path')
+    e = re.sub(
+        r"to_json\(\s*try_variant_get\(([^,]+),\s*('[^']*'),\s*'[^']*'\)\s*\)",
+        r"get_json_object(\1, \2)",
+        e,
+        flags=re.IGNORECASE,
+    )
+    # 2. to_json(try_variant_get(col, 'path')) → get_json_object(col, 'path')  [2-arg]
+    e = re.sub(
+        r"to_json\(\s*try_variant_get\(([^,]+),\s*('[^']*')\)\s*\)",
+        r"get_json_object(\1, \2)",
+        e,
+        flags=re.IGNORECASE,
+    )
+    # 3. try_variant_get(col, 'path', 'type') → get_json_object(col, 'path')  [3-arg]
     e = re.sub(
         r"try_variant_get\(([^,]+),\s*('[^']*'),\s*'[^']*'\)",
         r"get_json_object(\1, \2)",
         e,
         flags=re.IGNORECASE,
     )
-    # to_json(data) → data
-    # In production 'data' is VARIANT so to_json() works. In the explorer 'data'
-    # is already a JSON STRING, so to_json() would fail with a type mismatch.
-    # named_struct('payload', data, ...) is fine because the struct itself is valid.
+    # 4. try_variant_get(col, 'path') → get_json_object(col, 'path')  [2-arg]
+    e = re.sub(
+        r"try_variant_get\(([^,]+),\s*('[^']*')\)",
+        r"get_json_object(\1, \2)",
+        e,
+        flags=re.IGNORECASE,
+    )
+    # 5. to_json(data) → data  (data is already a JSON STRING in batch mode)
     e = re.sub(r"\bto_json\(\s*data\s*\)", "data", e, flags=re.IGNORECASE)
-    # Replace VARIANT output casts
+    # 6. CAST(... AS VARIANT) → CAST(... AS STRING)
     e = e.replace("AS VARIANT", "AS STRING")
     return e
 
