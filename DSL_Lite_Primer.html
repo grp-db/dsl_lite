@@ -257,17 +257,17 @@
         <div class="arch-row">
           <div class="arch-pill bronze">
             <span class="layer">Bronze — Ingest &amp; Amend</span>
-            <span class="desc">Auto Loader incremental ingestion. Preserves raw payload (VARIANT or STRING) + 9 standard metadata columns + <em>dsl_id</em>.</span>
+            <span class="desc">Auto Loader ingestion. Raw payload + <em>source</em>, <em>sourcetype</em>, timestamp, and <em>dsl_id</em> metadata.</span>
           </div>
           <div class="arch-arrow">›</div>
           <div class="arch-pill silver">
             <span class="layer">Silver — Parse &amp; Curate</span>
-            <span class="desc">Extracts typed fields via JSON flattening, regex, or <em>from_csv</em>. Applies filters and business logic.</span>
+            <span class="desc">Typed fields extracted via JSON, regex, or CSV. Filters and business logic applied.</span>
           </div>
           <div class="arch-arrow">›</div>
           <div class="arch-pill gold">
             <span class="layer">Gold — Map &amp; Normalize</span>
-            <span class="desc">Maps to OCSF-compliant schema. Shared Delta Sinks support multi-source aggregation into unified event tables.</span>
+            <span class="desc">OCSF-compliant Delta Sinks. Cross-vendor analytics on unified event tables with full source lineage tracking.</span>
           </div>
         </div>
       </div>
@@ -277,7 +277,8 @@
         <div class="section-title">Key Capabilities</div>
         <ul class="feature-list">
           <li><strong>Zero Spark code</strong> — pipelines defined entirely in YAML preset files</li>
-          <li><strong>OCSF 1.7.0 compliance</strong> — gold tables map to standard event classes with <em>metadata</em> STRUCT versioning</li>
+          <li><strong>OCSF 1.7.0 compliance</strong> — gold tables map to standard event classes enabling cross-vendor analytics in a single unified schema</li>
+          <li><strong>Source lineage tracking</strong> — every event carries <em>source</em>, <em>sourcetype</em>, <em>log_provider</em>, and <em>log_name</em> through all three layers for full metadata traceability</li>
           <li><strong>Multi-format ingestion</strong> — JSON / JSON Lines, CSV (with or without headers), Syslog / text</li>
           <li><strong>Streaming &amp; batch</strong> — continuous streaming or <em>availableNow</em> triggered runs</li>
           <li><strong>Schema enforcement</strong> — OCSF DDL notebook provisions gold tables with typed, versioned schemas for downstream query performance and data governance</li>
@@ -411,10 +412,11 @@
   <!-- Footer -->
   <div class="footer">
     <div>
-      <strong>DSL Lite</strong> &nbsp;·&nbsp; Cybersecurity Lakehouse Accelerator &nbsp;·&nbsp;
-      Copyright © Databricks, Inc. &nbsp;·&nbsp; Community-supported accelerator
+      <strong>DSL Lite</strong> &nbsp;·&nbsp; Cybersecurity Lakehouse Accelerator &nbsp;·&nbsp; Copyright © Databricks, Inc.
     </div>
-    <div>Contact your Databricks account team</div>
+    <div>
+      <strong>Garrett R Peternel</strong> &nbsp;·&nbsp; Builder, Author &amp; FDE @ Databricks &nbsp;·&nbsp; Contact your Databricks account team
+    </div>
   </div>
 
 </body>
