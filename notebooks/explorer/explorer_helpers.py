@@ -74,8 +74,22 @@ def _rewrite_expr(e: str) -> str:
     return e
 
 
+def _safe_array_index(e: str) -> str:
+    """
+    Wrap expressions containing [n] array indexing in try() so they return NULL
+    instead of throwing when the array is empty (e.g. filter(...)[0] on no match).
+    Preserves any trailing alias.
+    """
+    if not re.search(r'\)\[\d+\]', e):
+        return e
+    m = re.search(r'(\s+as\s+(?:`[^`]+`|\w+))\s*$', e, re.IGNORECASE)
+    if m:
+        return f"try({e[:m.start()]}){m.group(1)}"
+    return f"try({e})"
+
+
 def _rewrite_exprs(exprs: list) -> list:
-    return [_rewrite_expr(e) for e in exprs]
+    return [_safe_array_index(_rewrite_expr(e)) for e in exprs]
 
 
 # =============================================================================
