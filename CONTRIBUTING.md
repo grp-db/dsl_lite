@@ -20,6 +20,42 @@ git checkout -b feature/my-source-sourcetype
 
 ---
 
+## Syncing to a Customer Repo
+
+Use this workflow to mirror the latest `grp-db/dsl_lite` changes into a customer's fork. These commands run in a **Databricks cluster terminal**.
+
+> **Note:** Cluster terminals are ephemeral — local clones and `git config` settings are lost when a cluster restarts or terminates. Re-run the full setup after any cluster restart.
+
+### First time (or after a cluster restart)
+
+```bash
+git clone https://github.com/grp-db/dsl_lite.git
+cd dsl_lite
+git remote rename origin upstream
+git remote add origin https://<token>@github.com/<customer-org>/dsl_lite.git
+git config user.email <email>
+git config user.name <name>
+```
+
+Replace `<token>` with a GitHub PAT that has write access to the customer repo.
+
+### Every sync (same session, cluster still running)
+
+```bash
+cd dsl_lite
+git pull upstream main
+git push origin main --force
+```
+
+### After pushing — update the Databricks workspace
+
+| Method | Steps |
+|---|---|
+| **Databricks Repos UI** | Open the repo in the customer workspace → three-dot menu → **Pull** |
+| **DABs deploy** | `databricks bundle deploy --target <env>` (no Repos sync needed) |
+
+---
+
 ## Adding a New Pipeline
 
 ### Step 1 — Build the preset
