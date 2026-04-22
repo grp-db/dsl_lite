@@ -24,6 +24,10 @@ resources:
       serverless: true
       continuous: false
 
+      event_log:
+        catalog: ${var.bronze_catalog}
+        schema:  ${var.bronze_database}
+
       permissions:
         - level: CAN_VIEW
           group_name: users
