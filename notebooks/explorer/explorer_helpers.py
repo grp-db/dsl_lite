@@ -32,30 +32,93 @@ def _rewrite_expr(e: str) -> str:
     Rewrite expressions that use VARIANT-dependent functions so they work in
     batch/Spark-Connect mode without requiring the VARIANT type.
 
+    - to_json(try_variant_get(col, '$.path' [, 'TYPE'])) → get_json_object(col, '$.path')
+      (combined form — Okta/nested patterns wrap try_variant_get in to_json)
     - try_variant_get(col, '$.path', 'TYPE') → get_json_object(col, '$.path')
-      (drops the type arg; outer TRY_CAST wrappers in the expression handle typing)
+    - try_variant_get(col, '$.path') → get_json_object(col, '$.path')  [2-arg form]
     - CAST(... AS VARIANT) → CAST(... AS STRING)
-      (raw_data / unmapped / enrichments fields — fine for display)
+    - to_json(data) → data
     """
-    # Replace try_variant_get with get_json_object (drop the third type argument)
+    # 1. to_json(try_variant_get(col, 'path', 'type')) → get_json_object(col, 'path')
+    e = re.sub(
+        r"to_json\(\s*try_variant_get\(([^,]+),\s*('[^']*'),\s*'[^']*'\)\s*\)",
+        r"get_json_object(\1, \2)",
+        e,
+        flags=re.IGNORECASE,
+    )
+    # 2. to_json(try_variant_get(col, 'path')) → get_json_object(col, 'path')  [2-arg]
+    e = re.sub(
+        r"to_json\(\s*try_variant_get\(([^,]+),\s*('[^']*')\)\s*\)",
+        r"get_json_object(\1, \2)",
+        e,
+        flags=re.IGNORECASE,
+    )
+    # 3. try_variant_get(col, 'path', 'type') → get_json_object(col, 'path')  [3-arg]
     e = re.sub(
         r"try_variant_get\(([^,]+),\s*('[^']*'),\s*'[^']*'\)",
         r"get_json_object(\1, \2)",
         e,
         flags=re.IGNORECASE,
     )
-    # to_json(data) → data
-    # In production 'data' is VARIANT so to_json() works. In the explorer 'data'
-    # is already a JSON STRING, so to_json() would fail with a type mismatch.
-    # named_struct('payload', data, ...) is fine because the struct itself is valid.
+    # 4. try_variant_get(col, 'path') → get_json_object(col, 'path')  [2-arg]
+    e = re.sub(
+        r"try_variant_get\(([^,]+),\s*('[^']*')\)",
+        r"get_json_object(\1, \2)",
+        e,
+        flags=re.IGNORECASE,
+    )
+    # 5. to_json(data) → data  (data is already a JSON STRING in batch mode)
     e = re.sub(r"\bto_json\(\s*data\s*\)", "data", e, flags=re.IGNORECASE)
-    # Replace VARIANT output casts
+    # 6. CAST(... AS VARIANT) → CAST(... AS STRING)
     e = e.replace("AS VARIANT", "AS STRING")
     return e
 
 
+def _rewrite_array_index(e: str) -> str:
+    """
+    Rewrite expr[n] array indexing to get(expr, n) for NULL-safe access.
+    Only rewrites when [ is immediately preceded by ) (indexing a function result).
+    Uses balanced-paren scanning to find the full array expression boundary.
+    """
+    if not re.search(r'\)\[\d+\]', e):
+        return e
+
+    result = []
+    i = 0
+    while i < len(e):
+        # Detect ')' followed by '[digits]'
+        if e[i] == ')':
+            ahead = re.match(r'\[(\d+)\]', e[i + 1:])
+            if ahead:
+                n = ahead.group(1)
+                # Build result_str including this closing paren, then find its matching open
+                result_str = ''.join(result) + ')'
+                depth, k = 0, len(result_str) - 1
+                while k >= 0:
+                    if result_str[k] == ')':
+                        depth += 1
+                    elif result_str[k] == '(':
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    k -= 1
+                # Walk back further to include the function/column name
+                p = k - 1
+                while p >= 0 and (result_str[p].isalnum() or result_str[p] == '_'):
+                    p -= 1
+                start = p + 1
+                array_expr = result_str[start:]
+                result = list(result_str[:start]) + list(f"get({array_expr}, {n})")
+                i += 1 + len(ahead.group(0))  # skip past '[n]'
+                continue
+        result.append(e[i])
+        i += 1
+
+    return ''.join(result)
+
+
 def _rewrite_exprs(exprs: list) -> list:
-    return [_rewrite_expr(e) for e in exprs]
+    return [_rewrite_array_index(_rewrite_expr(e)) for e in exprs]
 
 
 # =============================================================================
