@@ -245,6 +245,18 @@
     Security teams get a production-grade Bronze → Silver → Gold medallion pipeline in hours, not weeks or months.
   </div>
 
+
+  <!-- Use Cases -->
+  <div style="background:#f0f4f8;border-bottom:1px solid #e2e8f0;padding:7px 28px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:#1b3a4b;margin-right:4px;">Use Cases</span>
+    <span style="background:#1b3a4b;color:#fff;border-radius:3px;padding:2px 9px;font-size:9px;font-weight:500;">SOC Operations</span>
+    <span style="background:#1b3a4b;color:#fff;border-radius:3px;padding:2px 9px;font-size:9px;font-weight:500;">Threat Hunting</span>
+    <span style="background:#1b3a4b;color:#fff;border-radius:3px;padding:2px 9px;font-size:9px;font-weight:500;">Compliance Reporting</span>
+    <span style="background:#1b3a4b;color:#fff;border-radius:3px;padding:2px 9px;font-size:9px;font-weight:500;">UEBA &amp; Behavior Analytics</span>
+    <span style="background:#1b3a4b;color:#fff;border-radius:3px;padding:2px 9px;font-size:9px;font-weight:500;">Incident Response</span>
+    <span style="background:#1b3a4b;color:#fff;border-radius:3px;padding:2px 9px;font-size:9px;font-weight:500;">Security Data Engineering</span>
+  </div>
+
   <!-- Two-column body -->
   <div class="body">
 
@@ -270,6 +282,11 @@
             <span class="desc">OCSF-compliant Delta Sinks. Cross-vendor analytics on unified event tables with full source lineage tracking.</span>
           </div>
         </div>
+
+        <div style="margin-top:6px;text-align:center;">
+          <img src="images/pipeline_graph.png" alt="DSL Lite pipeline graph" style="max-width:100%;height:70px;object-fit:contain;border-radius:4px;">
+          <div style="font-size:8px;color:#8a9aaa;margin-top:2px;">Actual pipeline graph in Databricks — Bronze → Silver → Gold</div>
+        </div>
       </div>
 
       <!-- Key Capabilities -->
@@ -283,9 +300,7 @@
           <li><strong>Streaming &amp; batch</strong> — continuous or trigger-based pipeline execution</li>
           <li><strong>Schema enforcement</strong> — typed, versioned OCSF gold tables for performance and governance</li>
           <li><strong>Lookup enrichment</strong> — enrich events with Delta or CSV reference tables</li>
-          <li><strong>Secret management</strong> — Databricks Secrets referenced inline in YAML</li>
           <li><strong>Liquid Clustering</strong> — time-based clustering optimized for security queries</li>
-          <li><strong>Delta Column Mapping</strong> — rename OCSF fields post-deployment, no data rewrite</li>
           <li><strong>One-command deployment</strong> — Declarative Automation Bundles (DABs) per source</li>
           <li><strong>Agentic development</strong> — built-in agent skills for Databricks Genie and AI coding tools</li>
         </ul>
@@ -366,30 +381,27 @@
             <div class="tool-icon">🤖</div>
             <div>
               <div class="tool-name">Preset Agent</div>
-              <div class="tool-desc">Foundation-model-powered notebook. Introspects a Unity Catalog table and generates a first-draft <em>preset.yaml</em> — entirely inside the workspace. No data leaves the customer environment.</div>
+              <div class="tool-desc">Generates a first-draft <em>preset.yaml</em> from a Unity Catalog table using Databricks Foundation Models — entirely inside the workspace.</div>
             </div>
           </div>
           <div class="tool-card">
             <div class="tool-icon">🔍</div>
             <div>
               <div class="tool-name">Preset Explorer</div>
-              <div class="tool-desc">Interactive notebook for iterating on presets in batch mode against real sample data. Preview bronze, silver, and gold outputs before any pipeline deployment.</div>
+              <div class="tool-desc">Iterate on presets against real data in batch mode. Preview all three layers before deployment.</div>
             </div>
           </div>
           <div class="tool-card">
             <div class="tool-icon">📊</div>
             <div>
               <div class="tool-name">Pipeline Profiler</div>
-              <div class="tool-desc">Pre-deployment QA notebook. Runs schema diff, null-rate comparison, E2E sample run, and OCSF coverage checks against legacy tables. Saves a timestamped Markdown report to a Volume.</div>
+              <div class="tool-desc">Schema diff, null-rate comparison, E2E sample run, and OCSF coverage checks. Saves a Markdown report to a Volume.</div>
             </div>
           </div>
         </div>
         <div style="margin-top:6px; font-size:9px; color:#556370; background:#f7f9fb; border:1px solid #e2e8f0; border-radius:4px; padding:5px 7px;">
-          <strong style="color:#1a2332;">Agentic &amp; self-service development:</strong>
-          Step-by-step tutorials guide preset authoring end-to-end. Agent skills packaged in
-          <em>.agents/skills/</em> augment AI coding tools (Claude Code, Cursor, Copilot) and
-          <strong>Databricks Genie</strong> — enabling natural-language preset Q&amp;A, pipeline
-          troubleshooting, and OCSF mapping assistance directly inside the workspace.
+          <strong style="color:#1a2332;">Agentic development:</strong>
+          Built-in agent skills augment AI coding tools (Claude Code, Cursor, Copilot) and <strong>Databricks Genie</strong> for natural-language preset authoring, pipeline Q&amp;A, and OCSF mapping assistance.
         </div>
       </div>
 
