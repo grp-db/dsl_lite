@@ -242,7 +242,7 @@
   <div class="hero">
     <strong>DSL Lite</strong> is a declarative, configuration-driven framework that transforms raw security logs from any source into
     <strong>OCSF-compliant, analytics-ready tables</strong> on Databricks — with no custom Spark code required.
-    Security teams get a production-grade Bronze → Silver → Gold medallion pipeline in hours, not weeks.
+    Security teams get a production-grade Bronze → Silver → Gold medallion pipeline in hours, not weeks or months.
   </div>
 
   <!-- Two-column body -->
@@ -280,12 +280,13 @@
           <li><strong>OCSF 1.7.0 compliance</strong> — gold tables map to standard event classes with <em>metadata</em> STRUCT versioning</li>
           <li><strong>Multi-format ingestion</strong> — JSON / JSON Lines, CSV (with or without headers), Syslog / text</li>
           <li><strong>Streaming &amp; batch</strong> — continuous streaming or <em>availableNow</em> triggered runs</li>
-          <li><strong>Schema evolution</strong> — Auto Loader handles upstream schema changes automatically</li>
+          <li><strong>Schema enforcement</strong> — OCSF DDL notebook provisions gold tables with typed, versioned schemas for downstream query performance and data governance</li>
           <li><strong>Lookup enrichment</strong> — join bronze/silver fields against Delta or CSV reference tables</li>
           <li><strong>Secret management</strong> — Databricks Secrets referenced inline in preset YAML</li>
           <li><strong>Liquid Clustering</strong> — all layers cluster by <em>time</em> for fast security query performance</li>
           <li><strong>Delta Column Mapping</strong> — rename OCSF fields post-deployment with no data rewrite</li>
-          <li><strong>One-command deployment</strong> — Databricks Asset Bundles (DABs) per log source</li>
+          <li><strong>One-command deployment</strong> — Declarative Automation Bundles (DABs) per log source</li>
+          <li><strong>Agentic development</strong> — Agent skills augment AI coding tools and Databricks Genie for preset authoring, validation, and pipeline Q&amp;A without leaving the workspace</li>
         </ul>
       </div>
 
@@ -311,7 +312,7 @@
 
       <!-- Supported Sources -->
       <div class="section">
-        <div class="section-title">Included Presets &amp; OCSF Gold Outputs</div>
+        <div class="section-title">Sample Presets &amp; OCSF Gold Outputs</div>
         <div class="source-grid">
           <div class="source-item">
             <div class="source-name">Cisco IOS</div>
@@ -342,6 +343,12 @@
           New sources are added by authoring a single <em>preset.yaml</em> — no framework changes required.
           Ingest from S3, ADLS Gen2, GCS, Databricks Volumes, or DBFS.
         </div>
+        <div style="margin-top:5px; font-size:9px; color:#556370; background:#f7f9fb; border:1px solid #e2e8f0; border-radius:4px; padding:5px 7px;">
+          <strong style="color:#1a2332;">Additional vendors available for preset development:</strong>
+          Palo Alto Networks · Microsoft Azure / Entra ID · Zscaler (ZIA / ZPA) · CrowdStrike Falcon ·
+          Atlassian · Slack · SentinelOne · Fortinet · Check Point · AWS CloudTrail ·
+          Google Cloud · Microsoft Defender · Splunk (as source) · and more
+        </div>
       </div>
 
       <!-- Developer Tools -->
@@ -370,19 +377,25 @@
             </div>
           </div>
         </div>
+        <div style="margin-top:6px; font-size:9px; color:#556370; background:#f7f9fb; border:1px solid #e2e8f0; border-radius:4px; padding:5px 7px;">
+          <strong style="color:#1a2332;">Agentic &amp; self-service development:</strong>
+          Step-by-step tutorials guide preset authoring end-to-end. Agent skills packaged in
+          <em>.agents/skills/</em> augment AI coding tools (Claude Code, Cursor, Copilot) and
+          <strong>Databricks Genie</strong> — enabling natural-language preset Q&amp;A, pipeline
+          troubleshooting, and OCSF mapping assistance directly inside the workspace.
+        </div>
       </div>
 
       <!-- Requirements -->
       <div class="section">
         <div class="section-title">Platform Requirements</div>
         <div class="req-row">
-          <span class="req-badge">Databricks Runtime 16.0+</span>
-          <span class="req-badge">Spark 4.1+</span>
+          <span class="req-badge">DBR 16.0+ / Spark 4.1+ (SDP)</span>
+          <span class="req-badge">DBR 16.4+ (SSS)</span>
           <span class="req-badge">Unity Catalog</span>
+          <span class="req-badge">Serverless enabled (SDP)</span>
           <span class="req-badge">Databricks CLI ≥ 0.220</span>
-          <span class="req-badge">Serverless (SDP mode)</span>
-          <span class="req-badge">DBR 13.3+ (SSS mode)</span>
-          <span class="req-badge">PyYAML (env v2+)</span>
+          <span class="req-badge">PyYAML ≥ 6.0 (env v2+)</span>
         </div>
       </div>
 
