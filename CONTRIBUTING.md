@@ -1,6 +1,6 @@
 # Contributing to DSL Lite
 
-DSL Lite is a Databricks Field Engineering accelerator. The most common contributions are:
+DSL Lite is a Databricks Data & AI Forward Deployed Engineering accelerator. The most common contributions are:
 
 - **New pipeline presets** — adding support for a new log source
 - **New DAB bundles** — adding deployment config for a new pipeline
@@ -142,4 +142,4 @@ then `raw_data` and `unmapped` last.
 
 ## Questions
 
-Open an issue or reach out to **Garrett R Peternel, Databricks Professional Services**.
+Open an issue or reach out to **Garrett R Peternel, Databricks Data & AI Forward Deployed Engineering**.
