@@ -18,6 +18,8 @@ cd dsl_lite
 git checkout -b feature/my-source-sourcetype
 ```
 
+> **Deploying to a customer environment?** See [vault/github_sync_guide.md](vault/github_sync_guide.md) for the repo mirroring workflow.
+
 ---
 
 ## Adding a New Pipeline
