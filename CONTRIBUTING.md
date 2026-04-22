@@ -57,6 +57,8 @@ python3 vault/validate_preset.py pipelines/<source>/<source_type>/preset.yaml
 
 All checks must pass (no `✗` errors) before opening a PR. Warnings (`⚠`) are advisory.
 
+For migration scenarios (replacing a legacy table), also run the **Pipeline Profiler** (`notebooks/profiler/pipeline_profiler.py`) to compare schemas, null rates, and OCSF coverage against the legacy table before cutover.
+
 ### Step 3 — Add a bundle
 
 Follow [tutorials/adding-a-bundle.md](tutorials/adding-a-bundle.md):

@@ -85,9 +85,12 @@ dsl_lite/
 │   ├── explorer/
 │   │   ├── explorer_helpers.py      # Batch transform functions (loaded via %run)
 │   │   └── preset_explorer.py       # Interactive preset development notebook
-│   └── agent/
-│       ├── agent_helpers.py        # Agent helper functions (loaded via %run)
-│       └── preset_agent.py         # Agent notebook to build presets via Databricks Foundation Model API
+│   ├── agent/
+│   │   ├── agent_helpers.py        # Agent helper functions (loaded via %run)
+│   │   └── preset_agent.py         # Agent notebook to build presets via Databricks Foundation Model API
+│   └── profiler/
+│       ├── profiler_helpers.py      # Profiler helper functions (loaded via %run)
+│       └── pipeline_profiler.py     # Schema diff, data profile, E2E sample run, OCSF coverage
 ├── .agents/                      # Augment AI agent skills
 │   └── skills/
 │       └── dsl-lite-preset-dev/  # Preset authoring skill (SKILL.md + references/)
@@ -349,6 +352,7 @@ The recommended loop for authoring a new preset end-to-end:
 1. **Generate** — use [`notebooks/agent/preset_agent.py`](notebooks/agent/preset_agent.py) to produce a first-draft `preset.yaml` from a UC table or raw log samples via the Databricks Foundation Model API.
 2. **Validate** — open [`notebooks/explorer/preset_explorer.py`](notebooks/explorer/preset_explorer.py) against real sample data and iterate on the YAML until each layer's output looks correct.
 3. **Deploy** — promote the preset into `pipelines/<source>/<source_type>/preset.yaml` and deploy the matching bundle under `bundles/<source>/<source_type>/` (`databricks bundle validate` → `deploy` → `run`). See [`bundles/README.md`](bundles/README.md) for details.
+4. **Profile** *(migration / QA)* — use [`notebooks/profiler/pipeline_profiler.py`](notebooks/profiler/pipeline_profiler.py) to compare schemas, check null rates, run an E2E sample, and verify OCSF coverage against a legacy table before cutover.
 
 **Two-pass variant (bronze/silver now, gold later):** set `target_layers=bronze_silver` in the agent notebook to generate just the ingestion + normalization layers, validate and deploy them, and come back later with `target_layers=gold` + `existing_preset_path` to splice the OCSF gold mappings into the shipped preset.
 
@@ -362,6 +366,8 @@ The recommended loop for authoring a new preset end-to-end:
 **Preferred: Preset Explorer** — The interactive notebook [`notebooks/explorer/preset_explorer.py`](notebooks/explorer/preset_explorer.py) (with [`explorer_helpers.py`](notebooks/explorer/explorer_helpers.py)) is the recommended way to develop and test presets in Databricks: run bronze, silver, and gold transforms in batch against sample logs, preview outputs, and iterate on YAML before production deployment. See [Building a preset end-to-end](tutorials/building-a-preset-end-to-end.md) for a walkthrough.
 
 **Agent-assisted authoring: Preset Agent** — The notebook [`notebooks/agent/preset_agent.py`](notebooks/agent/preset_agent.py) (with [`agent_helpers.py`](notebooks/agent/agent_helpers.py)) is an agent notebook to build presets via the Databricks Foundation Model API. It loads the preset-authoring skill, introspects a Unity Catalog table's schema and a small sample, and generates a first-draft `preset.yaml` entirely inside the workspace — useful when raw data cannot leave the customer environment and no local IDE-based agent is available.
+
+**Pipeline Profiler** — The notebook [`notebooks/profiler/pipeline_profiler.py`](notebooks/profiler/pipeline_profiler.py) (with [`profiler_helpers.py`](notebooks/profiler/profiler_helpers.py)) validates pipelines before and after deployment. Runs four checks independently or all at once: schema diff (column-by-column comparison), data profile (side-by-side null rates), E2E sample run (N rows through bronze → silver → gold), and OCSF coverage (flags empty or high-null fields in a gold table). Outputs a timestamped Markdown report to a Volume path. Typical use case: compare a legacy table against the new DSL Lite gold table before cutover.
 
 **Alternative: DASL Preset Tool** — The [DASL Preset Tool repository](https://github.com/grp-db/preset_tool) offers a separate interactive workflow for creating, testing, and iterating on preset configurations with sample log files before deploying with DSL Lite.
 
