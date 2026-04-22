@@ -1,7 +1,7 @@
 # DSL Lite - Lightweight Cybersecurity Data Pipeline Framework
 
 > **🏗️ Databricks Cybersecurity Accelerator**
-> Built by Databricks Data & AI Forward Deployed Engineering
+> Built by Databricks Forward Deployed Engineering
 
 ## Overview
 
@@ -15,7 +15,7 @@ This lightweight, self-deployable framework uses configuration files called "pre
 
 ### About This Accelerator
 
-This accelerator was developed by the **Databricks Data & AI Forward Deployed Engineering** team to enable customers to rapidly deploy enterprise-grade cybersecurity data pipelines. While Databricks owns the intellectual property, this accelerator is made publicly available to support the broader security community in building robust cyber lakehouse architectures on the Databricks platform.
+This accelerator was developed by the **Databricks Forward Deployed Engineering** team to enable customers to rapidly deploy enterprise-grade cybersecurity data pipelines. While Databricks owns the intellectual property, this accelerator is made publicly available to support the broader security community in building robust cyber lakehouse architectures on the Databricks platform.
 
 **Builder, Architect, Author & Maintainer:** Garrett R Peternel, Databricks Data & AI Cybersecurity FDE
 
@@ -443,7 +443,7 @@ Both operations are metadata-only — the underlying Parquet files are untouched
 
 **Copyright © Databricks, Inc.**
 
-This accelerator is developed and maintained by Databricks Data & AI Forward Deployed Engineering.
+This accelerator is developed and maintained by Databricks Forward Deployed Engineering.
 
 ### Usage & Distribution
 
@@ -454,9 +454,9 @@ This accelerator is available to support customers and the broader community in 
 ### Support & Contributions
 
 - **Issues & Questions**: Open an issue in the repository or contact your Databricks representative
-- **Feature Requests**: Reach out to Databricks Data & AI Forward Deployed Engineering
+- **Feature Requests**: Reach out to Databricks Forward Deployed Engineering
 - **Contributions**: Contributions are welcome - please coordinate with the Databricks team
 
 ---
 
-**Built with ❤️ by Databricks Data & AI Forward Deployed Engineering**
+**Built with ❤️ by Databricks Forward Deployed Engineering**
