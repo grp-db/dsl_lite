@@ -44,7 +44,7 @@ This accelerator was developed by the **Databricks Forward Deployed Engineering*
 
 ## Architecture
 
-DSL Lite implements a three-layer medallion architecture — **Bronze** (ingest & amend), **Silver** (parse & structure), **Gold** (map & normalize to OCSF) — optimized for cybersecurity data pipelines. Input formats include JSON/JSON Lines, CSV, and Syslog.
+DSL Lite implements a three-layer medallion architecture — **Bronze** (ingest & amend), **Silver** (parse & curate), **Gold** (map & normalize to OCSF) — optimized for cybersecurity data pipelines. Input formats include JSON/JSON Lines, CSV, and Syslog.
 
 > For full architecture details including the layer-by-layer schema table, data flow examples by format, OCSF metadata field mappings, schema version tracking, and performance guidelines, see [docs/dsl_lite_features/architecture.md](docs/dsl_lite_features/architecture.md).
 
