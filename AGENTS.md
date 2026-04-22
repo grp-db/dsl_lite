@@ -9,7 +9,7 @@ DSL Lite is a declarative data pipeline framework for ingesting and normalizing 
 - `src/` — Core pipeline engine (DSL parser, medallion orchestration)
 - `pipelines/<source>/<source_type>/preset.yaml` — Data ingestion presets (one per log source)
 - `pipelines/templates/preset.yaml` — Annotated template for new presets
-- `bundles/` — Databricks Asset Bundle definitions for deployment
+- `bundles/` — Declarative Automation Bundle definitions for deployment
 - `ocsf_templates/` — Ready-made OCSF field lists for all event classes
 - `docs/dsl_lite_features/` — Architecture, lookup joins, and advanced configuration docs
 - `notebooks/explorer/` — Interactive preset development and testing (`preset_explorer.py`)
