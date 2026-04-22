@@ -17,7 +17,7 @@ This lightweight, self-deployable framework uses configuration files called "pre
 
 This accelerator was developed by the **Databricks Data & AI Forward Deployed Engineering** team to enable customers to rapidly deploy enterprise-grade cybersecurity data pipelines. While Databricks owns the intellectual property, this accelerator is made publicly available to support the broader security community in building robust cyber lakehouse architectures on the Databricks platform.
 
-**Builder, Architect, Author & Maintainer:** Garrett R Peternel, Databricks Data & AI Forward Deployed Engineering
+**Builder, Architect, Author & Maintainer:** Garrett R Peternel, Databricks Data & AI Cybersecurity FDE
 
 ---
 

@@ -61,7 +61,7 @@ DNS Activity events capture DNS queries and responses for security monitoring, t
 
 ## Mapping variant DNS records to OCSF `answers`
 
-[OCSF dns_answer](https://schema.ocsf.io/1.8.0/objects/dns_answer) is `STRUCT<class, packet_uid, type, flag_ids, flags, rdata, ttl>`.
+[OCSF dns_answer](https://schema.ocsf.io/1.7.0/objects/dns_answer) is `STRUCT<class, packet_uid, type, flag_ids, flags, rdata, ttl>`.
 
 A common source schema has a `dnsRecords` VARIANT array where each element contains fields like `dnsID`, `dnsNXDomain`, `dnsQName`, `dnsQRType`, `dnsRSection`, `dnsTTL`, and optionally type-specific data fields (`A`, `AAAA`, `CNAME`, `MX`, `NS`, `PTR`, `TXT`, `dnsSOARName`, etc.).
 
