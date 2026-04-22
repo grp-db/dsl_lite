@@ -433,7 +433,7 @@ This accelerator is developed and maintained by Databricks Data & AI Forward Dep
 
 This accelerator is available to support customers and the broader community in building cybersecurity solutions on Databricks.
 
-**Note**: This is a community-supported accelerator. For production support and customization services, please contact your Databricks account team or Professional Services.
+**Note**: This is a community-supported accelerator. For production support and customization services, please contact your Databricks account team.
 
 ### Support & Contributions
 
