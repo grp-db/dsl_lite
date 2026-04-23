@@ -83,7 +83,7 @@ databricks bundle run cisco_ios_sdp -t dev
 |---|---|---|---|
 | `cisco/ios` | `cisco_ios_sdp` | `cisco_ios_sss` | authentication, authorize_session, network_activity, process_activity |
 | `cloudflare/gateway_dns` | `cloudflare_gateway_dns_sdp` | `cloudflare_gateway_dns_sss` | dns_activity |
-| `github/audit_logs` | `github_audit_logs_sdp` | `github_audit_logs_sss` | account_change, authentication, authorize_session, user_access, group_management, api_activity |
+| `github/audit_logs` | `github_audit_logs_sdp` | `github_audit_logs_sss` | account_change, authentication, authorize_session, user_access, group_management, entity_management, api_activity |
 | `okta/system_log` | `okta_system_log_sdp` | `okta_system_log_sss` | authentication, account_change, group_management |
 | `zeek/conn` | `zeek_conn_sdp` | `zeek_conn_sss` | network_activity |
 | `aws/vpc_flowlogs` | `aws_vpc_flowlogs_sdp` | `aws_vpc_flowlogs_sss` | network_activity |

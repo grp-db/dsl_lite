@@ -60,7 +60,7 @@ DSL Lite implements a three-layer medallion architecture — **Bronze** (ingest 
 |----------|------------------------|--------------------------|----------------------------|
 | **Cisco IOS** | `cisco_ios_bronze` | `cisco_ios_silver` | `authentication`, `authorize_session`, `network_activity`, `process_activity` |
 | **Cloudflare Gateway DNS** | `cloudflare_gateway_dns_bronze` | `cloudflare_gateway_dns_silver` | `dns_activity` |
-| **GitHub Audit Logs** | `github_audit_logs_bronze` | `github_audit_logs_silver` | `account_change`, `authentication`, `authorize_session`, `user_access`, `group_management`, `api_activity` |
+| **GitHub Audit Logs** | `github_audit_logs_bronze` | `github_audit_logs_silver` | `account_change`, `authentication`, `authorize_session`, `user_access`, `group_management`, `entity_management`, `api_activity` |
 | **Okta System Log** | `okta_system_log_bronze` | `okta_system_log_silver` | `authentication`, `account_change`, `group_management` |
 | **Zeek Conn** | `zeek_conn_bronze` | `zeek_conn_silver` | `network_activity` |
 | **AWS VPC Flow Logs** | `aws_vpc_flowlogs_bronze` | `aws_vpc_flowlogs_silver` | `network_activity` |
