@@ -673,6 +673,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.entity_
   raw_data VARIANT,
   severity STRING,
   severity_id INT,
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   status STRING,
   status_code STRING,
   status_detail STRING,
