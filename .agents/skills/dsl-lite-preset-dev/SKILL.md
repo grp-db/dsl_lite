@@ -66,7 +66,7 @@ bronze:
       - CAST('<source_type>' AS STRING) AS sourcetype
       - <timestamp_expr> as time
       - CAST(time AS DATE) as date
-      - "*"                             # or "data" for JSON
+      - "value"                         # or "data" for JSON (loadAsSingleVariant: true)
       - "_metadata"
       - CURRENT_TIMESTAMP() as processed_time
       # dsl_id is auto-injected by the engine (10th column)

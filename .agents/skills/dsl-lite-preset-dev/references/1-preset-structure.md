@@ -72,9 +72,7 @@ bronze:
       # - CAST(try_variant_get(data, '$.ts', 'LONG') / 1000.0 AS TIMESTAMP) as time
 
       - CAST(time AS DATE) as date        # optional — for date-based queries
-      - "*"                             # pass all Auto Loader columns forward
-      # OR for JSON with loadAsSingleVariant:
-      # - "data"
+      - "value"                         # text/syslog payload — use "data" for JSON (loadAsSingleVariant: true)
       - "_metadata"                     # file provenance struct (file_name, file_path, file_size, file_modification_time)
       - CURRENT_TIMESTAMP() as processed_time
 

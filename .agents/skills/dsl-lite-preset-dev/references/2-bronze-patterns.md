@@ -70,7 +70,7 @@ bronze:
       - CAST('ios' AS STRING) AS sourcetype
       - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
       - CAST(time AS DATE) as date
-      - "*"
+      - "value"
       - "_metadata"
       - CURRENT_TIMESTAMP() as processed_time
 ```
