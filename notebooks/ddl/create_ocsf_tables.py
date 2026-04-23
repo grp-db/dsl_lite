@@ -129,6 +129,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# API Activity (Class UID: 6003, Category: Application Activity)
+# Tracks API calls to cloud services and applications
+# Commonly used for: GitHub Audit Logs, AWS CloudTrail API events, Databricks REST API audit logs, cloud control plane logs
+# Reference: https://schema.ocsf.io/1.7.0/classes/api_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.api_activity (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
@@ -299,6 +303,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Data Security Finding (Class UID: 2006, Category: Findings)
+# Captures findings related to sensitive data exposure, data classification violations, and data loss
+# Commonly used for: DLP platform alerts, data classification scan results, insider threat detection, cloud storage exposure findings
+# Reference: https://schema.ocsf.io/1.7.0/classes/data_security_finding
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.data_security_finding (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
@@ -430,6 +438,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Datastore Activity (Class UID: 6005, Category: Application Activity)
+# Tracks read/write/delete operations against databases, object storage, and data warehouses
+# Commonly used for: Snowflake/Databricks query logs, S3/ADLS access logs, database audit logs, NoSQL operation logs
+# Reference: https://schema.ocsf.io/1.7.0/classes/datastore_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.datastore_activity (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
@@ -485,6 +497,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# DHCP Activity (Class UID: 4004, Category: Network Activity)
+# Tracks DHCP lease assignments, renewals, and releases on the network
+# Commonly used for: Windows DHCP server logs, Cisco DHCP logs, network infrastructure syslog, IP address management (IPAM) systems
+# Reference: https://schema.ocsf.io/1.7.0/classes/dhcp_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.dhcp_activity (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
@@ -595,6 +611,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Email Activity (Class UID: 4009, Category: Network Activity)
+# Tracks email send, receive, and relay events including phishing and spam filtering outcomes
+# Commonly used for: Microsoft 365 mail logs, Google Workspace Gmail logs, Proofpoint/Mimecast email gateway logs, mail server MTA logs
+# Reference: https://schema.ocsf.io/1.7.0/classes/email_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.email_activity (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
@@ -645,6 +665,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Entity Management (Class UID: 3004, Category: Identity & Access Management)
+# Tracks creation, modification, and deletion of managed entities such as repos, orgs, apps, and resources
+# Commonly used for: GitHub repo/org management, cloud resource lifecycle events, service account management, configuration change tracking
+# Reference: https://schema.ocsf.io/1.7.0/classes/entity_management
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.entity_management (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   access_list ARRAY<STRING>,
@@ -751,6 +775,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Group Management (Class UID: 3006, Category: Identity & Access Management)
+# Tracks group and role lifecycle events including membership changes and group creation/deletion
+# Commonly used for: Active Directory group changes, Okta group management, GitHub team membership, AWS IAM role management
+# Reference: https://schema.ocsf.io/1.7.0/classes/group_management
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.group_management (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
@@ -861,6 +889,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Kernel Extension Activity (Class UID: 1003, Category: System Activity)
+# Tracks kernel module and driver load/unload events at the OS level
+# Commonly used for: macOS kernel extension logs, Linux kernel module events (kmod), Windows kernel driver loads, EDR telemetry
+# Reference: https://schema.ocsf.io/1.7.0/classes/kernel_extension_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.kernel_extension_activity (
   dsl_id STRING,
   time TIMESTAMP,
@@ -1004,6 +1036,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Scheduled Job Activity (Class UID: 1006, Category: System Activity)
+# Tracks creation, execution, and deletion of scheduled tasks and automation jobs
+# Commonly used for: Windows Task Scheduler logs, Linux cron job logs, CI/CD pipeline execution, cloud function scheduler events
+# Reference: https://schema.ocsf.io/1.7.0/classes/scheduled_job_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.scheduled_job_activity (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
@@ -1055,6 +1091,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Script Activity (Class UID: 1008, Category: System Activity)
+# Tracks script execution events for threat detection and insider threat investigation
+# Commonly used for: PowerShell/bash script execution logs, EDR script telemetry, Windows ScriptBlock logging, AMSI events
+# Reference: https://schema.ocsf.io/1.7.0/classes/script_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.script_activity (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
@@ -1101,6 +1141,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# SSH Activity (Class UID: 4007, Category: Network Activity)
+# Tracks SSH connection, authentication, and session events
+# Commonly used for: OpenSSH server logs, Linux auth logs, bastion host access logs, Cisco/Palo Alto SSH session logs
+# Reference: https://schema.ocsf.io/1.7.0/classes/ssh_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.ssh_activity (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
@@ -1151,6 +1195,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# User Access Management (Class UID: 3005, Category: Identity & Access Management)
+# Tracks permission grants, role assignments, and access policy changes for users
+# Commonly used for: GitHub repo access grants, AWS IAM policy attachments, Azure RBAC role assignments, OAuth token issuance
+# Reference: https://schema.ocsf.io/1.7.0/classes/user_access
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.user_access (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
@@ -1201,6 +1249,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Vulnerability Finding (Class UID: 2002, Category: Findings)
+# Captures vulnerability scan results and CVE-based findings from security assessment tools
+# Commonly used for: Qualys/Tenable/Rapid7 scan results, GitHub Dependabot alerts, container image vulnerability scans, SBOM analysis
+# Reference: https://schema.ocsf.io/1.7.0/classes/vulnerability_finding
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.vulnerability_finding (
   dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
