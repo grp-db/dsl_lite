@@ -15,7 +15,7 @@ This lightweight, self-deployable framework uses configuration files called "pre
 
 ### About This Accelerator
 
-This accelerator was developed by the **Databricks Forward Deployed Engineering** team to enable customers to rapidly deploy enterprise-grade cybersecurity data pipelines. While Databricks owns the intellectual property, this accelerator is made publicly available to support the broader security community in building robust cyber lakehouse architectures on the Databricks platform.
+This accelerator was developed by **Databricks Forward Deployed Engineering** to enable customers to rapidly deploy enterprise-grade cybersecurity data pipelines. While Databricks owns the intellectual property, this accelerator is made publicly available to support the broader security community in building robust cyber lakehouse architectures on the Databricks platform.
 
 **Builder, Architect, Author & Maintainer:** Garrett R Peternel | FDE @ Databricks
 
