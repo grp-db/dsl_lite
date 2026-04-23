@@ -109,7 +109,6 @@ dsl_lite/
 │   ├── building-a-preset-end-to-end.md
 │   └── adding-a-bundle.md
 ├── images/                       # Screenshots and pipeline graph images for documentation
-│   ├── pipeline_graph.png        # Example pipeline graph (bronze → silver → gold)
 │   └── sdp_pipeline_graph.png    # Spark Declarative Pipelines graph visualization
 ├── DSL_Lite_Primer.html          # One-page customer/partner primer (print to PDF)
 ├── vault/                        # Maintenance utilities and distribution assets

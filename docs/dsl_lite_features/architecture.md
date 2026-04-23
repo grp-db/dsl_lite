@@ -28,7 +28,7 @@ DSL Lite implements a three-layer medallion architecture optimized for cybersecu
 
 The following screenshot shows an example pipeline graph (bronze → silver → gold) as rendered in Databricks when using DSL Lite with a preset such as GitHub Audit Logs:
 
-![Example pipeline graph (bronze, silver, gold)](../../images/pipeline_graph.png)
+![Example pipeline graph (bronze, silver, gold)](../../images/sdp_pipeline_graph.png)
 
 *Figure: Example DSL Lite pipeline graph showing Auto Loader (bronze), silver transform, and multiple OCSF gold table sinks.*
 
