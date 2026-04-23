@@ -68,27 +68,51 @@ def read_bronze_stream(config: Dict[str, Any], input: str, add_opts: Optional[di
     df = reader.load(input)
     # TODO: copy implementation
     pre_transforms = bronze_conf.get('preTransform', [])
+    if pre_transforms:
+        # Auto-inject _metadata into the first preTransform pass.
+        # _metadata is a hidden Auto Loader column not included in "*" — it must be
+        # explicitly selected before any selectExpr, or it's gone from the DF.
+        # Guard against users who already declare it manually.
+        first_pass = list(pre_transforms[0])
+        if not any(e.strip().strip('"') == "_metadata" for e in first_pass):
+            first_pass = first_pass + ["_metadata"]
+        pre_transforms = [first_pass] + list(pre_transforms[1:])
     for pt in pre_transforms:
         df = df.selectExpr(*pt)
-    
+
+    # Auto-inject standard bronze columns — engine always provides these so preset
+    # authors don't have to. Guards prevent duplicates if a preset declares them manually.
+    is_json = bronze_conf.get('loadAsSingleVariant', False)
+    payload_expr = "to_json(data)" if is_json else "value"
+    auto_exprs = []
+    if "record_id" not in df.columns:
+        auto_exprs.append(f"md5(concat_ws('_', {payload_expr}, _metadata.file_name)) as record_id")
+    if "date" not in df.columns:
+        auto_exprs.append("CAST(time AS DATE) as date")
+    if "processed_time" not in df.columns:
+        auto_exprs.append("CURRENT_TIMESTAMP() as processed_time")
+    if auto_exprs:
+        df = df.selectExpr("*", *auto_exprs)
+
     # dsl_id: timestamp hex + 13 chars of uuid (streaming-safe; monotonically_increasing_id() is not supported in streaming).
     # Note: In streaming micro-batches, uuid()/timestamp may repeat for all rows in a batch, so duplicate dsl_ids can occur; dedupe by (dsl_id, time, source, ...) if needed.
     # Substring uses 1-based position (Spark SQL); use 1 not 0 for first 13 chars of uuid.
-    df = df.selectExpr(
-        "*",
-        "lower(concat(hex(unix_millis(current_timestamp())), substring(replace(uuid(), '-', ''), 1, 13))) as dsl_id"
-    )
-    
+    if "dsl_id" not in df.columns:
+        df = df.selectExpr(
+            "*",
+            "lower(concat(hex(unix_millis(current_timestamp())), substring(replace(uuid(), '-', ''), 1, 13))) as dsl_id"
+        )
+
     # Apply lookups if configured
     lookups = bronze_conf.get('lookups', [])
     if lookups:
         df = apply_lookups(df, lookups)
-    
+
     # Optional: transform after lookups (i.e. build named_struct from lookup columns)
     post_transforms = bronze_conf.get('postTransform', [])
     if post_transforms:
         df = df.selectExpr(*post_transforms)
-    
+
     # Optional: drop columns by name (i.e. after building a struct from lookup columns)
     drop_cols = bronze_conf.get('drop', [])
     if drop_cols:
@@ -96,7 +120,15 @@ def read_bronze_stream(config: Dict[str, Any], input: str, add_opts: Optional[di
         existing = [c for c in drop_cols if c in df.columns]
         if existing:
             df = df.drop(*existing)
-    
+
+    # Enforce standard bronze column order: identity → routing → time → payload → provenance → lineage.
+    # Extra columns (from lookups etc.) are appended after the standard set.
+    payload_col = "data" if is_json else "value"
+    standard_cols = ["record_id", "source", "sourcetype", "time", "date", payload_col, "_metadata", "processed_time", "dsl_id"]
+    ordered = [c for c in standard_cols if c in df.columns]
+    extra_cols = [c for c in df.columns if c not in standard_cols]
+    df = df.select(*(ordered + extra_cols))
+
     return df
 
 

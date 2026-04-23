@@ -4,21 +4,23 @@ Deep reference for bronze layer configuration.
 
 ---
 
-## Standard 10-Column Bronze Schema
+## Standard 9-Column Bronze Schema
 
-Every bronze `preTransform` must produce **exactly these 8 columns**. The DSL engine automatically appends `dsl_id` to make the final table 9 columns wide — consistent across every preset:
+Every bronze `preTransform` must declare **exactly 4 columns**. The DSL engine auto-injects the remaining 5 to produce a 9-column table — consistent across every preset:
 
-| # | Column | Type | Where it comes from |
-|---|--------|------|---------------------|
-| 1 | `record_id` | STRING | `md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id` (JSON) or `md5(concat_ws('_', value, _metadata.file_name)) as record_id` (text) |
-| 2 | `source` | STRING | `CAST('<vendor>' AS STRING) as source` |
-| 3 | `sourcetype` | STRING | `CAST('<product>' AS STRING) as sourcetype` |
-| 4 | `time` | TIMESTAMP | Extracted from payload — see patterns below |
-| 5 | `date` | DATE | `CAST(time AS DATE) as date` |
-| 6 | `data` / `value` | VARIANT / STRING | `"data"` (JSON) or `"*"` (text) — raw payload |
-| 7 | `_metadata` | STRUCT | `"_metadata"` — contains `file_name`, `file_path`, `file_size`, `file_modification_time` |
-| 9 | `processed_time` | TIMESTAMP | `CURRENT_TIMESTAMP() as processed_time` |
-| 10 | `dsl_id` | STRING | **Auto-injected by DSL engine** — do NOT add to preTransform |
+| # | Column | Type | Declared by |
+|---|--------|------|-------------|
+| 1 | `record_id` | STRING | **Engine** — `md5(concat_ws('_', to_json(data)\|value, _metadata.file_name))` |
+| 2 | `source` | STRING | **Preset** — `CAST('<vendor>' AS STRING) as source` |
+| 3 | `sourcetype` | STRING | **Preset** — `CAST('<product>' AS STRING) as sourcetype` |
+| 4 | `time` | TIMESTAMP | **Preset** — extracted from payload (see patterns below) |
+| 5 | `date` | DATE | **Engine** — `CAST(time AS DATE)` |
+| 6 | `data` / `value` | VARIANT / STRING | **Preset** — `"data"` (JSON) or `"value"` (text) |
+| 7 | `_metadata` | STRUCT | **Engine** — contains `file_name`, `file_path`, `file_size`, `file_modification_time` |
+| 8 | `processed_time` | TIMESTAMP | **Engine** — `CURRENT_TIMESTAMP()` |
+| 9 | `dsl_id` | STRING | **Engine** — hex timestamp + UUID fragment |
+
+**Do NOT manually declare `record_id`, `date`, `_metadata`, `processed_time`, or `dsl_id`** in `preTransform` — the engine injects them automatically. Doing so creates duplicate columns and will cause a pipeline failure.
 
 Do not add extra columns (e.g. `host`, `query`, extracted fields) to bronze `preTransform` — put those in silver.
 
@@ -59,37 +61,29 @@ Do not add extra columns (e.g. `host`, `query`, extracted fields) to bronze `pre
   ) as time
 ```
 
-**Cisco IOS syslog** (complete bronze preTransform — 9-column standard):
+**Cisco IOS syslog** (complete bronze preTransform — 4 preset columns, engine adds 5):
 ```yaml
 bronze:
   name: cisco_ios_bronze
   preTransform:
     -
-      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
       - CAST('cisco' AS STRING) AS source
       - CAST('ios' AS STRING) AS sourcetype
       - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
-      - CAST(time AS DATE) as date
       - "value"
-      - "_metadata"
-      - CURRENT_TIMESTAMP() as processed_time
 ```
 
-**Cloudflare Gateway DNS** (complete bronze preTransform — 9-column standard):
+**Cloudflare Gateway DNS** (complete bronze preTransform — 4 preset columns, engine adds 5):
 ```yaml
 bronze:
   name: cloudflare_gateway_dns_bronze
   loadAsSingleVariant: true
   preTransform:
     -
-      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
       - CAST('cloudflare' AS STRING) as source
       - CAST('gateway_dns' AS STRING) as sourcetype
       - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
-      - CAST(time AS DATE) as date
       - "data"
-      - "_metadata"
-      - CURRENT_TIMESTAMP() as processed_time
 ```
 
 ---
@@ -186,7 +180,11 @@ The DSL engine automatically adds these to every bronze table:
 
 | Anti-Pattern | Fix |
 |--------------|-----|
+| Declaring `record_id` in preTransform | Remove — engine auto-generates from payload + `_metadata.file_name` |
+| Declaring `date` in preTransform | Remove — engine auto-generates as `CAST(time AS DATE)` |
+| Declaring `_metadata` in preTransform | Remove — engine auto-injects it into the first pass |
+| Declaring `processed_time` in preTransform | Remove — engine auto-generates as `CURRENT_TIMESTAMP()` |
+| Declaring `dsl_id` in preTransform | Remove — engine generates it automatically |
 | `loadAsSingleVariant: true` on text format | Remove — text always puts the line in `value` |
-| Defining `dsl_id` in preTransform | Remove — the engine generates it automatically |
 | Complex parsing in preTransform | Move regex/variant extraction to silver |
-| Missing `"*"` or `"data"` as first select item | Columns will be dropped — always include it |
+| Missing `"data"` or `"value"` in preTransform | Payload column will be dropped — always include it |

@@ -49,9 +49,6 @@ bronze:
   # Most presets need only one pass.
   preTransform:
     -
-      # Text/syslog: md5(concat_ws('_', value, _metadata.file_name)) as record_id
-      # JSON:        md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
-      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
       - CAST('<source>' AS STRING) AS source       # e.g. 'cisco'
       - CAST('<source_type>' AS STRING) AS sourcetype  # e.g. 'ios'
 
@@ -71,10 +68,10 @@ bronze:
       # JSON unix epoch (milliseconds)
       # - CAST(try_variant_get(data, '$.ts', 'LONG') / 1000.0 AS TIMESTAMP) as time
 
-      - CAST(time AS DATE) as date        # optional — for date-based queries
       - "value"                         # text/syslog payload — use "data" for JSON (loadAsSingleVariant: true)
-      - "_metadata"                     # file provenance struct (file_name, file_path, file_size, file_modification_time)
-      - CURRENT_TIMESTAMP() as processed_time
+
+      # The DSL engine auto-injects: _metadata, record_id, date, processed_time, dsl_id
+      # Do NOT add these manually — doing so creates duplicate columns
 
   # Optional — stream-static lookups for enrichment (applied after preTransform)
   # lookups:

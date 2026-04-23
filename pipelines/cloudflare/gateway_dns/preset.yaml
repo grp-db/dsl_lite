@@ -17,14 +17,10 @@ bronze:
   loadAsSingleVariant: true
   preTransform:
     -
-      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
       - CAST('cloudflare' AS STRING) as source
       - CAST('gateway_dns' AS STRING) as sourcetype
       - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
-      - CAST(time AS DATE) as date
       - "data"
-      - "_metadata"
-      - CURRENT_TIMESTAMP() as processed_time
 silver:
   transform:
     - name: cloudflare_gateway_dns_silver
