@@ -23,8 +23,7 @@ bronze:
       - CAST(data:ts AS TIMESTAMP) as time
       - CAST(time AS DATE) as date
       - "data"
-      - "_metadata.file_name"
-      - "_metadata.file_path"
+      - "_metadata"
       - CURRENT_TIMESTAMP() as processed_time
 
 silver:

@@ -29,8 +29,7 @@ bronze:
       - TO_TIMESTAMP(CAST(SPLIT(value, ' ')[10] AS BIGINT)) as time # event_time
       - CAST(time AS DATE) as date # event_date
       - "value" # payload
-      - "_metadata.file_name"
-      - "_metadata.file_path"
+      - "_metadata"
       - CURRENT_TIMESTAMP() as processed_time
 #parse/flatten
 silver:

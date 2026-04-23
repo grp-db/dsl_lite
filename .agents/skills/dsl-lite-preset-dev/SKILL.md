@@ -67,8 +67,7 @@ bronze:
       - <timestamp_expr> as time
       - CAST(time AS DATE) as date
       - "*"                             # or "data" for JSON
-      - "_metadata.file_name"
-      - "_metadata.file_path"
+      - "_metadata"
       - CURRENT_TIMESTAMP() as processed_time
       # dsl_id is auto-injected by the engine (10th column)
   lookups: []                           # optional enrichment joins
@@ -104,7 +103,7 @@ See [references/1-preset-structure.md](references/1-preset-structure.md) for the
 
 The bronze layer does **minimal transformation** — primarily extracting a timestamp and tagging the source. Original data is preserved in `data` (VARIANT, for JSON) or `value` (STRING, for text/syslog).
 
-**Always generate exactly 9 columns in `preTransform`** — the DSL engine auto-adds `dsl_id` as the 10th. See [references/2-bronze-patterns.md](references/2-bronze-patterns.md) for the full schema table.
+**Always generate exactly 8 columns in `preTransform`** — the DSL engine auto-adds `dsl_id` as the 9th. See [references/2-bronze-patterns.md](references/2-bronze-patterns.md) for the full schema table.
 
 **JSON source** — use `loadAsSingleVariant: true`:
 ```yaml
@@ -119,8 +118,7 @@ bronze:
       - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
       - CAST(time AS DATE) as date
       - "data"
-      - "_metadata.file_name"
-      - "_metadata.file_path"
+      - "_metadata"
       - CURRENT_TIMESTAMP() as processed_time
 ```
 
@@ -140,8 +138,7 @@ bronze:
       - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
       - CAST(time AS DATE) as date
       - "*"
-      - "_metadata.file_name"
-      - "_metadata.file_path"
+      - "_metadata"
       - CURRENT_TIMESTAMP() as processed_time
 ```
 

@@ -24,8 +24,7 @@ bronze:
       - from_unixtime(try_variant_get(data, '$.created_at', 'BIGINT') / 1000) as time
       - CAST(time AS DATE) as date
       - "data"
-      - "_metadata.file_name"
-      - "_metadata.file_path"
+      - "_metadata"
       - CURRENT_TIMESTAMP() as processed_time
 
 silver:

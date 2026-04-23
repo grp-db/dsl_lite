@@ -6,7 +6,7 @@ Deep reference for bronze layer configuration.
 
 ## Standard 10-Column Bronze Schema
 
-Every bronze `preTransform` must produce **exactly these 9 columns**. The DSL engine automatically appends `dsl_id` to make the final table 10 columns wide — consistent across every preset:
+Every bronze `preTransform` must produce **exactly these 8 columns**. The DSL engine automatically appends `dsl_id` to make the final table 9 columns wide — consistent across every preset:
 
 | # | Column | Type | Where it comes from |
 |---|--------|------|---------------------|
@@ -16,8 +16,7 @@ Every bronze `preTransform` must produce **exactly these 9 columns**. The DSL en
 | 4 | `time` | TIMESTAMP | Extracted from payload — see patterns below |
 | 5 | `date` | DATE | `CAST(time AS DATE) as date` |
 | 6 | `data` / `value` | VARIANT / STRING | `"data"` (JSON) or `"*"` (text) — raw payload |
-| 7 | `file_name` | STRING | `_metadata.file_name` |
-| 8 | `file_path` | STRING | `_metadata.file_path` |
+| 7 | `_metadata` | STRUCT | `"_metadata"` — contains `file_name`, `file_path`, `file_size`, `file_modification_time` |
 | 9 | `processed_time` | TIMESTAMP | `CURRENT_TIMESTAMP() as processed_time` |
 | 10 | `dsl_id` | STRING | **Auto-injected by DSL engine** — do NOT add to preTransform |
 
@@ -60,7 +59,7 @@ Do not add extra columns (e.g. `host`, `query`, extracted fields) to bronze `pre
   ) as time
 ```
 
-**Cisco IOS syslog** (complete bronze preTransform — 10-column standard):
+**Cisco IOS syslog** (complete bronze preTransform — 9-column standard):
 ```yaml
 bronze:
   name: cisco_ios_bronze
@@ -72,12 +71,11 @@ bronze:
       - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
       - CAST(time AS DATE) as date
       - "*"
-      - "_metadata.file_name"
-      - "_metadata.file_path"
+      - "_metadata"
       - CURRENT_TIMESTAMP() as processed_time
 ```
 
-**Cloudflare Gateway DNS** (complete bronze preTransform — 10-column standard):
+**Cloudflare Gateway DNS** (complete bronze preTransform — 9-column standard):
 ```yaml
 bronze:
   name: cloudflare_gateway_dns_bronze
@@ -90,8 +88,7 @@ bronze:
       - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
       - CAST(time AS DATE) as date
       - "data"
-      - "_metadata.file_name"
-      - "_metadata.file_path"
+      - "_metadata"
       - CURRENT_TIMESTAMP() as processed_time
 ```
 

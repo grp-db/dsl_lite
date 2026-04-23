@@ -53,8 +53,7 @@ bronze:
 
       - CAST(time AS DATE) as date
       - "*"                         # carry all Auto Loader columns forward (use "data" for JSON)
-      - "_metadata.file_name"       # originating file name (used in record_id)
-      - "_metadata.file_path"       # originating file path (useful for debugging)
+      - "_metadata"                 # file provenance struct (file_name, file_path, file_size, file_modification_time)
       - CURRENT_TIMESTAMP() as processed_time
 
 

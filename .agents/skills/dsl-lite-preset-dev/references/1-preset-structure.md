@@ -75,8 +75,7 @@ bronze:
       - "*"                             # pass all Auto Loader columns forward
       # OR for JSON with loadAsSingleVariant:
       # - "data"
-      - "_metadata.file_name"           # originating file name (used in record_id)
-      - "_metadata.file_path"           # source file path for debugging
+      - "_metadata"                     # file provenance struct (file_name, file_path, file_size, file_modification_time)
       - CURRENT_TIMESTAMP() as processed_time
 
   # Optional — stream-static lookups for enrichment (applied after preTransform)
