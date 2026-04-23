@@ -36,12 +36,11 @@ bronze:
     -                                      # pass 1: explode top-level array
       - explode(records) as data
     -                                      # pass 2: extract from exploded records
-      - "data"
-      - try_variant_get(data, '$.time', 'TIMESTAMP') as time
-      - CAST(time AS DATE) as date
       - CAST('vendor' AS STRING) AS source
       - CAST('logtype' AS STRING) AS sourcetype
-      - CURRENT_TIMESTAMP() as processed_time
+      - try_variant_get(data, '$.time', 'TIMESTAMP') as time
+      - "data"
+      # Engine auto-injects: _metadata, record_id, date, processed_time, dsl_id
 ```
 
 Requires `cloudFiles.schemaHints: "records ARRAY<VARIANT>"` in autoloader so the top-level
@@ -536,7 +535,8 @@ This ensures tables written by multiple pipelines maintain consistent schemas.
       'country', CAST(NULL AS STRING),
       'lat', CAST(NULL AS FLOAT),
       'long', CAST(NULL AS FLOAT),
-      'postal_code', CAST(NULL AS STRING)
+      'postal_code', CAST(NULL AS STRING),
+      'region', CAST(NULL AS STRING)
     )
 
 # Array null

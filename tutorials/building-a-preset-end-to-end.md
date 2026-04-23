@@ -56,12 +56,11 @@ bronze:
   name: my_source_type_bronze
   preTransform:
     -
-      - "*"
-      - "_metadata.file_path"
-      - CAST(NULL AS TIMESTAMP) as time    # TODO: extract real timestamp
       - CAST('my_source' AS STRING) as source
       - CAST('my_type' AS STRING) as sourcetype
-      - CURRENT_TIMESTAMP() as processed_time
+      - CAST(NULL AS TIMESTAMP) as time    # TODO: extract real timestamp
+      - "value"                            # use "data" for JSON (loadAsSingleVariant: true)
+      # Engine auto-injects: _metadata, record_id, date, processed_time, dsl_id
 
 silver:
   transform:
@@ -109,8 +108,8 @@ Open `notebooks/explorer/preset_explorer` in Databricks and set the widgets:
 Click **Run All**. The notebook executes three sections:
 
 ### Bronze output
-Verify the raw data is being read correctly and your metadata fields (`time`, `source`,
-`sourcetype`, `processed_time`) are populated. Common issues:
+Verify the raw data is being read correctly and your preset fields (`time`, `source`,
+`sourcetype`) are populated, and that the engine-injected fields (`record_id`, `date`, `_metadata`, `processed_time`, `dsl_id`) are present. Common issues:
 - `time` is `null` → fix your timestamp regex or cast expression in `preTransform`
 - `_metadata.file_path` is empty → normal if reading a single file directly rather than a folder
 

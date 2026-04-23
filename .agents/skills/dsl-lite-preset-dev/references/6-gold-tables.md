@@ -65,6 +65,7 @@ Used in Network Activity and IAM tables.
 | `src_endpoint.location.lat` | FLOAT | Latitude |
 | `src_endpoint.location.long` | FLOAT | Longitude |
 | `src_endpoint.location.postal_code` | STRING | Postal code |
+| `src_endpoint.location.region` | STRING | State or region |
 
 > Replace `src_` with `dst_` for the destination endpoint — same field set.
 
@@ -122,7 +123,8 @@ IAM tables (`authentication`, `authorize_session`, etc.).
 
 | Dot-path | Type | Description |
 |----------|------|-------------|
-| `user.name` | STRING | Username or display name |
+| `user.full_name` | STRING | Full display name (e.g. "Jane Doe") |
+| `user.name` | STRING | Username or login name (e.g. email or UPN) |
 | `user.uid` | STRING | User unique identifier |
 | `user.type` | STRING | User type name (e.g. `human`, `service`) |
 | `user.type_id` | INT | User type ID |

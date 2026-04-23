@@ -61,14 +61,11 @@ bronze:
   # loadAsSingleVariant: true           # JSON only
   preTransform:
     -
-      - md5(concat_ws('_', value, _metadata.file_name)) as record_id  # or to_json(data) for JSON
       - CAST('<source>' AS STRING) AS source
       - CAST('<source_type>' AS STRING) AS sourcetype
       - <timestamp_expr> as time
-      - CAST(time AS DATE) as date
       - "value"                         # or "data" for JSON (loadAsSingleVariant: true)
-      - "_metadata"
-      - CURRENT_TIMESTAMP() as processed_time
+      # Engine auto-injects: _metadata, record_id, date, processed_time, dsl_id
       # dsl_id is auto-injected by the engine (10th column)
   lookups: []                           # optional enrichment joins
   postTransform: []                     # optional — runs after lookups
@@ -103,7 +100,9 @@ See [references/1-preset-structure.md](references/1-preset-structure.md) for the
 
 The bronze layer does **minimal transformation** — primarily extracting a timestamp and tagging the source. Original data is preserved in `data` (VARIANT, for JSON) or `value` (STRING, for text/syslog).
 
-**Always generate exactly 8 columns in `preTransform`** — the DSL engine auto-adds `dsl_id` as the 9th. See [references/2-bronze-patterns.md](references/2-bronze-patterns.md) for the full schema table.
+**`preTransform` requires exactly 4 columns** — source, sourcetype, time, and the payload column. The DSL engine auto-injects `_metadata`, `record_id`, `date`, `processed_time`, and `dsl_id`. See [references/2-bronze-patterns.md](references/2-bronze-patterns.md) for the full schema table.
+
+**Do NOT declare `record_id`, `date`, `_metadata`, `processed_time`, or `dsl_id` in preTransform** — the engine injects them automatically. Duplicates cause pipeline failures.
 
 **JSON source** — use `loadAsSingleVariant: true`:
 ```yaml
@@ -112,14 +111,10 @@ bronze:
   loadAsSingleVariant: true
   preTransform:
     -
-      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
       - CAST('vendor' AS STRING) AS source
       - CAST('product' AS STRING) AS sourcetype
       - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
-      - CAST(time AS DATE) as date
       - "data"
-      - "_metadata"
-      - CURRENT_TIMESTAMP() as processed_time
 ```
 
 **Text/syslog source** — omit `loadAsSingleVariant`, use `format: text`:
@@ -132,14 +127,10 @@ bronze:
   name: vendor_product_bronze
   preTransform:
     -
-      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
       - CAST('vendor' AS STRING) AS source
       - CAST('product' AS STRING) AS sourcetype
       - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
-      - CAST(time AS DATE) as date
-      - "*"
-      - "_metadata"
-      - CURRENT_TIMESTAMP() as processed_time
+      - "value"
 ```
 
 See [references/2-bronze-patterns.md](references/2-bronze-patterns.md) for timestamp patterns, multi-pass preTransform, and lookup joins.

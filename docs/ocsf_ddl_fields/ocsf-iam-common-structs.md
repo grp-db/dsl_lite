@@ -63,8 +63,9 @@ User identity: name, type, UID, and MFA flag. Used as top-level **`user`** (e.g.
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `full_name` | STRING | Full display name (e.g. "Jane Doe"). |
 | `has_mfa` | BOOLEAN | Whether the user has MFA enabled. |
-| `name` | STRING | Username or display name. |
+| `name` | STRING | Username or login name (e.g. email or UPN). |
 | `type` | STRING | User type name (e.g. human, service). |
 | `type_id` | INT | User type ID. |
 | `uid` | STRING | User unique identifier. |
@@ -73,6 +74,7 @@ User identity: name, type, UID, and MFA flag. Used as top-level **`user`** (e.g.
 
 ```sql
 STRUCT<
+  full_name: STRING,
   has_mfa: BOOLEAN,
   name: STRING,
   type: STRING,

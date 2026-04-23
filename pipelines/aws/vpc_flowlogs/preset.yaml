@@ -23,14 +23,10 @@ bronze:
   clusterBy: [time]
   preTransform:
     -
-      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
       - CAST('aws' AS STRING) AS source
       - CAST('vpc_flowlogs' AS STRING) AS sourcetype
-      - TO_TIMESTAMP(CAST(SPLIT(value, ' ')[10] AS BIGINT)) as time # event_time
-      - CAST(time AS DATE) as date # event_date
-      - "value" # payload
-      - "_metadata"
-      - CURRENT_TIMESTAMP() as processed_time
+      - TO_TIMESTAMP(CAST(SPLIT(value, ' ')[10] AS BIGINT)) as time
+      - "value"
 #parse/flatten
 silver:
   transform:

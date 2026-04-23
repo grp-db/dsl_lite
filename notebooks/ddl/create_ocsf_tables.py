@@ -80,13 +80,13 @@ spark.sql(f"CREATE DATABASE if not EXISTS `{catalog_name}`.`{silver_database}`")
 # Commonly used for: Active Directory logs, IAM account management, user provisioning/deprovisioning
 # Reference: https://schema.ocsf.io/1.7.0/classes/account_change
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.account_change (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken on the account change (e.g., Allowed, Denied)',
   action_id INT COMMENT 'The action ID: 0=Unknown, 1=Allowed, 2=Denied, 99=Other',
   activity STRING COMMENT 'The account activity name (e.g., Create, Modify, Delete, Lock). Normalized value based on activity_id.',
   activity_id INT COMMENT 'The account activity ID: 0=Unknown, 1=Create (new account), 2=Enable (activate account), 3=Password Change, 4=Password Reset, 5=Disable (deactivate account), 6=Delete, 7=Attach Policy, 8=Detach Policy, 9=Lock, 10=MFA Enable, 11=MFA Disable, 99=Other',
   activity_name STRING COMMENT 'The account activity name (e.g., Create, Delete, Password Change)',
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>> COMMENT 'The actor (admin or service) that performed the account change',
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>> COMMENT 'The actor (admin or service) that performed the account change',
   api STRUCT<operation: STRING, request: STRUCT<data: VARIANT, uid: STRING>, response: STRUCT<code: INT, data: VARIANT, error: STRING, message: STRING>> COMMENT 'API details for programmatic account changes (e.g., AWS IAM API, Azure AD Graph API)',
   category_name STRING COMMENT 'The OCSF category name: Identity & Access Management',
   category_uid INT COMMENT 'The OCSF category unique identifier: 3 for Identity & Access Management',
@@ -103,7 +103,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.account
   raw_data VARIANT COMMENT 'The original raw account change log in its native format',
   severity STRING COMMENT 'The event severity name (e.g., Informational, Low, Medium, High, Critical)',
   severity_id INT COMMENT 'The event severity ID: 0=Unknown, 1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical, 6=Fatal, 99=Other',
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The source endpoint (admin workstation or API caller) that initiated the account change',
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The source endpoint (admin workstation or API caller) that initiated the account change',
   status STRING COMMENT 'The event status name (e.g., Success, Failure)',
   status_code STRING COMMENT 'The vendor-specific status or error code',
   status_detail STRING COMMENT 'Additional details about the account change status or error',
@@ -113,7 +113,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.account
   type_name STRING COMMENT 'The event type name, formatted as "Account Change: <activity_name>"',
   type_uid BIGINT COMMENT 'The event type unique identifier, calculated as class_uid * 100 + activity_id',
   unmapped VARIANT COMMENT 'Vendor-specific account management fields that do not map to OCSF schema attributes',
-  user STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING> COMMENT 'The user account before the change (previous state)',
+  user STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING> COMMENT 'The user account before the change (previous state)',
   user_result STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING> COMMENT 'The user account after the change (new state) - use this to track what changed')
 USING delta
 TBLPROPERTIES (
@@ -129,13 +129,17 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# API Activity (Class UID: 6003, Category: Application Activity)
+# Tracks API calls to cloud services and applications
+# Commonly used for: GitHub Audit Logs, AWS CloudTrail API events, Databricks REST API audit logs, cloud control plane logs
+# Reference: https://schema.ocsf.io/1.7.0/classes/api_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.api_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
   action_id INT,
   activity_id INT,
   activity_name STRING,
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
   api STRUCT<operation: STRING, request: STRUCT<data: VARIANT, uid: STRING>, response: STRUCT<code: INT, data: VARIANT, error: STRING, message: STRING>>,
   category_name STRING,
   category_uid INT,
@@ -144,7 +148,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.api_act
   cloud STRUCT<account: STRUCT<name: STRING, uid: STRING>, cloud_partition: STRING, project_uid: STRING, provider: STRING, region: STRING, zone: STRING>,
   disposition STRING,
   disposition_id INT,
-  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>>,
   http_request STRUCT<args: STRING, body_length: INT, http_headers: ARRAY<STRUCT<name: STRING, value: STRING>>, http_method: STRING, length: INT, referrer: STRING, url: STRING, user_agent: STRING, version: STRING>,
   http_response STRUCT<body_length: INT, code: INT, content_type: STRING, http_headers: ARRAY<STRUCT<name: STRING, value: STRING>>, latency: INT, length: INT, message: STRING, status: STRING>,
@@ -155,7 +159,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.api_act
   resources ARRAY<STRUCT<hostname: STRING, ip: STRING, name: STRING, uid: STRING>>,
   severity STRING,
   severity_id INT,
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   start_time TIMESTAMP,
   status STRING,
   status_code STRING,
@@ -184,13 +188,13 @@ TBLPROPERTIES (
 # Tracks user authentication events (logon, logoff, authentication failures)
 # Reference: https://schema.ocsf.io/1.7.0/classes/authentication
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.authentication (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken by the system (e.g., Allowed, Denied). See action_id for numeric representation.',
   action_id INT COMMENT 'The action ID: 0=Unknown, 1=Allowed, 2=Denied, 99=Other',
   activity STRING COMMENT 'The authentication activity name (e.g., Logon, Logoff). Normalized value based on activity_id.',
   activity_id INT COMMENT 'The authentication activity ID: 0=Unknown, 1=Logon, 2=Logoff, 3=Authentication Ticket, 4=Service Ticket Request, 99=Other',
   activity_name STRING COMMENT 'The authentication activity name (e.g., Logon, Logoff)',
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
   auth_factors ARRAY<STRUCT<factor_type: STRING, factor_type_id: INT>> COMMENT 'Authentication factors used (e.g., password, MFA token, biometric)',
   auth_protocol STRING COMMENT 'The authentication protocol (e.g., NTLM, Kerberos, SAML, OAuth)',
   auth_protocol_id INT COMMENT 'The authentication protocol ID: 0=Unknown, 1=NTLM, 2=Kerberos, 3=Digest, 4=OpenID, 5=SAML, 6=OAuth, 7=SSO, 8=CHAP, 9=PAP, 10=RADIUS, 11=LDAP, 99=Other',
@@ -201,7 +205,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.authent
   cloud STRUCT<account: STRUCT<name: STRING, uid: STRING>, cloud_partition: STRING, project_uid: STRING, provider: STRING, region: STRING, zone: STRING>,
   disposition STRING COMMENT 'The event disposition name (e.g., Allowed, Blocked, Quarantined). Describes the outcome/action taken.',
   disposition_id INT COMMENT 'The disposition ID: 0=Unknown, 1=Allowed, 2=Blocked, 3=Quarantined, 4=Isolated, 5=Deleted, 6=Dropped, 7=Custom Action, 8=Approved, 9=Restored, 10=Exonerated, 99=Other',
-  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The destination endpoint (authentication target/server)',
+  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The destination endpoint (authentication target/server)',
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>> COMMENT 'Additional enrichment data from threat intel, GeoIP, or other sources',
   is_mfa BOOLEAN COMMENT 'Indicates whether multi-factor authentication was used',
   is_remote BOOLEAN COMMENT 'Indicates whether the authentication was from a remote location',
@@ -215,7 +219,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.authent
   session STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING> COMMENT 'Session information including creation time, expiration, and session attributes',
   severity STRING COMMENT 'The event severity name (e.g., Informational, Low, Medium, High, Critical)',
   severity_id INT COMMENT 'The event severity ID: 0=Unknown, 1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical, 6=Fatal, 99=Other',
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The source endpoint (client/device initiating authentication)',
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The source endpoint (client/device initiating authentication)',
   status STRING COMMENT 'The event status name (e.g., Success, Failure)',
   status_code STRING COMMENT 'The vendor-specific status or error code',
   status_detail STRING COMMENT 'Additional details about the status or error',
@@ -225,7 +229,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.authent
   type_name STRING COMMENT 'The event type name, formatted as "Authentication: <activity_name>"',
   type_uid BIGINT COMMENT 'The event type unique identifier, calculated as class_uid * 100 + activity_id',
   unmapped VARIANT COMMENT 'Vendor-specific fields that do not map to OCSF schema attributes',
-  user STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>)
+  user STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>)
 USING delta
 TBLPROPERTIES (
   'delta.enableDeletionVectors' = 'true',
@@ -245,19 +249,19 @@ TBLPROPERTIES (
 # Commonly used for: IAM policy evaluations, access denied events, privilege escalations, Cisco IOS authorization failures
 # Reference: https://schema.ocsf.io/1.7.0/classes/authorize_session
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.authorize_session (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken on the authorization request (e.g., Allowed, Denied)',
   action_id INT COMMENT 'The action ID: 0=Unknown, 1=Allowed, 2=Denied, 99=Other',
   activity_id INT COMMENT 'The authorization activity ID: 0=Unknown, 1=Assign Privileges, 2=Revoke Privileges, 99=Other',
   activity_name STRING COMMENT 'The authorization activity name (e.g., Assign Privileges, Revoke Privileges)',
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>> COMMENT 'The actor (user or service) requesting authorization',
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>> COMMENT 'The actor (user or service) requesting authorization',
   category_name STRING COMMENT 'The OCSF category name: Identity & Access Management',
   category_uid INT COMMENT 'The OCSF category unique identifier: 3 for Identity & Access Management',
   class_name STRING COMMENT 'The OCSF class name: Authorize Session',
   class_uid INT COMMENT 'The OCSF class unique identifier: 3003 for Authorize Session',
   cloud STRUCT<account: STRUCT<name: STRING, uid: STRING>, cloud_partition: STRING, project_uid: STRING, provider: STRING, region: STRING, zone: STRING> COMMENT 'Cloud environment information (AWS, Azure, GCP) for cloud IAM events',
-  device STRUCT<created_time: TIMESTAMP, hostname: STRING, hw_info: STRUCT<bios_date: STRING, bios_manufacturer: STRING, bios_ver: STRING, chassis: STRING, cpu_bits: INT, cpu_cores: INT, cpu_count: INT, cpu_speed: INT, cpu_type: STRING, desktop_display: STRING, keyboard_info: STRING, ram_size: INT, serial_number: STRING>, hypervisor: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, is_compliant: BOOLEAN, is_managed: BOOLEAN, is_personal: BOOLEAN, is_trusted: BOOLEAN, last_seen_time: TIMESTAMP, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, modified_time: TIMESTAMP, name: STRING, network_interfaces: ARRAY<STRUCT<hostname: STRING, ip: STRING, mac: STRING, name: STRING, namespace: STRING, subnet_uid: STRING, type: STRING, type_id: INT, uid: STRING>>, org: STRUCT<name: STRING, ou_name: STRING, ou_uid: STRING, uid: STRING>, os: STRUCT<build: STRING, country: STRING, cpu_bits: INT, edition: STRING, lang: STRING, name: STRING, sp_name: STRING, sp_ver: INT, type: STRING, type_id: INT, version: STRING>, region: STRING, risk_level: STRING, risk_level_id: INT, subnet_uid: STRING, type: STRING, type_id: INT, uid: STRING, uid_alt: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The device from which authorization was requested (includes OS, hardware info, compliance status)',
-  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The destination resource/service being accessed',
+  device STRUCT<created_time: TIMESTAMP, hostname: STRING, hw_info: STRUCT<bios_date: STRING, bios_manufacturer: STRING, bios_ver: STRING, chassis: STRING, cpu_bits: INT, cpu_cores: INT, cpu_count: INT, cpu_speed: INT, cpu_type: STRING, desktop_display: STRING, keyboard_info: STRING, ram_size: INT, serial_number: STRING>, hypervisor: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, is_compliant: BOOLEAN, is_managed: BOOLEAN, is_personal: BOOLEAN, is_trusted: BOOLEAN, last_seen_time: TIMESTAMP, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, modified_time: TIMESTAMP, name: STRING, network_interfaces: ARRAY<STRUCT<hostname: STRING, ip: STRING, mac: STRING, name: STRING, namespace: STRING, subnet_uid: STRING, type: STRING, type_id: INT, uid: STRING>>, org: STRUCT<name: STRING, ou_name: STRING, ou_uid: STRING, uid: STRING>, os: STRUCT<build: STRING, country: STRING, cpu_bits: INT, edition: STRING, lang: STRING, name: STRING, sp_name: STRING, sp_ver: INT, type: STRING, type_id: INT, version: STRING>, region: STRING, risk_level: STRING, risk_level_id: INT, subnet_uid: STRING, type: STRING, type_id: INT, uid: STRING, uid_alt: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The device from which authorization was requested (includes OS, hardware info, compliance status)',
+  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The destination resource/service being accessed',
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>> COMMENT 'Additional enrichment data from threat intel or risk scoring',
   http_request STRUCT<http_headers: ARRAY<STRUCT<name: STRING, value: STRING>>, http_method: STRING, referrer: STRING, url: STRUCT<hostname: STRING, path: STRING, port: INT, query_string: STRING, scheme: STRING, subdomain: STRING, text: STRING, url_string: STRING>, user_agent: STRING, version: STRING, x_forwarded_for: ARRAY<STRING>> COMMENT 'HTTP request details for web/API authorization requests',
   message STRING COMMENT 'Human-readable description of the authorization event',
@@ -271,7 +275,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.authori
   session STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING> COMMENT 'Session information including creation time, MFA status, remote/VPN flags',
   severity STRING COMMENT 'The event severity name (e.g., Informational, Low, Medium, High, Critical)',
   severity_id INT COMMENT 'The event severity ID: 0=Unknown, 1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical, 6=Fatal, 99=Other',
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The source endpoint (client making the authorization request)',
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The source endpoint (client making the authorization request)',
   status STRING COMMENT 'The event status name (e.g., Success, Failure)',
   status_code STRING COMMENT 'The vendor-specific authorization status or error code',
   status_detail STRING COMMENT 'Additional details about why authorization was granted or denied',
@@ -281,7 +285,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.authori
   type_name STRING COMMENT 'The event type name, formatted as "Authorize Session: <activity_name>"',
   type_uid BIGINT COMMENT 'The event type unique identifier, calculated as class_uid * 100 + activity_id',
   unmapped VARIANT COMMENT 'Vendor-specific authorization fields that do not map to OCSF schema attributes',
-  user STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING> COMMENT 'The user requesting authorization')
+  user STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING> COMMENT 'The user requesting authorization')
 USING delta
 TBLPROPERTIES (
   'delta.enableDeletionVectors' = 'true',
@@ -299,13 +303,17 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Data Security Finding (Class UID: 2006, Category: Findings)
+# Captures findings related to sensitive data exposure, data classification violations, and data loss
+# Commonly used for: DLP platform alerts, data classification scan results, insider threat detection, cloud storage exposure findings
+# Reference: https://schema.ocsf.io/1.7.0/classes/data_security_finding
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.data_security_finding (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
   action_id INT,
   activity_id INT,
   activity_name STRING,
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
   api STRUCT<operation: STRING, request: STRUCT<data: VARIANT, uid: STRING>, response: STRUCT<code: INT, data: VARIANT, error: STRING, message: STRING>>,
   category_name STRING,
   category_uid INT,
@@ -320,7 +328,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.data_se
   device STRUCT<created_time: TIMESTAMP, desc: STRING, domain: STRING, groups: ARRAY<STRUCT<name: STRING, privileges: STRING, type: STRING, uid: STRING>>, hostname: STRING, ip: STRING, is_compliant: BOOLEAN, is_managed: BOOLEAN, is_personal: BOOLEAN, is_trusted: BOOLEAN, name: STRING, region: STRING, risk_level: STRING, risk_level_id: INT, risk_score: INT, subnet: STRING, type: STRING, type_id: INT, uid: STRING>,
   disposition STRING,
   disposition_id INT,
-  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   end_time TIMESTAMP,
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>>,
   file STRUCT<name: STRING, path: STRING>,
@@ -339,7 +347,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.data_se
   risk_score INT,
   severity STRING,
   severity_id INT,
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   status STRING,
   status_code STRING,
   status_detail STRING,
@@ -367,12 +375,12 @@ TBLPROPERTIES (
 # Captures security detections from EDR, SIEM, IDS/IPS, and alert platforms
 # Reference: https://schema.ocsf.io/1.7.0/classes/detection_finding
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.detection_finding (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken in response to the detection (e.g., Allowed, Blocked, Quarantined)',
   action_id INT COMMENT 'The action ID: 0=Unknown, 1=Allowed, 2=Denied, 99=Other',
   activity_id INT COMMENT 'The detection finding activity ID: 0=Unknown, 1=Create, 2=Update, 3=Close, 99=Other',
   activity_name STRING COMMENT 'The detection finding activity name (e.g., Create, Update, Close)',
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
   api STRUCT<operation: STRING, request: STRUCT<data: VARIANT, uid: STRING>, response: STRUCT<code: INT, data: VARIANT, error: STRING, message: STRING>>,
   category_name STRING COMMENT 'The OCSF category name: Findings',
   category_uid INT COMMENT 'The OCSF category unique identifier: 2 for Findings',
@@ -405,7 +413,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.detecti
   risk_score INT COMMENT 'Numerical risk score from the detection source',
   severity STRING COMMENT 'The detection severity name (e.g., Informational, Low, Medium, High, Critical)',
   severity_id INT COMMENT 'The detection severity ID: 0=Unknown, 1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical, 6=Fatal, 99=Other',
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   start_time TIMESTAMP COMMENT 'The start time of the detection window',
   status STRING COMMENT 'The detection status name (e.g., New, In Progress, Suppressed, Resolved)',
   status_code STRING COMMENT 'Vendor-specific status code',
@@ -430,13 +438,17 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Datastore Activity (Class UID: 6005, Category: Application Activity)
+# Tracks read/write/delete operations against databases, object storage, and data warehouses
+# Commonly used for: Snowflake/Databricks query logs, S3/ADLS access logs, database audit logs, NoSQL operation logs
+# Reference: https://schema.ocsf.io/1.7.0/classes/datastore_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.datastore_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
   action_id INT,
   activity_id INT,
   activity_name STRING,
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
   api STRUCT<operation: STRING, request: STRUCT<data: VARIANT, uid: STRING>, response: STRUCT<code: INT, data: VARIANT, error: STRING, message: STRING>>,
   category_name STRING,
   category_uid INT,
@@ -448,7 +460,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.datasto
   device STRUCT<created_time: TIMESTAMP, desc: STRING, domain: STRING, groups: ARRAY<STRUCT<name: STRING, privileges: STRING, type: STRING, uid: STRING>>, hostname: STRING, ip: STRING, is_compliant: BOOLEAN, is_managed: BOOLEAN, is_personal: BOOLEAN, is_trusted: BOOLEAN, name: STRING, region: STRING, risk_level: STRING, risk_level_id: INT, risk_score: INT, subnet: STRING, type: STRING, type_id: INT, uid: STRING>,
   disposition STRING,
   disposition_id INT,
-  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>>,
   http_request STRUCT<args: STRING, body_length: INT, http_headers: ARRAY<STRUCT<name: STRING, value: STRING>>, http_method: STRING, length: INT, referrer: STRING, url: STRING, user_agent: STRING, version: STRING>,
   http_response STRUCT<body_length: INT, code: INT, content_type: STRING, http_headers: ARRAY<STRUCT<name: STRING, value: STRING>>, latency: INT, length: INT, message: STRING, status: STRING>,
@@ -458,7 +470,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.datasto
   raw_data VARIANT,
   severity STRING,
   severity_id INT,
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   status STRING,
   status_code STRING,
   status_detail STRING,
@@ -485,8 +497,12 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# DHCP Activity (Class UID: 4004, Category: Network Activity)
+# Tracks DHCP lease assignments, renewals, and releases on the network
+# Commonly used for: Windows DHCP server logs, Cisco DHCP logs, network infrastructure syslog, IP address management (IPAM) systems
+# Reference: https://schema.ocsf.io/1.7.0/classes/dhcp_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.dhcp_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
   action_id INT,
   activity STRING,
@@ -501,7 +517,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.dhcp_ac
   connection_info STRUCT<direction: STRING, direction_id: INT, flag_history: STRING, protocol_name: STRING, protocol_num: INT, protocol_ver: STRING, protocol_ver_id: INT, uid: STRING>,
   disposition STRING,
   disposition_id INT,
-  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>>,
   is_renewal BOOLEAN,
   lease_dur INT,
@@ -511,7 +527,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.dhcp_ac
   raw_data VARIANT,
   severity STRING,
   severity_id INT,
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   status STRING,
   status_code STRING,
   status_detail STRING,
@@ -542,7 +558,7 @@ TBLPROPERTIES (
 # Commonly used for: DNS server logs, DNS firewall logs, Zeek/Suricata DNS logs, Cloudflare Gateway, Pi-hole
 # Reference: https://schema.ocsf.io/1.7.0/classes/dns_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.dns_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken (e.g., Allowed, Blocked for DNS filtering)',
   action_id INT COMMENT 'The action ID: 0=Unknown, 1=Allowed, 2=Denied/Blocked, 99=Other',
   activity STRING COMMENT 'The DNS activity name (e.g., Query, Response). Normalized value based on activity_id.',
@@ -557,7 +573,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.dns_act
   connection_info STRUCT<direction: STRING, direction_id: INT, flag_history: STRING, protocol_name: STRING, protocol_num: INT, protocol_ver: STRING, protocol_ver_id: INT, uid: STRING> COMMENT 'Connection details: protocol (UDP/TCP), direction, connection UID',
   disposition STRING COMMENT 'The disposition name (e.g., Allowed, Blocked, Sinkholed). For DNS security, indicates if query was blocked/filtered.',
   disposition_id INT COMMENT 'The disposition ID: 0=Unknown, 1=Allowed, 2=Blocked, 3=Quarantined, 4=Isolated, 5=Deleted, 6=Dropped, 99=Other',
-  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The DNS server (resolver) that handled the query. Includes IP, port (typically 53), hostname.',
+  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The DNS server (resolver) that handled the query. Includes IP, port (typically 53), hostname.',
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>> COMMENT 'Additional enrichment data from threat intel (e.g., malicious domain indicators), GeoIP, or DNS reputation services',
   message STRING COMMENT 'Human-readable description of the DNS event',
   metadata STRUCT<correlation_uid: STRING, event_code: STRING, log_level: STRING, log_name: STRING, log_provider: STRING, log_format: STRING, log_version: STRING, logged_time: TIMESTAMP, modified_time: TIMESTAMP, original_time: STRING, processed_time: TIMESTAMP, product: STRUCT<name: STRING, vendor_name: STRING, version: STRING>, tags: VARIANT, tenant_uid: STRING, uid: STRING, version: STRING> COMMENT 'Event metadata including product info, timestamps, and unique identifiers',
@@ -569,7 +585,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.dns_act
   rcode_id INT COMMENT 'DNS response code ID: 0=NoError (success), 1=FormErr, 2=ServFail, 3=NXDomain (domain not found), 4=NotImp, 5=Refused, 99=Other',
   severity STRING COMMENT 'The event severity name (e.g., Informational, Low, Medium, High, Critical)',
   severity_id INT COMMENT 'The event severity ID: 0=Unknown, 1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical, 6=Fatal, 99=Other',
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The DNS client (source of query). Includes client IP, hostname, port, geolocation.',
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The DNS client (source of query). Includes client IP, hostname, port, geolocation.',
   status STRING COMMENT 'The event status name (e.g., Success, Failure)',
   status_code STRING COMMENT 'The vendor-specific status code',
   status_detail STRING COMMENT 'Additional details about the DNS query/response status',
@@ -595,8 +611,12 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Email Activity (Class UID: 4009, Category: Network Activity)
+# Tracks email send, receive, and relay events including phishing and spam filtering outcomes
+# Commonly used for: Microsoft 365 mail logs, Google Workspace Gmail logs, Proofpoint/Mimecast email gateway logs, mail server MTA logs
+# Reference: https://schema.ocsf.io/1.7.0/classes/email_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.email_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
   action_id INT,
   activity STRING,
@@ -610,7 +630,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.email_a
   direction_id INT,
   disposition STRING,
   disposition_id INT,
-  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   email STRUCT<to: STRING>,
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>>,
   message STRING,
@@ -621,7 +641,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.email_a
   raw_data VARIANT,
   severity STRING,
   severity_id INT,
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   status STRING,
   status_code STRING,
   status_detail STRING,
@@ -645,15 +665,19 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Entity Management (Class UID: 3004, Category: Identity & Access Management)
+# Tracks creation, modification, and deletion of managed entities such as repos, orgs, apps, and resources
+# Commonly used for: GitHub repo/org management, cloud resource lifecycle events, service account management, configuration change tracking
+# Reference: https://schema.ocsf.io/1.7.0/classes/entity_management
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.entity_management (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   access_list ARRAY<STRING>,
   access_mask INT,
   action STRING,
   action_id INT,
   activity_id INT,
   activity_name STRING,
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
   api STRUCT<operation: STRING, request: STRUCT<data: VARIANT, uid: STRING>, response: STRUCT<code: INT, data: VARIANT, error: STRING, message: STRING>>,
   category_name STRING,
   category_uid INT,
@@ -665,15 +689,15 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.entity_
   disposition STRING,
   disposition_id INT,
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>>,
-  entity STRUCT<name: STRING, uid: STRING, data: VARIANT, email: STRUCT<to: STRING>, group: STRUCT<name: STRING, privileges: STRING, type: STRING, uid: STRING>, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, policies: ARRAY<STRUCT<is_applied: BOOLEAN, name: STRING, uid: STRING, version: STRING>>, type: STRING, type_id: INT, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>, version: STRING>,
-  entity_result STRUCT<name: STRING, uid: STRING, data: VARIANT, email: STRUCT<to: STRING>, group: STRUCT<name: STRING, privileges: STRING, type: STRING, uid: STRING>, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, policies: ARRAY<STRUCT<is_applied: BOOLEAN, name: STRING, uid: STRING, version: STRING>>, type: STRING, type_id: INT, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>, version: STRING>,
+  entity STRUCT<name: STRING, uid: STRING, data: VARIANT, email: STRUCT<to: STRING>, group: STRUCT<name: STRING, privileges: STRING, type: STRING, uid: STRING>, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, policies: ARRAY<STRUCT<is_applied: BOOLEAN, name: STRING, uid: STRING, version: STRING>>, type: STRING, type_id: INT, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>, version: STRING>,
+  entity_result STRUCT<name: STRING, uid: STRING, data: VARIANT, email: STRUCT<to: STRING>, group: STRUCT<name: STRING, privileges: STRING, type: STRING, uid: STRING>, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, policies: ARRAY<STRUCT<is_applied: BOOLEAN, name: STRING, uid: STRING, version: STRING>>, type: STRING, type_id: INT, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>, version: STRING>,
   message STRING,
   metadata STRUCT<correlation_uid: STRING, event_code: STRING, log_level: STRING, log_name: STRING, log_provider: STRING, log_format: STRING, log_version: STRING, logged_time: TIMESTAMP, modified_time: TIMESTAMP, original_time: STRING, processed_time: TIMESTAMP, product: STRUCT<name: STRING, vendor_name: STRING, version: STRING>, tags: VARIANT, tenant_uid: STRING, uid: STRING, version: STRING>,
   observables ARRAY<STRUCT<name: STRING, type: STRING, value: STRING>>,
   raw_data VARIANT,
   severity STRING,
   severity_id INT,
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   status STRING,
   status_code STRING,
   status_detail STRING,
@@ -702,14 +726,14 @@ TBLPROPERTIES (
 # Commonly used for: File integrity monitoring (FIM), DLP logs, EDR file events, audit logs
 # Reference: https://schema.ocsf.io/1.7.0/classes/file_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.file_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   access_mask INT COMMENT 'The Windows access mask indicating requested file permissions (e.g., READ_DATA, WRITE_DATA, DELETE)',
   action STRING COMMENT 'The action taken on the file operation (e.g., Allowed, Blocked, Quarantined)',
   action_id INT COMMENT 'The action ID: 0=Unknown, 1=Allowed, 2=Denied, 99=Other',
   activity STRING COMMENT 'The file activity name (e.g., Create, Read, Write, Delete, Rename). Normalized value based on activity_id.',
   activity_id INT COMMENT 'The file activity ID: 0=Unknown, 1=Create, 2=Read, 3=Write, 4=Rename, 5=Delete, 6=Mount, 7=Unmount, 8=Encrypt, 9=Decrypt, 10=Open, 11=Modify Permissions, 99=Other',
   activity_name STRING COMMENT 'The file activity name (e.g., Create, Delete, Modify)',
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>> COMMENT 'The actor (process or user) that performed the file operation',
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>> COMMENT 'The actor (process or user) that performed the file operation',
   category_name STRING COMMENT 'The OCSF category name: System Activity',
   category_uid INT COMMENT 'The OCSF category unique identifier: 1 for System Activity',
   class_name STRING COMMENT 'The OCSF class name: File Activity',
@@ -751,14 +775,18 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Group Management (Class UID: 3006, Category: Identity & Access Management)
+# Tracks group and role lifecycle events including membership changes and group creation/deletion
+# Commonly used for: Active Directory group changes, Okta group management, GitHub team membership, AWS IAM role management
+# Reference: https://schema.ocsf.io/1.7.0/classes/group_management
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.group_management (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
   action_id INT,
   activity STRING,
   activity_id INT,
   activity_name STRING,
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
   api STRUCT<operation: STRING, request: STRUCT<data: VARIANT, uid: STRING>, response: STRUCT<code: INT, data: VARIANT, error: STRING, message: STRING>>,
   category_name STRING,
   category_uid INT,
@@ -777,7 +805,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.group_m
   resource STRUCT<hostname: STRING, ip: STRING, name: STRING, uid: STRING>,
   severity STRING,
   severity_id INT,
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   status STRING,
   status_code STRING,
   status_detail STRING,
@@ -787,7 +815,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.group_m
   type_name STRING,
   type_uid BIGINT,
   unmapped VARIANT,
-  user STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>)
+  user STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>)
 USING delta
 TBLPROPERTIES (
   'delta.enableDeletionVectors' = 'true',
@@ -807,7 +835,7 @@ TBLPROPERTIES (
 # Commonly used for: Web proxy logs, API gateway logs, WAF logs, load balancer logs
 # Reference: https://schema.ocsf.io/1.7.0/classes/http_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.http_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken on the HTTP request (e.g., Allowed, Blocked, Redirected)',
   action_id INT COMMENT 'The action ID: 0=Unknown, 1=Allowed, 2=Denied, 99=Other',
   activity STRING COMMENT 'The HTTP activity name (e.g., Request, Response, Upload, Download). Normalized value based on activity_id.',
@@ -821,7 +849,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.http_ac
   connection_info STRUCT<direction: STRING, direction_id: INT, flag_history: STRING, protocol_name: STRING, protocol_num: INT, protocol_ver: STRING, protocol_ver_id: INT, uid: STRING> COMMENT 'Connection details: protocol (HTTP/HTTPS), direction, connection UID',
   disposition STRING COMMENT 'The disposition name (e.g., Allowed, Blocked, Quarantined). For web security, indicates if request was blocked/filtered.',
   disposition_id INT COMMENT 'The disposition ID: 0=Unknown, 1=Allowed, 2=Blocked, 3=Quarantined, 99=Other',
-  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The destination web server. Includes IP, port (80/443), hostname, geolocation.',
+  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The destination web server. Includes IP, port (80/443), hostname, geolocation.',
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>> COMMENT 'Additional enrichment data from threat intel (e.g., malicious URL indicators), GeoIP, or reputation services',
   file STRUCT<name: STRING, path: STRING> COMMENT 'The file being accessed via HTTP (for file downloads/uploads)',
   firewall_rule STRUCT<name: STRING, uid: STRING, category: STRING, desc: STRING, type: STRING, version: STRING, condition: STRING, duration: BIGINT, match_details: ARRAY<STRING>, match_location: STRING, rate_limit: INT, sensitivity: STRING> COMMENT 'Web application firewall (WAF) rule that matched this request',
@@ -835,7 +863,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.http_ac
   raw_data VARIANT COMMENT 'The original raw HTTP log in its native format',
   severity STRING COMMENT 'The event severity name (e.g., Informational, Low, Medium, High, Critical)',
   severity_id INT COMMENT 'The event severity ID: 0=Unknown, 1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical, 6=Fatal, 99=Other',
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The HTTP client (source of request). Includes client IP, hostname, port, geolocation.',
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The HTTP client (source of request). Includes client IP, hostname, port, geolocation.',
   status STRING COMMENT 'The event status name (e.g., Success, Failure)',
   status_code STRING COMMENT 'The vendor-specific status code',
   status_detail STRING COMMENT 'Additional details about the HTTP status',
@@ -861,6 +889,10 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Kernel Extension Activity (Class UID: 1003, Category: System Activity)
+# Tracks kernel module and driver load/unload events at the OS level
+# Commonly used for: macOS kernel extension logs, Linux kernel module events (kmod), Windows kernel driver loads, EDR telemetry
+# Reference: https://schema.ocsf.io/1.7.0/classes/kernel_extension_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.kernel_extension_activity (
   dsl_id STRING,
   time TIMESTAMP,
@@ -896,7 +928,7 @@ TBLPROPERTIES (
 # Commonly used for: Zeek conn logs, firewall logs, VPC flow logs, network device logs
 # Reference: https://schema.ocsf.io/1.7.0/classes/network_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.network_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken by the network device (e.g., Allowed, Denied, Dropped)',
   action_id INT COMMENT 'The action ID: 0=Unknown, 1=Allowed, 2=Denied, 99=Other',
   activity STRING COMMENT 'The network activity name (e.g., Open, Close, Traffic, Fail). Normalized value based on activity_id.',
@@ -910,7 +942,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.network
   connection_info STRUCT<direction: STRING, direction_id: INT, flag_history: STRING, protocol_name: STRING, protocol_num: INT, protocol_ver: STRING, protocol_ver_id: INT, uid: STRING> COMMENT 'Connection details: direction (Inbound/Outbound), protocol (TCP/UDP/ICMP), TCP flags, connection UID',
   disposition STRING,
   disposition_id INT,
-  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The destination endpoint (server/responder). Includes IP, port, hostname, geolocation.',
+  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The destination endpoint (server/responder). Includes IP, port, hostname, geolocation.',
   end_time TIMESTAMP COMMENT 'The connection end/close time',
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>> COMMENT 'Additional enrichment data from threat intel, GeoIP, or other sources',
   message STRING COMMENT 'Human-readable description of the network event',
@@ -920,7 +952,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.network
   raw_data VARIANT COMMENT 'The original raw event data in its native format',
   severity STRING COMMENT 'The event severity name (e.g., Informational, Low, Medium, High, Critical)',
   severity_id INT COMMENT 'The event severity ID: 0=Unknown, 1=Informational, 2=Low, 3=Medium, 4=High, 5=Critical, 6=Fatal, 99=Other',
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The source endpoint (client/initiator). Includes IP, port, hostname, geolocation.',
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING> COMMENT 'The source endpoint (client/initiator). Includes IP, port, hostname, geolocation.',
   start_time TIMESTAMP COMMENT 'The connection start/open time',
   status STRING COMMENT 'The event status name (e.g., Success, Failure)',
   status_code STRING COMMENT 'The vendor-specific status or connection state code (e.g., Zeek conn_state)',
@@ -954,13 +986,13 @@ TBLPROPERTIES (
 # Commonly used for: EDR logs, Windows Security logs, Sysmon, auditd, system monitoring
 # Reference: https://schema.ocsf.io/1.7.0/classes/process_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.process_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING COMMENT 'The action taken on the process (e.g., Allowed, Blocked, Terminated)',
   action_id INT COMMENT 'The action ID: 0=Unknown, 1=Allowed, 2=Denied, 99=Other',
   activity STRING COMMENT 'The process activity name (e.g., Launch, Terminate, Inject). Normalized value based on activity_id.',
   activity_id INT COMMENT 'The process activity ID: 0=Unknown, 1=Launch (process started), 2=Terminate (process ended), 3=Open (process handle opened), 4=Inject (code injection), 5=Set User ID, 6=Rename, 99=Other',
   activity_name STRING COMMENT 'The process activity name (e.g., Launch, Terminate)',
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>> COMMENT 'The actor (parent process or user) that initiated the process activity',
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>> COMMENT 'The actor (parent process or user) that initiated the process activity',
   category_name STRING COMMENT 'The OCSF category name: System Activity',
   category_uid INT COMMENT 'The OCSF category unique identifier: 1 for System Activity',
   class_name STRING COMMENT 'The OCSF class name: Process Activity',
@@ -976,7 +1008,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.process
   metadata STRUCT<correlation_uid: STRING, event_code: STRING, log_level: STRING, log_name: STRING, log_provider: STRING, log_format: STRING, log_version: STRING, logged_time: TIMESTAMP, modified_time: TIMESTAMP, original_time: STRING, processed_time: TIMESTAMP, product: STRUCT<name: STRING, vendor_name: STRING, version: STRING>, tags: VARIANT, tenant_uid: STRING, uid: STRING, version: STRING> COMMENT 'Event metadata including product info, timestamps, and unique identifiers',
   module STRUCT<base_address: STRING, file: STRUCT<name: STRING, path: STRING>, function_name: STRING, load_type: STRING, load_type_id: INT, start_address: STRING, type: STRING> COMMENT 'Module/DLL loaded by the process. Includes file path, load address, load type.',
   observables ARRAY<STRUCT<name: STRING, type: STRING, value: STRING>> COMMENT 'Observable artifacts: process names, file hashes, command lines, parent processes - critical for threat hunting',
-  process STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>> COMMENT 'The process details: name, PID, command line, parent PID, user, session info',
+  process STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>> COMMENT 'The process details: name, PID, command line, parent PID, user, session info',
   raw_data VARIANT COMMENT 'The original raw process log in its native format',
   requested_permissions INT COMMENT 'The access rights/permissions requested for the process',
   severity STRING COMMENT 'The event severity name (e.g., Informational, Low, Medium, High, Critical)',
@@ -1004,14 +1036,18 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Scheduled Job Activity (Class UID: 1006, Category: System Activity)
+# Tracks creation, execution, and deletion of scheduled tasks and automation jobs
+# Commonly used for: Windows Task Scheduler logs, Linux cron job logs, CI/CD pipeline execution, cloud function scheduler events
+# Reference: https://schema.ocsf.io/1.7.0/classes/scheduled_job_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.scheduled_job_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
   action_id INT,
   activity STRING,
   activity_id INT,
   activity_name STRING,
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
   category_name STRING,
   category_uid INT,
   class_name STRING,
@@ -1020,7 +1056,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.schedul
   disposition STRING,
   disposition_id INT,
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>>,
-  job STRUCT<cmd_line: STRING, created_time: TIMESTAMP, desc: STRING, file: STRUCT<name: STRING, path: STRING>, last_run_time: TIMESTAMP, name: STRING, next_run_time: TIMESTAMP, run_state: STRING, run_state_id: INT, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  job STRUCT<cmd_line: STRING, created_time: TIMESTAMP, desc: STRING, file: STRUCT<name: STRING, path: STRING>, last_run_time: TIMESTAMP, name: STRING, next_run_time: TIMESTAMP, run_state: STRING, run_state_id: INT, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
   message STRING,
   metadata STRUCT<correlation_uid: STRING, event_code: STRING, log_level: STRING, log_name: STRING, log_provider: STRING, log_format: STRING, log_version: STRING, logged_time: TIMESTAMP, modified_time: TIMESTAMP, original_time: STRING, processed_time: TIMESTAMP, product: STRUCT<name: STRING, vendor_name: STRING, version: STRING>, tags: VARIANT, tenant_uid: STRING, uid: STRING, version: STRING>,
   observables ARRAY<STRUCT<name: STRING, type: STRING, value: STRING>>,
@@ -1055,14 +1091,18 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Script Activity (Class UID: 1008, Category: System Activity)
+# Tracks script execution events for threat detection and insider threat investigation
+# Commonly used for: PowerShell/bash script execution logs, EDR script telemetry, Windows ScriptBlock logging, AMSI events
+# Reference: https://schema.ocsf.io/1.7.0/classes/script_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.script_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
   action_id INT,
   activity STRING,
   activity_id INT,
   activity_name STRING,
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
   category_name STRING,
   category_uid INT,
   class_name STRING,
@@ -1101,8 +1141,12 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# SSH Activity (Class UID: 4007, Category: Network Activity)
+# Tracks SSH connection, authentication, and session events
+# Commonly used for: OpenSSH server logs, Linux auth logs, bastion host access logs, Cisco/Palo Alto SSH session logs
+# Reference: https://schema.ocsf.io/1.7.0/classes/ssh_activity
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.ssh_activity (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
   action_id INT,
   activity_id INT,
@@ -1117,7 +1161,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.ssh_act
   connection_info STRUCT<direction: STRING, direction_id: INT, flag_history: STRING, protocol_name: STRING, protocol_num: INT, protocol_ver: STRING, protocol_ver_id: INT, uid: STRING>,
   disposition STRING,
   disposition_id INT,
-  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  dst_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   enrichments ARRAY<STRUCT<data: VARIANT, desc: STRING, name: STRING, value: STRING>>,
   file STRUCT<name: STRING, path: STRING>,
   message STRING,
@@ -1127,7 +1171,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.ssh_act
   raw_data VARIANT,
   severity STRING,
   severity_id INT,
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   status STRING,
   status_code STRING,
   status_detail STRING,
@@ -1151,14 +1195,18 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# User Access Management (Class UID: 3005, Category: Identity & Access Management)
+# Tracks permission grants, role assignments, and access policy changes for users
+# Commonly used for: GitHub repo access grants, AWS IAM policy attachments, Azure RBAC role assignments, OAuth token issuance
+# Reference: https://schema.ocsf.io/1.7.0/classes/user_access
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.user_access (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
   action_id INT,
   activity STRING,
   activity_id INT,
   activity_name STRING,
-  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
+  actor STRUCT<app_name: STRING, app_uid: STRING, authorizations: ARRAY<STRUCT<decision: STRING>>, idp: STRUCT<domain: STRING, name: STRING, protocol_name: STRING, tenant_uid: STRING, uid: STRING>, process: STRUCT<cmd_line: STRING, cpid: STRING, name: STRING, pid: INT, session: STRUCT<created_time: TIMESTAMP, credential_uid: STRING, expiration_reason: STRING, expiration_time: TIMESTAMP, is_mfa: BOOLEAN, is_remote: BOOLEAN, is_vpn: BOOLEAN, issuer: STRING, terminal: STRING, uid: STRING, uid_alt: STRING, uuid: STRING>, uid: STRING, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>, user: STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>>,
   api STRUCT<operation: STRING, request: STRUCT<data: VARIANT, uid: STRING>, response: STRUCT<code: INT, data: VARIANT, error: STRING, message: STRING>>,
   category_name STRING,
   category_uid INT,
@@ -1176,7 +1224,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.user_ac
   resource STRUCT<hostname: STRING, ip: STRING, name: STRING, uid: STRING>,
   severity STRING,
   severity_id INT,
-  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
+  src_endpoint STRUCT<domain: STRING, hostname: STRING, instance_uid: STRING, interface_name: STRING, interface_uid: STRING, ip: STRING, name: STRING, port: INT, svc_name: STRING, type: STRING, type_id: INT, uid: STRING, location: STRUCT<city: STRING, continent: STRING, country: STRING, lat: FLOAT, long: FLOAT, postal_code: STRING, region: STRING>, mac: STRING, vpc_uid: STRING, zone: STRING>,
   status STRING,
   status_code STRING,
   status_detail STRING,
@@ -1186,7 +1234,7 @@ spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.user_ac
   type_name STRING,
   type_uid BIGINT,
   unmapped VARIANT,
-  user STRUCT<has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>)
+  user STRUCT<full_name: STRING, has_mfa: BOOLEAN, name: STRING, type: STRING, type_id: INT, uid: STRING>)
 USING delta
 TBLPROPERTIES (
   'delta.enableDeletionVectors' = 'true',
@@ -1201,8 +1249,12 @@ TBLPROPERTIES (
 
 # COMMAND ----------
 
+# Vulnerability Finding (Class UID: 2002, Category: Findings)
+# Captures vulnerability scan results and CVE-based findings from security assessment tools
+# Commonly used for: Qualys/Tenable/Rapid7 scan results, GitHub Dependabot alerts, container image vulnerability scans, SBOM analysis
+# Reference: https://schema.ocsf.io/1.7.0/classes/vulnerability_finding
 spark.sql(f"""CREATE OR REPLACE TABLE `{catalog_name}`.`{gold_database}`.vulnerability_finding (
-  dsl_id STRING NOT NULL COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
+  dsl_id STRING COMMENT 'Unique ID generated and maintained by Databricks Security Lakehouse for data lineage from ingestion throughout all medallion layers.',
   action STRING,
   action_id INT,
   activity STRING,

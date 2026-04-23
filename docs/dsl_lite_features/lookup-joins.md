@@ -58,7 +58,7 @@ bronze:
     - "named_struct('country', src_geo_country_code, 'city', src_geo_city) as src_geo_location"
 ```
 
-**Bronze order of operations:** `preTransform` → `dsl_id` → lookups → `postTransform` → `drop`. Use `postTransform` to add expressions that use lookup columns (e.g. `named_struct`). Include `"*"` first to keep existing columns, then add new expressions. Use **`drop`** to remove columns by name (e.g. after folding lookup columns into a struct):
+**Bronze order of operations:** `preTransform` → auto-inject (`_metadata`, `record_id`, `date`, `processed_time`) → `dsl_id` → lookups → `postTransform` → `drop` → column reorder. Use `postTransform` to add expressions that use lookup columns (e.g. `named_struct`). Include `"*"` first to keep existing columns, then add new expressions. Use **`drop`** to remove columns by name (e.g. after folding lookup columns into a struct):
 
 ```yaml
 bronze:
