@@ -535,7 +535,8 @@ This ensures tables written by multiple pipelines maintain consistent schemas.
       'country', CAST(NULL AS STRING),
       'lat', CAST(NULL AS FLOAT),
       'long', CAST(NULL AS FLOAT),
-      'postal_code', CAST(NULL AS STRING)
+      'postal_code', CAST(NULL AS STRING),
+      'region', CAST(NULL AS STRING)
     )
 
 # Array null

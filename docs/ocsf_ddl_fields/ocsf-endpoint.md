@@ -35,6 +35,7 @@ All endpoint fields use the same schema. Context (e.g. “client”, “server�
 | `lat` | FLOAT | Latitude. |
 | `long` | FLOAT | Longitude. |
 | `postal_code` | STRING | Postal code. |
+| `region` | STRING | State or region (e.g. `geo_state` from Okta, region code from GeoIP). |
 
 ## Spark DDL (single line)
 
@@ -60,7 +61,8 @@ STRUCT<
     country: STRING,
     lat: FLOAT,
     long: FLOAT,
-    postal_code: STRING
+    postal_code: STRING,
+    region: STRING
   >,
   mac: STRING,
   vpc_uid: STRING,
