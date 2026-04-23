@@ -110,6 +110,7 @@ dsl_lite/
 │   └── adding-a-bundle.md
 ├── images/                       # Screenshots and pipeline graph images for documentation
 │   └── pipeline_graph.png        # Example pipeline graph (bronze → silver → gold)
+├── DSL_Lite_Primer.html          # One-page customer/partner primer (print to PDF)
 ├── vault/                        # Maintenance utilities for template management
 ├── raw_logs/                     # Sample logs for testing (one per source/source_type)
 ├── .github/
