@@ -50,7 +50,7 @@ DSL Lite implements a three-layer medallion architecture — **Bronze** (ingest 
 
 ### Example Pipeline Graph
 
-![Example pipeline graph (bronze, silver, gold)](images/sdp_pipeline_graph.png)
+<img src="images/sdp_pipeline_graph.png" alt="Example pipeline graph (bronze, silver, gold)" width="600"/>
 
 *Figure: Example DSL Lite pipeline graph showing Auto Loader (bronze), silver transform, and multiple OCSF gold table sinks.*
 
