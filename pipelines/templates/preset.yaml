@@ -39,9 +39,11 @@ bronze:
 
   preTransform:
     -
-      - "*"                         # carry all Auto Loader columns forward (use "data" for JSON)
-      - "_metadata.file_name"       # originating file name (used in record_id)
-      - "_metadata.file_path"       # originating file path (useful for debugging)
+      # Text/syslog: md5(concat_ws('_', value, _metadata.file_name)) as record_id
+      # JSON:        md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
+      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
+      - CAST('<source>' AS STRING) AS source
+      - CAST('<source_type>' AS STRING) AS sourcetype
 
       # Parse a timestamp from the raw log. Adjust the regex and format string.
       # Text example:
@@ -50,12 +52,10 @@ bronze:
       # - CAST(try_variant_get(data, '$.timestamp', 'STRING') AS TIMESTAMP) as time
 
       - CAST(time AS DATE) as date
-      - CAST('<source>' AS STRING) AS source
-      - CAST('<source_type>' AS STRING) AS sourcetype
+      - "*"                         # carry all Auto Loader columns forward (use "data" for JSON)
+      - "_metadata.file_name"       # originating file name (used in record_id)
+      - "_metadata.file_path"       # originating file path (useful for debugging)
       - CURRENT_TIMESTAMP() as processed_time
-      # Text/syslog: md5(concat_ws('_', value, _metadata.file_name)) as record_id
-      # JSON:        md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
-      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
 
 
 # ── Silver ─────────────────────────────────────────────────────────────────────

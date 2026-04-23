@@ -49,11 +49,11 @@ bronze:
   # Most presets need only one pass.
   preTransform:
     -
-      - "*"                             # pass all Auto Loader columns forward
-      # OR for JSON with loadAsSingleVariant:
-      # - "data"
-
-      - "_metadata.file_path"           # source file path for debugging
+      # Text/syslog: md5(concat_ws('_', value, _metadata.file_name)) as record_id
+      # JSON:        md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
+      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
+      - CAST('<source>' AS STRING) AS source       # e.g. 'cisco'
+      - CAST('<source_type>' AS STRING) AS sourcetype  # e.g. 'ios'
 
       # ── Timestamp extraction ──────────────────────────────────────────────────
       # Pick ONE of the patterns below; adjust to match your log's timestamp.
@@ -72,9 +72,11 @@ bronze:
       # - CAST(try_variant_get(data, '$.ts', 'LONG') / 1000.0 AS TIMESTAMP) as time
 
       - CAST(time AS DATE) as date        # optional — for date-based queries
-      # - REGEXP_EXTRACT(value, '^([\\w\\-\\.]+):', 1) as host  # optional hostname
-      - CAST('<source>' AS STRING) AS source       # e.g. 'cisco'
-      - CAST('<source_type>' AS STRING) AS sourcetype  # e.g. 'ios'
+      - "*"                             # pass all Auto Loader columns forward
+      # OR for JSON with loadAsSingleVariant:
+      # - "data"
+      - "_metadata.file_name"           # originating file name (used in record_id)
+      - "_metadata.file_path"           # source file path for debugging
       - CURRENT_TIMESTAMP() as processed_time
 
   # Optional — stream-static lookups for enrichment (applied after preTransform)

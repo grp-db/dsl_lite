@@ -10,15 +10,15 @@ Every bronze `preTransform` must produce **exactly these 9 columns**. The DSL en
 
 | # | Column | Type | Where it comes from |
 |---|--------|------|---------------------|
-| 1 | `data` / `value` | VARIANT / STRING | `"data"` (JSON) or `"*"` (text) — raw payload |
-| 2 | `file_name` | STRING | `_metadata.file_name` |
-| 3 | `file_path` | STRING | `_metadata.file_path` |
+| 1 | `record_id` | STRING | `md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id` (JSON) or `md5(concat_ws('_', value, _metadata.file_name)) as record_id` (text) |
+| 2 | `source` | STRING | `CAST('<vendor>' AS STRING) as source` |
+| 3 | `sourcetype` | STRING | `CAST('<product>' AS STRING) as sourcetype` |
 | 4 | `time` | TIMESTAMP | Extracted from payload — see patterns below |
 | 5 | `date` | DATE | `CAST(time AS DATE) as date` |
-| 6 | `source` | STRING | `CAST('<vendor>' AS STRING) as source` |
-| 7 | `sourcetype` | STRING | `CAST('<product>' AS STRING) as sourcetype` |
-| 8 | `processed_time` | TIMESTAMP | `CURRENT_TIMESTAMP() as processed_time` |
-| 9 | `record_id` | STRING | `md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id` (JSON) or `md5(concat_ws('_', value, _metadata.file_name)) as record_id` (text) |
+| 6 | `data` / `value` | VARIANT / STRING | `"data"` (JSON) or `"*"` (text) — raw payload |
+| 7 | `file_name` | STRING | `_metadata.file_name` |
+| 8 | `file_path` | STRING | `_metadata.file_path` |
+| 9 | `processed_time` | TIMESTAMP | `CURRENT_TIMESTAMP() as processed_time` |
 | 10 | `dsl_id` | STRING | **Auto-injected by DSL engine** — do NOT add to preTransform |
 
 Do not add extra columns (e.g. `host`, `query`, extracted fields) to bronze `preTransform` — put those in silver.
@@ -66,15 +66,15 @@ bronze:
   name: cisco_ios_bronze
   preTransform:
     -
+      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
+      - CAST('cisco' AS STRING) AS source
+      - CAST('ios' AS STRING) AS sourcetype
+      - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
+      - CAST(time AS DATE) as date
       - "*"
       - "_metadata.file_name"
       - "_metadata.file_path"
-      - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
-      - CAST(time AS DATE) as date
-      - CAST('cisco' AS STRING) AS source
-      - CAST('ios' AS STRING) AS sourcetype
       - CURRENT_TIMESTAMP() as processed_time
-      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
 ```
 
 **Cloudflare Gateway DNS** (complete bronze preTransform — 10-column standard):
@@ -84,15 +84,15 @@ bronze:
   loadAsSingleVariant: true
   preTransform:
     -
+      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
+      - CAST('cloudflare' AS STRING) as source
+      - CAST('gateway_dns' AS STRING) as sourcetype
+      - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
+      - CAST(time AS DATE) as date
       - "data"
       - "_metadata.file_name"
       - "_metadata.file_path"
-      - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
-      - CAST(time AS DATE) as date
-      - CAST('cloudflare' AS STRING) as source
-      - CAST('gateway_dns' AS STRING) as sourcetype
       - CURRENT_TIMESTAMP() as processed_time
-      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
 ```
 
 ---

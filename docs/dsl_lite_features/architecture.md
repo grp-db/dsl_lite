@@ -58,15 +58,15 @@ bronze:
   loadAsSingleVariant: true
   preTransform:
     -
+      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
+      - CAST('cloudflare' AS STRING) as source
+      - CAST('gateway_dns' AS STRING) as sourcetype
+      - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
+      - CAST(time AS DATE) as date
       - "data"
       - "_metadata.file_name"
       - "_metadata.file_path"
-      - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
-      - CAST(time AS DATE) as date
-      - CAST('cloudflare' AS STRING) as source
-      - CAST('gateway_dns' AS STRING) as sourcetype
       - CURRENT_TIMESTAMP() as processed_time
-      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
 ```
 
 ### Text / Syslog Example (Cisco IOS)
@@ -76,30 +76,30 @@ bronze:
   name: cisco_ios_bronze
   preTransform:
     -
+      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
+      - CAST('cisco' AS STRING) as source
+      - CAST('ios' AS STRING) as sourcetype
+      - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
+      - CAST(time AS DATE) as date
       - "*"
       - "_metadata.file_name"
       - "_metadata.file_path"
-      - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
-      - CAST(time AS DATE) as date
-      - CAST('cisco' AS STRING) as source
-      - CAST('ios' AS STRING) as sourcetype
       - CURRENT_TIMESTAMP() as processed_time
-      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
 ```
 
 ### Standard Column Reference
 
 | # | Column | Type | Source |
 |---|--------|------|--------|
-| 1 | `data` / `value` | VARIANT / STRING | `"data"` (JSON) or `"*"` (text) |
-| 2 | `file_name` | STRING | `_metadata.file_name` |
-| 3 | `file_path` | STRING | `_metadata.file_path` |
+| 1 | `record_id` | STRING | `md5(concat_ws('_', to_json(data)\|value, _metadata.file_name))` |
+| 2 | `source` | STRING | Vendor name literal |
+| 3 | `sourcetype` | STRING | Log type literal |
 | 4 | `time` | TIMESTAMP | Extracted from payload |
 | 5 | `date` | DATE | `CAST(time AS DATE)` |
-| 6 | `source` | STRING | Vendor name literal |
-| 7 | `sourcetype` | STRING | Log type literal |
-| 8 | `processed_time` | TIMESTAMP | `CURRENT_TIMESTAMP()` |
-| 9 | `record_id` | STRING | `md5(concat_ws('_', to_json(data)\|value, _metadata.file_name))` |
+| 6 | `data` / `value` | VARIANT / STRING | `"data"` (JSON) or `"*"` (text) |
+| 7 | `file_name` | STRING | `_metadata.file_name` |
+| 8 | `file_path` | STRING | `_metadata.file_path` |
+| 9 | `processed_time` | TIMESTAMP | `CURRENT_TIMESTAMP()` |
 | 10 | `dsl_id` | STRING | **Auto-injected by DSL engine** — do not declare in preTransform |
 
 > **Silver note:** `utils.unreferencedColumns.preserve: true` carries all 10 bronze columns forward automatically. Do not re-declare them in silver `fields:` — doing so creates duplicate columns.

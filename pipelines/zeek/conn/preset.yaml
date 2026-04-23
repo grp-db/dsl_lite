@@ -17,15 +17,15 @@ bronze:
   loadAsSingleVariant: true
   preTransform:
     -
+      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
+      - CAST('zeek' AS STRING) AS source
+      - CAST('conn' AS STRING) AS sourcetype
+      - CAST(data:ts AS TIMESTAMP) as time
+      - CAST(time AS DATE) as date
       - "data"
       - "_metadata.file_name"
       - "_metadata.file_path"
-      - CAST(data:ts AS TIMESTAMP) as time
-      - CAST(time AS DATE) as date
-      - CAST('zeek' AS STRING) AS source
-      - CAST('conn' AS STRING) AS sourcetype
       - CURRENT_TIMESTAMP() as processed_time
-      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
 
 silver:
   transform:

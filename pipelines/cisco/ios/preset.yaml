@@ -18,15 +18,15 @@ bronze:
   clusterBy: [time]
   preTransform:
     -
+      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
+      - CAST('cisco' AS STRING) AS source
+      - CAST('ios' AS STRING) AS sourcetype
+      - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
+      - CAST(time AS DATE) as date
       - "*"
       - "_metadata.file_name"
       - "_metadata.file_path"
-      - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
-      - CAST(time AS DATE) as date
-      - CAST('cisco' AS STRING) AS source
-      - CAST('ios' AS STRING) AS sourcetype
       - CURRENT_TIMESTAMP() as processed_time
-      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
 silver:
   transform:
     - name: cisco_ios_silver
