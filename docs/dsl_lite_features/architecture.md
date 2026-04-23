@@ -16,7 +16,7 @@ DSL Lite implements a three-layer medallion architecture optimized for cybersecu
 
 | Layer | Step | Description | Schema Example | Output | Performance |
 |-------|------|-------------|----------------|--------|-------------|
-| **Bronze** | **Ingest & Amend** | Raw data ingestion with minimal transformation. Preserves original data in `data` (VARIANT for JSON, STRUCT for CSV with headers) or `value` (STRING for syslog/text/CSV without headers). Spark SQL adds standard metadata columns for downstream processing. | `data VARIANT/STRUCT` **OR** `value STRING`<br/><br/>**+ 9 standard metadata columns:**<br/>`file_name STRING` *(from `_metadata.file_name`)*<br/>`file_path STRING` *(from `_metadata.file_path`)*<br/>`time TIMESTAMP` *(required)*<br/>`date DATE`<br/>`source STRING`<br/>`sourcetype STRING`<br/>`processed_time TIMESTAMP`<br/>`record_id STRING` *(md5 dedup key)*<br/><br/>**+ DSL Lite ID (auto-injected):**<br/>`dsl_id STRING` (unique identifier) | **Delta Table (Streaming)**<br/>- Auto Loader for incremental ingestion<br/>- Supports schema evolution<br/>- Raw data preservation | `CLUSTER BY (time)`<br/><br/>Optimizes time-based queries and improves compression |
+| **Bronze** | **Ingest & Amend** | Raw data ingestion with minimal transformation. Preserves original data in `data` (VARIANT for JSON, STRUCT for CSV with headers) or `value` (STRING for syslog/text/CSV without headers). The DSL engine auto-injects standard metadata columns — preset authors only declare source, sourcetype, time, and the payload column. | `data VARIANT/STRUCT` **OR** `value STRING`<br/><br/>**Preset declares (4 cols):**<br/>`source STRING`<br/>`sourcetype STRING`<br/>`time TIMESTAMP` *(required)*<br/><br/>**Engine auto-injects (5 cols):**<br/>`record_id STRING` *(md5 dedup key)*<br/>`date DATE`<br/>`_metadata STRUCT` *(file_name, file_path, file_size, file_modification_time)*<br/>`processed_time TIMESTAMP`<br/>`dsl_id STRING` *(lineage key)* | **Delta Table (Streaming)**<br/>- Auto Loader for incremental ingestion<br/>- Supports schema evolution<br/>- Raw data preservation | `CLUSTER BY (time)`<br/><br/>Optimizes time-based queries and improves compression |
 | **Silver** | **Parse & Curate** | Flattens nested JSON from `data` field, extracts structured fields from `value` using regex patterns, or parses CSV with `from_csv()`. Converts unstructured logs into typed, queryable columns. Applies business logic, filters, and temporary fields. | **JSON:** Extracted from `data` VARIANT<br/>`source_ip STRING`<br/>`dest_ip STRING`<br/>`port INT`<br/>`protocol STRING`<br/>`action STRING`<br/>`bytes_in BIGINT`<br/>`bytes_out BIGINT`<br/>`duration DOUBLE`<br/>`user STRING`<br/><br/>**Syslog:** Extracted from `value` STRING<br/>`severity STRING`<br/>`facility STRING`<br/>`process STRING`<br/>`pid INT`<br/>`message STRING`<br/><br/>**+ all 10 bronze columns carried forward automatically**<br/>**+ DSL Lite ID:** `dsl_id STRING` | **Delta Table (Streaming)**<br/>- Typed columns for efficient queries<br/>- Filtered and cleansed data<br/>- Vendor-specific schema | `CLUSTER BY (time)`<br/><br/>Maintains time-based optimization for log analytics |
 | **Gold** | **Map & Normalize** | Maps silver tables to OCSF-compliant schemas. Standardizes field names, data types, and structures across vendors. Includes OCSF `metadata` STRUCT with versioning and lineage tracking. Creates analytics-ready tables for security operations, threat hunting, and compliance reporting. | `activity_id INT`<br/>`activity_name STRING`<br/>`time TIMESTAMP`<br/>`src_endpoint STRUCT<...>`<br/>`dst_endpoint STRUCT<...>`<br/>`connection_info STRUCT<...>`<br/>`metadata STRUCT<...>`<br/>`observables ARRAY<STRUCT<...>>`<br/>`enrichments ARRAY<STRUCT<...>>`<br/>`severity STRING`<br/>`severity_id INT`<br/>`dsl_id STRING` | **Delta Table (Sink)**<br/>- OCSF-compliant schema<br/>- Cross-vendor normalization<br/>- Analytics-ready<br/>- Metadata tracking | `CLUSTER BY (time)`<br/><br/>Enables fast time-range queries for security investigations |
 
@@ -46,9 +46,9 @@ The following screenshot shows an example pipeline graph (bronze → silver → 
 
 ---
 
-## Bronze preTransform Standard (10-Column Schema)
+## Bronze preTransform Standard (9-Column Schema)
 
-Every bronze table follows a 9-column standard. The `preTransform` block must declare exactly 8 columns — the DSL engine auto-injects `dsl_id` as the 9th.
+Every bronze table follows a 9-column standard. The `preTransform` block declares exactly **4 columns** — the DSL engine auto-injects the remaining 5.
 
 ### JSON Example (Cloudflare Gateway DNS)
 
@@ -58,14 +58,10 @@ bronze:
   loadAsSingleVariant: true
   preTransform:
     -
-      - md5(concat_ws('_', to_json(data), _metadata.file_name)) as record_id
       - CAST('cloudflare' AS STRING) as source
       - CAST('gateway_dns' AS STRING) as sourcetype
       - CAST(try_variant_get(data, '$.Datetime', 'STRING') AS TIMESTAMP) as time
-      - CAST(time AS DATE) as date
       - "data"
-      - "_metadata"
-      - CURRENT_TIMESTAMP() as processed_time
 ```
 
 ### Text / Syslog Example (Cisco IOS)
@@ -75,31 +71,29 @@ bronze:
   name: cisco_ios_bronze
   preTransform:
     -
-      - md5(concat_ws('_', value, _metadata.file_name)) as record_id
       - CAST('cisco' AS STRING) as source
       - CAST('ios' AS STRING) as sourcetype
       - TO_TIMESTAMP(REGEXP_EXTRACT(value, '(\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+)', 1), 'MMM d yyyy HH:mm:ss') as time
-      - CAST(time AS DATE) as date
-      - "*"
-      - "_metadata"
-      - CURRENT_TIMESTAMP() as processed_time
+      - "value"
 ```
 
 ### Standard Column Reference
 
-| # | Column | Type | Source |
-|---|--------|------|--------|
-| 1 | `record_id` | STRING | `md5(concat_ws('_', to_json(data)\|value, _metadata.file_name))` |
-| 2 | `source` | STRING | Vendor name literal |
-| 3 | `sourcetype` | STRING | Log type literal |
-| 4 | `time` | TIMESTAMP | Extracted from payload |
-| 5 | `date` | DATE | `CAST(time AS DATE)` |
-| 6 | `data` / `value` | VARIANT / STRING | `"data"` (JSON) or `"*"` (text) |
-| 7 | `_metadata` | STRUCT | `"_metadata"` — contains `file_name`, `file_path`, `file_size`, `file_modification_time` |
-| 9 | `processed_time` | TIMESTAMP | `CURRENT_TIMESTAMP()` |
-| 10 | `dsl_id` | STRING | **Auto-injected by DSL engine** — do not declare in preTransform |
+| # | Column | Type | Declared by |
+|---|--------|------|-------------|
+| 1 | `record_id` | STRING | **Engine** — `md5(concat_ws('_', to_json(data)\|value, _metadata.file_name))` |
+| 2 | `source` | STRING | **Preset** — vendor name literal |
+| 3 | `sourcetype` | STRING | **Preset** — log type literal |
+| 4 | `time` | TIMESTAMP | **Preset** — extracted from payload |
+| 5 | `date` | DATE | **Engine** — `CAST(time AS DATE)` |
+| 6 | `data` / `value` | VARIANT / STRING | **Preset** — `"data"` (JSON) or `"value"` (text) |
+| 7 | `_metadata` | STRUCT | **Engine** — contains `file_name`, `file_path`, `file_size`, `file_modification_time` |
+| 8 | `processed_time` | TIMESTAMP | **Engine** — `CURRENT_TIMESTAMP()` |
+| 9 | `dsl_id` | STRING | **Engine** — hex timestamp + UUID fragment |
 
-> **Silver note:** `utils.unreferencedColumns.preserve: true` carries all 10 bronze columns forward automatically. Do not re-declare them in silver `fields:` — doing so creates duplicate columns.
+**Do NOT declare `record_id`, `date`, `_metadata`, `processed_time`, or `dsl_id` in `preTransform`** — the engine injects them automatically. Duplicates cause pipeline failures.
+
+> **Silver note:** `utils.unreferencedColumns.preserve: true` carries all 9 bronze columns forward automatically. Do not re-declare them in silver `fields:` — doing so creates duplicate columns.
 
 ---
 
@@ -109,7 +103,7 @@ bronze:
 ```
 Bronze (data VARIANT) → Silver (flatten data.field.nested) → Gold (map to OCSF)
 ```
-- **Bronze**: `data` field stores entire JSON object + 8 standard metadata columns + `dsl_id` (9 columns total)
+- **Bronze**: `data` field stores entire JSON object + 4 preset columns + 5 engine-injected columns (9 columns total)
 - **Silver**: Extract with `data.user.name`, `data.network.src_ip` — all 10 bronze columns carried forward automatically
 - **Gold**: Map to OCSF `src_endpoint.user.name`, `src_endpoint.ip` + populate OCSF `metadata` STRUCT
 
@@ -117,7 +111,7 @@ Bronze (data VARIANT) → Silver (flatten data.field.nested) → Gold (map to OC
 ```
 Bronze (value STRING) → Silver (REGEXP_EXTRACT from value) → Gold (map to OCSF)
 ```
-- **Bronze**: `value` field stores full log line + 8 standard metadata columns + `dsl_id` (9 columns total)
+- **Bronze**: `value` field stores full log line + 4 preset columns + 5 engine-injected columns (9 columns total)
 - **Silver**: Extract fields using regex: `REGEXP_EXTRACT(value, 'src=(\\S+)', 1) as source_ip` — all 10 bronze columns carried forward automatically
 - **Gold**: Map extracted fields to OCSF schema + populate OCSF `metadata` STRUCT
 
@@ -125,7 +119,7 @@ Bronze (value STRING) → Silver (REGEXP_EXTRACT from value) → Gold (map to OC
 ```
 Bronze (data STRUCT w/ named fields) → Silver (cast & clean) → Gold (map to OCSF)
 ```
-- **Bronze**: Auto Loader CSV format with `inferSchema=true`, stores as `data.column1`, `data.column2`, etc. + 8 standard metadata columns + `dsl_id` (9 columns total)
+- **Bronze**: Auto Loader CSV format with `inferSchema=true`, stores as `data.column1`, `data.column2`, etc. + 4 preset columns + 5 engine-injected columns (9 columns total)
 - **Silver**: Cast and rename: `CAST(data.timestamp AS TIMESTAMP) as event_time`, clean/filter if needed — all 10 bronze columns carried forward automatically
 - **Gold**: Map renamed fields to OCSF schema + populate OCSF `metadata` STRUCT
 
@@ -133,7 +127,7 @@ Bronze (data STRUCT w/ named fields) → Silver (cast & clean) → Gold (map to 
 ```
 Bronze (value STRING) → Silver (from_csv to parse) → Gold (map to OCSF)
 ```
-- **Bronze**: Load as text, `value` field stores full CSV line + 8 standard metadata columns + `dsl_id` (9 columns total)
+- **Bronze**: Load as text, `value` field stores full CSV line + 4 preset columns + 5 engine-injected columns (9 columns total)
 - **Silver**: Parse with `from_csv(value, schema)` to extract typed columns — all 10 bronze columns carried forward automatically
 - **Gold**: Map extracted fields to OCSF schema + populate OCSF `metadata` STRUCT
 

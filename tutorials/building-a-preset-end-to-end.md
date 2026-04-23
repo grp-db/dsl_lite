@@ -56,12 +56,11 @@ bronze:
   name: my_source_type_bronze
   preTransform:
     -
-      - "*"
-      - "_metadata.file_path"
-      - CAST(NULL AS TIMESTAMP) as time    # TODO: extract real timestamp
       - CAST('my_source' AS STRING) as source
       - CAST('my_type' AS STRING) as sourcetype
-      - CURRENT_TIMESTAMP() as processed_time
+      - CAST(NULL AS TIMESTAMP) as time    # TODO: extract real timestamp
+      - "value"                            # use "data" for JSON (loadAsSingleVariant: true)
+      # Engine auto-injects: _metadata, record_id, date, processed_time, dsl_id
 
 silver:
   transform:
