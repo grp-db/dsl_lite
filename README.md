@@ -109,9 +109,11 @@ dsl_lite/
 │   ├── building-a-preset-end-to-end.md
 │   └── adding-a-bundle.md
 ├── images/                       # Screenshots and pipeline graph images for documentation
-│   └── pipeline_graph.png        # Example pipeline graph (bronze → silver → gold)
+│   ├── pipeline_graph.png        # Example pipeline graph (bronze → silver → gold)
+│   └── sdp_pipeline_graph.png    # Spark Declarative Pipelines graph visualization
 ├── DSL_Lite_Primer.html          # One-page customer/partner primer (print to PDF)
-├── vault/                        # Maintenance utilities for template management
+├── vault/                        # Maintenance utilities and distribution assets
+│   └── DSL Lite — Cybersecurity Data & AI Engineering Accelerator.pdf  # Primer PDF for distribution
 ├── raw_logs/                     # Sample logs for testing (one per source/source_type)
 ├── .github/
 │   └── CODEOWNERS                # Requires maintainer approval for all PRs to main
