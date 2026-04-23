@@ -108,8 +108,8 @@ Open `notebooks/explorer/preset_explorer` in Databricks and set the widgets:
 Click **Run All**. The notebook executes three sections:
 
 ### Bronze output
-Verify the raw data is being read correctly and your metadata fields (`time`, `source`,
-`sourcetype`, `processed_time`) are populated. Common issues:
+Verify the raw data is being read correctly and your preset fields (`time`, `source`,
+`sourcetype`) are populated, and that the engine-injected fields (`record_id`, `date`, `_metadata`, `processed_time`, `dsl_id`) are present. Common issues:
 - `time` is `null` → fix your timestamp regex or cast expression in `preTransform`
 - `_metadata.file_path` is empty → normal if reading a single file directly rather than a folder
 

@@ -98,11 +98,11 @@ bronze:
     -                                      # Pass 1: explode top-level array
       - explode(records) as data
     -                                      # Pass 2: extract from each record
-      - "data"
-      - try_variant_get(data, '$.time', 'TIMESTAMP') as time
       - CAST('vendor' AS STRING) AS source
       - CAST('product' AS STRING) AS sourcetype
-      - CURRENT_TIMESTAMP() as processed_time
+      - try_variant_get(data, '$.time', 'TIMESTAMP') as time
+      - "data"
+      # Engine auto-injects: _metadata, record_id, date, processed_time, dsl_id
 ```
 
 Pair this with `cloudFiles.schemaHints` when the top-level field is a typed array:
