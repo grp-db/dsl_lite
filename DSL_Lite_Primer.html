@@ -16,8 +16,11 @@
       color: #1a2332;
       background: #fff;
       width: 210mm;
-      min-height: 297mm;
+      height: 297mm;
       margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     /* ── Header ─────────────────────────────────────────────── */
@@ -63,6 +66,8 @@
 
     /* ── Body layout ─────────────────────────────────────────── */
     .body {
+      flex: 1;
+      min-height: 0;
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 0;
@@ -219,7 +224,7 @@
 
     /* ── Print ───────────────────────────────────────────────── */
     @media print {
-      body { width: 100%; height: 297mm; overflow: hidden; }
+      body { width: 100%; }
       @page { margin: 0; size: A4 portrait; }
     }
   </style>
