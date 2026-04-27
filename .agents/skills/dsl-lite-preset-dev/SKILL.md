@@ -157,7 +157,7 @@ Silver extracts structured fields from `data` (JSON VARIANT) or `value` (text/sy
 
 Always use `utils.unreferencedColumns.preserve: true` to pass unmapped columns to gold for `unmapped`/`raw_data`.
 
-**Do NOT re-declare bronze columns in silver `fields:`** — `preserve: true` carries all bronze columns forward automatically. Listing `time`, `date`, `source`, `sourcetype`, `processed_time`, `file_name`, `file_path`, `record_id`, `dsl_id`, `data`, or `value` in silver produces duplicate columns. Silver `fields:` should contain only columns that are *extracted or derived* from the bronze payload (e.g. parsed fields from `data`/`value`).
+**Do NOT re-declare bronze columns in silver `fields:`** — `preserve: true` carries all bronze columns forward automatically. Listing `time`, `date`, `source`, `sourcetype`, `processed_time`, `_metadata`, `record_id`, `dsl_id`, `data`, or `value` in silver produces duplicate columns. Silver `fields:` should contain only columns that are *extracted or derived* from the bronze payload (e.g. parsed fields from `data`/`value`).
 
 See [references/3-silver-patterns.md](references/3-silver-patterns.md) for extraction patterns, type casting rules, REGEXP_EXTRACT gotchas, and multiple-transform routing.
 

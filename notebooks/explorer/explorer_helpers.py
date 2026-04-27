@@ -376,6 +376,20 @@ def read_bronze_batch(config: dict, sample_path: str, fmt: str,
         elif isinstance(pt, str):
             df = df.selectExpr(_rewrite_expr(pt))
 
+    # Auto-inject standard bronze columns — mirrors dsl.py read_bronze_stream.
+    # In batch mode _metadata is not an Auto Loader column, so record_id uses
+    # input_file_name() instead of _metadata.file_name.
+    payload_expr = "data" if load_as_single_variant else "value"
+    auto_exprs = []
+    if "record_id" not in df.columns:
+        auto_exprs.append(f"md5(concat_ws('_', {payload_expr}, input_file_name())) as record_id")
+    if "date" not in df.columns:
+        auto_exprs.append("CAST(time AS DATE) as date")
+    if "processed_time" not in df.columns:
+        auto_exprs.append("CURRENT_TIMESTAMP() as processed_time")
+    if auto_exprs:
+        df = df.selectExpr("*", *auto_exprs)
+
     # dsl_id
     df = df.selectExpr(
         "*",
