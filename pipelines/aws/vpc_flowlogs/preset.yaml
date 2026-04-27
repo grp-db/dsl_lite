@@ -1,100 +1,126 @@
 # AWS VPC Flow Logs → OCSF Network Activity
-# Covers: VPC traffic ACCEPT/REJECT flows with src/dst IP, ports, protocol, bytes, packets,
-#         log_status (OK/NODATA/SKIPDATA), and v3+/v4/v5 optional fields when present
-# Format: space-delimited text with header row (skipped in silver)
-# v3+ fields (vpc_id through traffic_path) assume the standard AWS default column layout.
-# For custom column layouts, update positional indices in silver to match your configured order.
+# Format: space-delimited CSV with header row (AWS default delivery format).
+# v3+/v4/v5 optional fields are extracted by name — any user-configured column
+# layout is supported as long as the header row is present.
 name: aws_vpc_flowlogs
-title: "AWS VPC Flowlogs"
-description: "AWS VPC Flowlogs (v2+) — space-delimited text format with header"
+title: "AWS VPC Flow Logs"
+description: "AWS VPC Flow Logs (v2+) — space-delimited CSV with header"
 author: "grp"
 
 autoloader:
   inputs:
     - /Volumes/logs/logs/logs/dsl_grp/aws/vpc_flowlogs/
-  format: text
+  format: csv
   cloudFiles:
-    schemaHints: "value string"
+    sep: " "
+    header: "true"
 
 bronze:
   name: aws_vpc_flowlogs_bronze
   clusterBy: [time]
+  loadAsSingleVariant: true
   preTransform:
     -
       - CAST('aws' AS STRING) AS source
       - CAST('vpc_flowlogs' AS STRING) AS sourcetype
-      - COALESCE(TRY_TO_TIMESTAMP(TRY_CAST(SPLIT(value, ' ')[10] AS BIGINT)), CURRENT_TIMESTAMP()) AS time
-      - "value"
+      - COALESCE(TRY_TO_TIMESTAMP(try_variant_get(data, '$.start', 'long')), TRY_TO_TIMESTAMP(try_variant_get(data, '$.end', 'long')), CURRENT_TIMESTAMP()) AS time
+      - "data"
 
 silver:
   transform:
     - name: aws_vpc_flowlogs_silver
       clusterBy: [time]
-      filter: TRY_CAST(SPLIT(value, ' ')[0] AS INT) IS NOT NULL
+      filter: data is not null
       fields:
-        # -------- v2 fields (positions 0–13) --------
+        # -------- v2 fields --------
         - name: version
-          expr: TRY_CAST(SPLIT(value, ' ')[0] AS INT)
+          expr: try_variant_get(data, '$.version', 'int')
         - name: account_id
-          expr: NULLIF(SPLIT(value, ' ')[1], '-')
+          expr: NULLIF(try_variant_get(data, '$.account-id', 'string'), '-')
         - name: interface_id
-          expr: NULLIF(SPLIT(value, ' ')[2], '-')
+          expr: NULLIF(try_variant_get(data, '$.interface-id', 'string'), '-')
         - name: src_addr
-          expr: NULLIF(SPLIT(value, ' ')[3], '-')
+          expr: NULLIF(try_variant_get(data, '$.srcaddr', 'string'), '-')
         - name: dst_addr
-          expr: NULLIF(SPLIT(value, ' ')[4], '-')
+          expr: NULLIF(try_variant_get(data, '$.dstaddr', 'string'), '-')
         - name: src_port
-          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[5], '-') AS INT)
+          expr: try_variant_get(data, '$.srcport', 'int')
         - name: dst_port
-          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[6], '-') AS INT)
+          expr: try_variant_get(data, '$.dstport', 'int')
         - name: protocol
-          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[7], '-') AS INT)
+          expr: try_variant_get(data, '$.protocol', 'int')
         - name: packets
-          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[8], '-') AS BIGINT)
+          expr: try_variant_get(data, '$.packets', 'long')
         - name: bytes
-          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[9], '-') AS BIGINT)
+          expr: try_variant_get(data, '$.bytes', 'long')
         - name: start_epoch
-          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[10], '-') AS BIGINT)
+          expr: try_variant_get(data, '$.start', 'long')
         - name: end_epoch
-          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[11], '-') AS BIGINT)
+          expr: try_variant_get(data, '$.end', 'long')
         - name: action
-          expr: NULLIF(SPLIT(value, ' ')[12], '-')
+          expr: NULLIF(try_variant_get(data, '$.action', 'string'), '-')
         - name: log_status
-          expr: NULLIF(SPLIT(value, ' ')[13], '-')
-        # -------- v3+ optional fields (positions 14–28, standard AWS default layout) --------
-        # Returns NULL for v2-only logs (< 15 fields); present when user enables
-        # additional columns in the default AWS order. Custom column orders require
-        # updating these indices to match the configured layout.
+          expr: NULLIF(try_variant_get(data, '$.log-status', 'string'), '-')
+        # -------- v3+ optional fields (NULL when not in user's column config) --------
         - name: vpc_id
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 14 THEN NULLIF(SPLIT(value, ' ')[14], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.vpc-id', 'string'), '-')
         - name: subnet_id
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 15 THEN NULLIF(SPLIT(value, ' ')[15], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.subnet-id', 'string'), '-')
         - name: instance_id
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 16 THEN NULLIF(SPLIT(value, ' ')[16], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.instance-id', 'string'), '-')
         - name: tcp_flags
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 17 THEN TRY_CAST(NULLIF(SPLIT(value, ' ')[17], '-') AS INT) ELSE NULL END
+          expr: try_variant_get(data, '$.tcp-flags', 'int')
         - name: flow_type
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 18 THEN NULLIF(SPLIT(value, ' ')[18], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.type', 'string'), '-')
         - name: pkt_src_addr
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 19 THEN NULLIF(SPLIT(value, ' ')[19], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.pkt-srcaddr', 'string'), '-')
         - name: pkt_dst_addr
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 20 THEN NULLIF(SPLIT(value, ' ')[20], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.pkt-dstaddr', 'string'), '-')
         - name: region
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 21 THEN NULLIF(SPLIT(value, ' ')[21], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.region', 'string'), '-')
         - name: az_id
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 22 THEN NULLIF(SPLIT(value, ' ')[22], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.az-id', 'string'), '-')
         - name: sublocation_type
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 23 THEN NULLIF(SPLIT(value, ' ')[23], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.sublocation-type', 'string'), '-')
         - name: sublocation_id
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 24 THEN NULLIF(SPLIT(value, ' ')[24], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.sublocation-id', 'string'), '-')
         - name: pkt_src_aws_service
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 25 THEN NULLIF(SPLIT(value, ' ')[25], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.pkt-src-aws-service', 'string'), '-')
         - name: pkt_dst_aws_service
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 26 THEN NULLIF(SPLIT(value, ' ')[26], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.pkt-dst-aws-service', 'string'), '-')
         - name: flow_direction
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 27 THEN NULLIF(SPLIT(value, ' ')[27], '-') ELSE NULL END
+          expr: NULLIF(try_variant_get(data, '$.flow-direction', 'string'), '-')
         - name: traffic_path
-          expr: CASE WHEN size(SPLIT(value, ' ')) > 28 THEN TRY_CAST(NULLIF(SPLIT(value, ' ')[28], '-') AS INT) ELSE NULL END
+          expr: try_variant_get(data, '$.traffic-path', 'int')
+        # -------- v5/v6 Transit Gateway fields --------
+        - name: tgw_id
+          expr: NULLIF(try_variant_get(data, '$.tgw-id', 'string'), '-')
+        - name: tgw_attachment_id
+          expr: NULLIF(try_variant_get(data, '$.tgw-attachment-id', 'string'), '-')
+        - name: tgw_src_vpc_account_id
+          expr: NULLIF(try_variant_get(data, '$.tgw-src-vpc-account-id', 'string'), '-')
+        - name: tgw_dst_vpc_account_id
+          expr: NULLIF(try_variant_get(data, '$.tgw-dst-vpc-account-id', 'string'), '-')
+        - name: tgw_src_vpc_id
+          expr: NULLIF(try_variant_get(data, '$.tgw-src-vpc-id', 'string'), '-')
+        - name: tgw_dst_vpc_id
+          expr: NULLIF(try_variant_get(data, '$.tgw-dst-vpc-id', 'string'), '-')
+        - name: tgw_src_subnet_id
+          expr: NULLIF(try_variant_get(data, '$.tgw-src-subnet-id', 'string'), '-')
+        - name: tgw_dst_subnet_id
+          expr: NULLIF(try_variant_get(data, '$.tgw-dst-subnet-id', 'string'), '-')
+        - name: tgw_pair_attachment_id
+          expr: NULLIF(try_variant_get(data, '$.tgw-pair-attachment-id', 'string'), '-')
+        - name: resource_type
+          expr: NULLIF(try_variant_get(data, '$.resource-type', 'string'), '-')
+        - name: packets_lost_no_route
+          expr: try_variant_get(data, '$.packets-lost-no-route', 'long')
+        - name: packets_lost_blackhole
+          expr: try_variant_get(data, '$.packets-lost-blackhole', 'long')
+        - name: packets_lost_mtu_exceeded
+          expr: try_variant_get(data, '$.packets-lost-mtu-exceeded', 'long')
+        - name: packets_lost_ttl_expired
+          expr: try_variant_get(data, '$.packets-lost-ttl-expired', 'long')
       utils:
         unreferencedColumns:
           preserve: true
@@ -294,9 +320,9 @@ gold:
         from: packets
       # -------- Timing --------
       - name: start_time
-        expr: TO_TIMESTAMP(start_epoch)
+        expr: TRY_TO_TIMESTAMP(start_epoch)
       - name: end_time
-        expr: TO_TIMESTAMP(end_epoch)
+        expr: TRY_TO_TIMESTAMP(end_epoch)
       - name: timezone_offset
         expr: CAST(NULL AS INT)
       # -------- Cloud context --------
@@ -332,9 +358,9 @@ gold:
       - name: metadata.log_name
         literal: vpc_flowlogs
       - name: metadata.log_format
-        literal: TEXT
+        literal: CSV
       - name: metadata.log_version
-        literal: "aws@vpc_flowlogs:version@2.0"
+        expr: CAST(version AS STRING)
       - name: metadata.logged_time
         from: time
       - name: metadata.processed_time
@@ -354,11 +380,12 @@ gold:
           ), x -> x.value IS NOT NULL)
       # -------- Raw data --------
       - name: raw_data
-        expr: to_variant_object(named_struct('value', value, 'source', source, 'sourcetype', sourcetype))
-      # -------- Unmapped (v3+ fields not directly mapped to OCSF columns) --------
+        from: data
+      # -------- Unmapped --------
       - name: unmapped
         expr: |
           to_variant_object(named_struct(
+            'interface_id',    interface_id,
             'subnet_id',       subnet_id,
             'tcp_flags',       tcp_flags,
             'traffic_path',    traffic_path,
@@ -366,5 +393,12 @@ gold:
             'sublocation_type', sublocation_type,
             'sublocation_id',  sublocation_id,
             'log_status',      log_status,
-            'interface_id',    interface_id
+            'tgw_id',          tgw_id,
+            'tgw_attachment_id', tgw_attachment_id,
+            'tgw_pair_attachment_id', tgw_pair_attachment_id,
+            'resource_type',   resource_type,
+            'packets_lost_no_route',    packets_lost_no_route,
+            'packets_lost_blackhole',   packets_lost_blackhole,
+            'packets_lost_mtu_exceeded', packets_lost_mtu_exceeded,
+            'packets_lost_ttl_expired', packets_lost_ttl_expired
           ))
