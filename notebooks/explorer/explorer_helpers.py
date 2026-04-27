@@ -369,6 +369,13 @@ def read_bronze_batch(config: dict, sample_path: str, fmt: str,
         df = df.limit(input_row_limit)
         print(f"  input_row_limit : capped at {input_row_limit} rows before transforms")
 
+    # Materialize _metadata before preTransform — mirrors dsl.py which injects it
+    # into the first selectExpr pass so preTransforms can reference _metadata.file_path,
+    # _metadata.file_name, etc. In batch mode it is a hidden file-source struct that
+    # must be explicitly selected before any selectExpr drops it.
+    if "_metadata" not in df.columns:
+        df = df.select("*", spark_col("_metadata"))
+
     # preTransform — rewrite VARIANT-dependent expressions for batch compatibility
     for pt in bronze_conf.get("preTransform", []):
         if isinstance(pt, list):
