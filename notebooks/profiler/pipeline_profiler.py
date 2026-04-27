@@ -52,6 +52,11 @@
 # MAGIC | `null_threshold` | `80` | Null % at or above which a column is flagged as a warning. |
 # MAGIC | `flatten_schema` | `false` | Recursively compare nested struct fields in schema diff. |
 # MAGIC
+# MAGIC ### Validation (optional)
+# MAGIC | Widget | Default | Purpose |
+# MAGIC |---|---|---|
+# MAGIC | `ddl_path` | _(empty)_ | Workspace path to `notebooks/ddl/create_ocsf_tables.py`. When set, each gold table in the E2E run is validated against its DDL column list. |
+# MAGIC
 # MAGIC ### Report
 # MAGIC | Widget | Default | Purpose |
 # MAGIC |---|---|---|
@@ -70,6 +75,7 @@ dbutils.widgets.text(    "sample_size",       "100",   "Sample size (rows)")
 dbutils.widgets.text(    "null_threshold",    "80",    "Null % warning threshold")
 dbutils.widgets.dropdown("flatten_schema",    "false", ["false", "true"], "Flatten struct fields in schema diff")
 dbutils.widgets.dropdown("ignore_case",       "false", ["false", "true"], "Match column names case-insensitively")
+dbutils.widgets.text(    "ddl_path",          "",      "(Optional) path to create_ocsf_tables.py — enables gold schema validation in E2E run")
 dbutils.widgets.text(    "report_path",       "",      "Report output path (blank = no file saved)")
 
 # COMMAND ----------
@@ -91,7 +97,10 @@ sample_size      = int(dbutils.widgets.get("sample_size").strip() or "100")
 null_threshold   = float(dbutils.widgets.get("null_threshold").strip() or "80")
 flatten_schema   = dbutils.widgets.get("flatten_schema").strip().lower() == "true"
 ignore_case      = dbutils.widgets.get("ignore_case").strip().lower() == "true"
+ddl_path         = dbutils.widgets.get("ddl_path").strip()
 report_path      = dbutils.widgets.get("report_path").strip()
+
+ocsf_schemas = load_ocsf_ddl_schemas(ddl_path) if ddl_path else None
 
 run_schema_diff  = checks in ("all", "schema_diff")
 run_data_profile = checks in ("all", "data_profile")
@@ -148,7 +157,7 @@ if run_data_profile:
 if run_e2e:
     if preset_file:
         config, fmt, sample_path = load_config(preset_file, sample_data_path)
-        bronze_df, silver_dfs = run_e2e_sample(config, sample_path, fmt, n_rows=sample_size)
+        bronze_df, silver_dfs = run_e2e_sample(config, sample_path, fmt, n_rows=sample_size, ocsf_schemas=ocsf_schemas)
 
         # Capture row/col counts for report
         e2e_summary = {"rows": []}
