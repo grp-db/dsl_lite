@@ -66,6 +66,11 @@
 # MAGIC | `ocsf_classes` | _(empty)_ | Comma-separated OCSF class(es) to map to. Leave blank to let the model infer 1–3. |
 # MAGIC | `existing_preset_path` | _(empty)_ | For `target_layers=gold` only: path to an existing `preset.yaml` — splices the new gold block in, preserving bronze/silver bytes. |
 # MAGIC
+# MAGIC ### Additional context (optional)
+# MAGIC | Widget | Default | Purpose |
+# MAGIC |---|---|---|
+# MAGIC | `source_docs` | _(empty)_ | Paste vendor field documentation — schema tables, field descriptions, enum values. Injected into the prompt after sample data so the model knows what each field means. Useful for sources with ambiguous field names or non-obvious enums. |
+# MAGIC
 # MAGIC ### Sampling (raw mode especially)
 # MAGIC | Widget | Default | Purpose |
 # MAGIC |---|---|---|
@@ -100,6 +105,7 @@ dbutils.widgets.text(    "model_endpoint",        "databricks-claude-opus-4-7", 
 dbutils.widgets.text(    "sample_rows",           "auto",                                "Rows / files to sample — integer, 'auto' (pack to prompt budget), or 'all' (no cap)")
 dbutils.widgets.text(    "sample_filter",         "",                                    "(UC-table mode) optional SQL WHERE clause body to filter sample rows, e.g. `dns_record IS NOT NULL`")
 dbutils.widgets.text(    "max_file_bytes",        "65536",                               "(Raw mode) max bytes per file; 0 disables both per-file and cumulative caps — full opt-out")
+dbutils.widgets.text(    "source_docs",           "",                                    "(Optional) paste vendor field documentation — schema tables, field descriptions, enum values")
 dbutils.widgets.text(    "output_path",           "",                                    "(Optional) full path to write preset.yaml")
 dbutils.widgets.dropdown("overwrite",             "false", ["false", "true"],           "Allow overwrite if output_path already exists")
 
@@ -123,7 +129,13 @@ model_endpoint       = dbutils.widgets.get("model_endpoint").strip()
 sample_rows_raw      = dbutils.widgets.get("sample_rows")
 sample_filter        = dbutils.widgets.get("sample_filter").strip()
 max_file_bytes       = int(dbutils.widgets.get("max_file_bytes").strip() or "65536")
+source_docs          = dbutils.widgets.get("source_docs").strip()
 output_path          = dbutils.widgets.get("output_path").strip()
+
+source_docs_block = (
+    f"\n## Source Field Reference\n\n{source_docs}\n"
+    if source_docs else ""
+)
 overwrite            = dbutils.widgets.get("overwrite").strip().lower() == "true"
 
 assert source_name and source_type, "source_name and source_type widgets are required"
@@ -269,7 +281,7 @@ Silver table schema (col_name / data_type / comment):
 
 {sample['label']}:
 {sample_fenced}
-{existing_bs_block}
+{existing_bs_block}{source_docs_block}
 Mode-specific requirements (silver → gold-only):
 - Output a YAML document whose ONLY top-level key is `gold:`.
 - Do NOT include `bronze:` or `silver:` keys under any circumstance — those layers already exist and must not be altered.
@@ -302,7 +314,7 @@ Source identifiers:
 - source_type: {source_type}
 - target path: pipelines/{source_name}/{source_type}/preset.yaml
 
-{input_block}
+{input_block}{source_docs_block}
 Mode-specific requirements (raw → bronze + silver only):
 - Output a YAML document whose top-level keys are EXACTLY `bronze:` and `silver:` — no `gold:`.
 - Bronze should preserve the raw payload (variant or string) and capture ingestion metadata.
@@ -335,7 +347,7 @@ Source identifiers:
 
 Target OCSF gold classes: {ocsf_line}
 
-{input_block}
+{input_block}{source_docs_block}
 Mode-specific requirements (raw → full preset):
 - Produce bronze, silver, and gold sections consistent with the skill references.
 - Bronze should preserve the raw payload (variant or string), silver should parse/normalize, gold should map to OCSF.
