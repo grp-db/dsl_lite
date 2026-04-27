@@ -69,7 +69,7 @@
 # MAGIC ### Additional context (optional)
 # MAGIC | Widget | Default | Purpose |
 # MAGIC |---|---|---|
-# MAGIC | `source_docs` | _(empty)_ | Paste vendor field documentation — schema tables, field descriptions, enum values. Injected into the prompt after sample data so the model knows what each field means. Useful for sources with ambiguous field names or non-obvious enums. |
+# MAGIC | `source_docs` | _(empty)_ | Vendor field documentation injected after sample data. Accepts a **URL** (fetched at runtime, best-effort) or **pasted text** (schema tables, field descriptions, enum values). Fall back to pasted text if the URL fetch fails (e.g. outbound access blocked). |
 # MAGIC
 # MAGIC ### Sampling (raw mode especially)
 # MAGIC | Widget | Default | Purpose |
@@ -105,7 +105,7 @@ dbutils.widgets.text(    "model_endpoint",        "databricks-claude-opus-4-7", 
 dbutils.widgets.text(    "sample_rows",           "auto",                                "Rows / files to sample — integer, 'auto' (pack to prompt budget), or 'all' (no cap)")
 dbutils.widgets.text(    "sample_filter",         "",                                    "(UC-table mode) optional SQL WHERE clause body to filter sample rows, e.g. `dns_record IS NOT NULL`")
 dbutils.widgets.text(    "max_file_bytes",        "65536",                               "(Raw mode) max bytes per file; 0 disables both per-file and cumulative caps — full opt-out")
-dbutils.widgets.text(    "source_docs",           "",                                    "(Optional) paste vendor field documentation — schema tables, field descriptions, enum values")
+dbutils.widgets.text(    "source_docs",           "",                                    "(Optional) vendor docs URL (fetched at runtime) or pasted text — schema tables, field descriptions, enum values")
 dbutils.widgets.text(    "output_path",           "",                                    "(Optional) full path to write preset.yaml")
 dbutils.widgets.dropdown("overwrite",             "false", ["false", "true"],           "Allow overwrite if output_path already exists")
 
@@ -131,6 +131,17 @@ sample_filter        = dbutils.widgets.get("sample_filter").strip()
 max_file_bytes       = int(dbutils.widgets.get("max_file_bytes").strip() or "65536")
 source_docs          = dbutils.widgets.get("source_docs").strip()
 output_path          = dbutils.widgets.get("output_path").strip()
+
+if source_docs.startswith("http"):
+    try:
+        import urllib.request, re as _re
+        with urllib.request.urlopen(source_docs, timeout=10) as _r:
+            _raw = _re.sub(r"<[^>]+>", " ", _r.read().decode("utf-8", errors="replace"))
+            source_docs = _re.sub(r"[ \t]{2,}", " ", _re.sub(r"\n{3,}", "\n\n", _raw)).strip()
+        print(f"  source_docs: fetched {len(source_docs):,} chars from {source_docs[:80]}")
+    except Exception as _e:
+        print(f"  ⚠ source_docs URL fetch failed ({_e}) — paste text directly into the widget instead")
+        source_docs = ""
 
 source_docs_block = (
     f"\n## Source Field Reference\n\n{source_docs}\n"
