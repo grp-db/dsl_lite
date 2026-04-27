@@ -312,7 +312,7 @@ def load_existing_preset(existing_preset_path: str) -> tuple:
 # =============================================================================
 
 def compute_sample_budget(skill_context: str, schema_text: str,
-                          existing_bronze_silver) -> int:
+                          existing_bronze_silver, source_docs: str = "") -> int:
     """Chars left for sample content after fixed parts of the prompt."""
     bs_len = len(existing_bronze_silver) if existing_bronze_silver else 0
     return max(
@@ -321,6 +321,7 @@ def compute_sample_budget(skill_context: str, schema_text: str,
         - len(skill_context)
         - len(schema_text)
         - bs_len
+        - len(source_docs)
         - RESERVED_OUTPUT_CHARS
         - RESERVED_OVERHEAD_CHARS,
     )

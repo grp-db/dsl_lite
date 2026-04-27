@@ -132,6 +132,8 @@ max_file_bytes       = int(dbutils.widgets.get("max_file_bytes").strip() or "655
 source_docs          = dbutils.widgets.get("source_docs").strip()
 output_path          = dbutils.widgets.get("output_path").strip()
 
+_SOURCE_DOCS_CHAR_CAP = 20_000  # ~5K tokens — enough for a field reference table
+
 if source_docs.startswith("http"):
     try:
         import urllib.request, re as _re
@@ -142,10 +144,17 @@ if source_docs.startswith("http"):
         with urllib.request.urlopen(_req, timeout=10) as _r:
             _raw = _re.sub(r"<[^>]+>", " ", _r.read().decode("utf-8", errors="replace"))
             source_docs = _re.sub(r"[ \t]{2,}", " ", _re.sub(r"\n{3,}", "\n\n", _raw)).strip()
-        print(f"  source_docs: fetched {len(source_docs):,} chars from {source_docs[:80]}")
+        if len(source_docs) > _SOURCE_DOCS_CHAR_CAP:
+            source_docs = source_docs[:_SOURCE_DOCS_CHAR_CAP]
+            print(f"  source_docs: truncated to {_SOURCE_DOCS_CHAR_CAP:,} chars (full page was larger)")
+        else:
+            print(f"  source_docs: fetched {len(source_docs):,} chars")
     except Exception as _e:
         print(f"  ⚠ source_docs URL fetch failed ({_e}) — paste text directly into the widget instead")
         source_docs = ""
+elif len(source_docs) > _SOURCE_DOCS_CHAR_CAP:
+    source_docs = source_docs[:_SOURCE_DOCS_CHAR_CAP]
+    print(f"  source_docs: truncated pasted text to {_SOURCE_DOCS_CHAR_CAP:,} chars")
 
 source_docs_block = (
     f"\n## Source Field Reference\n\n{source_docs}\n"
@@ -206,7 +215,7 @@ existing_preset_text, existing_bronze_silver = load_existing_preset(existing_pre
 
 # COMMAND ----------
 
-budget = compute_sample_budget(skill_context, intro["schema_text"], existing_bronze_silver)
+budget = compute_sample_budget(skill_context, intro["schema_text"], existing_bronze_silver, source_docs)
 sample = pack_samples(intro["sample_items"], intro["sample_kind"], budget)
 
 print_input_summary(intro, sample["packed_count"], sample["total_count"], auto_sample)
