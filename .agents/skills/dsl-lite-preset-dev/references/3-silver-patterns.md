@@ -20,40 +20,42 @@ Use `try_variant_get` for safe extraction from the `data` VARIANT column.
 **Never use `data:field::TYPE` for numeric/boolean/timestamp** — it throws on type mismatch.
 `data:field::STRING` is safe (everything can be cast to string) but `try_variant_get` is preferred for consistency.
 
+**Naming rule: `name:` must exactly match the JSON key — preserve case, do not rename or snake_case.** Gold handles all renaming to OCSF field paths. Using the original key name keeps silver a faithful representation of the source and makes gold mappings self-evident.
+
 ```yaml
-# String (safe either way, but prefer try_variant_get)
-- name: query_name
+# String — name matches JSON key exactly
+- name: QueryName
   expr: try_variant_get(data, '$.QueryName', 'STRING')
 
 # Integer — MUST use try_variant_get or TRY_CAST
-- name: src_port
+- name: SrcPort
   expr: TRY_CAST(try_variant_get(data, '$.SrcPort', 'STRING') AS INT)
 # OR
-- name: src_port
+- name: SrcPort
   expr: try_variant_get(data, '$.SrcPort', 'INT')
 
 # Boolean
-- name: is_cached
+- name: IsResponseCached
   expr: TRY_CAST(try_variant_get(data, '$.IsResponseCached', 'STRING') AS BOOLEAN)
 
 # Long / BigInt
-- name: bytes_sent
+- name: BytesSent
   expr: TRY_CAST(try_variant_get(data, '$.BytesSent', 'STRING') AS BIGINT)
 
 # ARRAY of strings
-- name: resolved_ips
+- name: ResolvedIPs
   expr: try_variant_get(data, '$.ResolvedIPs', 'ARRAY<STRING>')
 
 # ARRAY of ints
-- name: category_ids
+- name: CategoryIDs
   expr: try_variant_get(data, '$.CategoryIDs', 'ARRAY<INT>')
 
 # Nested JSON string → parse as ARRAY<MAP>
-- name: rdata
+- name: RData
   expr: from_json(try_variant_get(data, '$.RData', 'STRING'), 'ARRAY<MAP<STRING,STRING>>')
 
-# Keys with dots in the name
-- name: orig_host
+# Keys with dots in the name — use backtick-quoted name
+- name: "`id.orig_h`"
   expr: CAST(data:['id.orig_h'] AS STRING)
 ```
 

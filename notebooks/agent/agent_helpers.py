@@ -50,6 +50,7 @@ OUTPUT_FORMAT_REQUIREMENTS = [
     "Output ONLY the YAML document. Do not wrap it in triple backticks, do not add prose before or after.",
     "Always set `author: \"<initials>\"` literally — do not substitute a name, handle, or the word 'skill'. The user will fill it in.",
     "Silver `fields:` must NOT re-declare any of the 10 standard bronze columns: `data`, `value`, `_metadata`, `time`, `date`, `source`, `sourcetype`, `processed_time`, `record_id`, `dsl_id`. All bronze columns are carried forward automatically by `utils.unreferencedColumns.preserve: true` — listing them in silver creates duplicate columns.",
+    "For JSON/VARIANT presets, silver `name:` must exactly match the JSON key as it appears in the payload — preserve case, do not rename or snake_case. Example: `$.QueryName` → `name: QueryName`, NOT `name: query_name`. Gold is responsible for all renaming to OCSF field paths.",
 ]
 
 # Apply only when a `gold:` section is being emitted.

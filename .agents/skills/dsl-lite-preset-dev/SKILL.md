@@ -141,11 +141,11 @@ See [references/2-bronze-patterns.md](references/2-bronze-patterns.md) for times
 
 Silver extracts structured fields from `data` (JSON VARIANT) or `value` (text/syslog STRING).
 
-**JSON field extraction** — use `try_variant_get` (safe, returns NULL on type mismatch):
+**JSON field extraction** — use `try_variant_get` (safe, returns NULL on type mismatch). **The silver `name:` must exactly match the JSON key — preserve case, do not snake_case or rename.** Gold is responsible for renaming to OCSF field paths.
 ```yaml
-- name: query_name
+- name: QueryName
   expr: try_variant_get(data, '$.QueryName', 'STRING')
-- name: src_port
+- name: SrcPort
   expr: TRY_CAST(try_variant_get(data, '$.SrcPort', 'STRING') AS INT)
 ```
 
