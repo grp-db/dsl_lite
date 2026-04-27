@@ -70,6 +70,7 @@
 # MAGIC | Widget | Default | Purpose |
 # MAGIC |---|---|---|
 # MAGIC | `source_docs` | _(empty)_ | Vendor field documentation injected after sample data. Accepts a **URL** (fetched at runtime, best-effort) or **pasted text** (schema tables, field descriptions, enum values). Fall back to pasted text if the URL fetch fails (e.g. outbound access blocked). |
+# MAGIC | `ddl_path` | _(empty)_ | Workspace path to `notebooks/ddl/create_ocsf_tables.py`. When set, the agent is constrained to only generate gold fields that exist in the enforced Delta DDL — prevents invented OCSF fields that would fail on pipeline deployment. |
 # MAGIC
 # MAGIC ### Sampling (raw mode especially)
 # MAGIC | Widget | Default | Purpose |
@@ -106,6 +107,7 @@ dbutils.widgets.text(    "sample_rows",           "auto",                       
 dbutils.widgets.text(    "sample_filter",         "",                                    "(UC-table mode) optional SQL WHERE clause body to filter sample rows, e.g. `dns_record IS NOT NULL`")
 dbutils.widgets.text(    "max_file_bytes",        "65536",                               "(Raw mode) max bytes per file; 0 disables both per-file and cumulative caps — full opt-out")
 dbutils.widgets.text(    "source_docs",           "",                                    "(Optional) vendor docs URL (fetched at runtime) or pasted text — schema tables, field descriptions, enum values")
+dbutils.widgets.text(    "ddl_path",              "",                                    "(Optional) path to create_ocsf_tables.py — constrains gold fields to DDL-defined columns only")
 dbutils.widgets.text(    "output_path",           "",                                    "(Optional) full path to write preset.yaml")
 dbutils.widgets.dropdown("overwrite",             "false", ["false", "true"],           "Allow overwrite if output_path already exists")
 
@@ -130,6 +132,7 @@ sample_rows_raw      = dbutils.widgets.get("sample_rows")
 sample_filter        = dbutils.widgets.get("sample_filter").strip()
 max_file_bytes       = int(dbutils.widgets.get("max_file_bytes").strip() or "65536")
 source_docs          = dbutils.widgets.get("source_docs").strip()
+ddl_path             = dbutils.widgets.get("ddl_path").strip()
 output_path          = dbutils.widgets.get("output_path").strip()
 
 _SOURCE_DOCS_CHAR_CAP = 20_000  # ~5K tokens — enough for a field reference table
@@ -180,6 +183,14 @@ skill_context = load_skill(skill_path)
 
 # COMMAND ----------
 
+ocsf_schemas = load_ocsf_ddl_schemas(ddl_path) if ddl_path else {}
+schema_constraints_block = build_ocsf_schema_constraints(ocsf_classes, ocsf_schemas) if ocsf_schemas else ""
+if schema_constraints_block:
+    print(f"  OCSF schema constraints: {len(schema_constraints_block):,} chars "
+          f"({len(ocsf_classes) if ocsf_classes else len(ocsf_schemas)} table(s) constrained)")
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## 2. Introspect the input
 # MAGIC
@@ -215,7 +226,7 @@ existing_preset_text, existing_bronze_silver = load_existing_preset(existing_pre
 
 # COMMAND ----------
 
-budget = compute_sample_budget(skill_context, intro["schema_text"], existing_bronze_silver, source_docs)
+budget = compute_sample_budget(skill_context, intro["schema_text"], existing_bronze_silver, source_docs, schema_constraints_block)
 sample = pack_samples(intro["sample_items"], intro["sample_kind"], budget)
 
 print_input_summary(intro, sample["packed_count"], sample["total_count"], auto_sample)
@@ -305,7 +316,7 @@ Silver table schema (col_name / data_type / comment):
 
 {sample['label']}:
 {sample_fenced}
-{existing_bs_block}{source_docs_block}
+{existing_bs_block}{source_docs_block}{schema_constraints_block}
 Mode-specific requirements (silver → gold-only):
 - Output a YAML document whose ONLY top-level key is `gold:`.
 - Do NOT include `bronze:` or `silver:` keys under any circumstance — those layers already exist and must not be altered.
@@ -371,7 +382,7 @@ Source identifiers:
 
 Target OCSF gold classes: {ocsf_line}
 
-{input_block}{source_docs_block}
+{input_block}{source_docs_block}{schema_constraints_block}
 Mode-specific requirements (raw → full preset):
 - Produce bronze, silver, and gold sections consistent with the skill references.
 - Bronze should preserve the raw payload (variant or string), silver should parse/normalize, gold should map to OCSF.

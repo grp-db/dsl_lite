@@ -183,17 +183,20 @@ def compare_profiles(table_a: str, table_b: str, sample_size: int = 100,
 # =============================================================================
 
 def run_e2e_sample(config: dict, sample_path: str, fmt: str,
-                   n_rows: int = 100) -> tuple:
+                   n_rows: int = 100, ocsf_schemas: dict = None) -> tuple:
     """
     Run n_rows through the full bronze → silver → gold pipeline using the preset.
     Returns (bronze_df, silver_dfs).
     Depends on read_bronze_batch / run_silver / run_gold from explorer_helpers.
+
+    ocsf_schemas: if provided (from load_ocsf_ddl_schemas), validate each gold
+                  DataFrame against its DDL column list after display.
     """
     print(f"\nE2E sample run — {n_rows} rows through full pipeline")
     bronze_df = read_bronze_batch(config, sample_path, fmt,
                                   display_limit=n_rows, input_row_limit=n_rows)
     silver_dfs = run_silver(config, bronze_df, display_limit=n_rows)
-    run_gold(config, silver_dfs, display_limit=n_rows)
+    run_gold(config, silver_dfs, display_limit=n_rows, ocsf_schemas=ocsf_schemas)
     return bronze_df, silver_dfs
 
 

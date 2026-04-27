@@ -77,6 +77,11 @@
 # MAGIC | `display_limit` | `50` | Rows shown in `display()` per layer. |
 # MAGIC | `register_temp_views` | `false` | Register `bronze_df` and each silver DataFrame as temp views (`bronze`, `<silver_name>`) for ad-hoc SQL in scratch cells. |
 # MAGIC
+# MAGIC ### Validation (optional)
+# MAGIC | Widget | Default | Purpose |
+# MAGIC |---|---|---|
+# MAGIC | `ddl_path` | _(empty)_ | Workspace path to `notebooks/ddl/create_ocsf_tables.py`. When set, each gold table is validated against its DDL column list — extra columns (not in DDL) and missing required fields are flagged immediately. |
+# MAGIC
 # MAGIC **Notes.** `layers=gold_only` requires silver tables to exist in Unity Catalog — the explorer reads them via `spark.read.table(...)` from each gold's `input` reference.
 
 # COMMAND ----------
@@ -89,6 +94,7 @@ dbutils.widgets.text(    "silver_table_filter",  "",   "(Optional) comma-separat
 dbutils.widgets.text(    "gold_table_filter",    "",   "(Optional) comma-separated gold table names to run")
 dbutils.widgets.text(    "display_limit",        "50", "Rows to display per layer")
 dbutils.widgets.dropdown("register_temp_views",  "false", ["false", "true"], "Register bronze + silver DataFrames as temp views for ad-hoc SQL")
+dbutils.widgets.text(    "ddl_path",             "",   "(Optional) path to create_ocsf_tables.py — enables gold schema validation")
 
 # COMMAND ----------
 
@@ -104,6 +110,9 @@ silver_table_filter = [s.strip() for s in dbutils.widgets.get("silver_table_filt
 gold_table_filter   = [s.strip() for s in dbutils.widgets.get("gold_table_filter").split(",") if s.strip()]
 display_limit       = int(dbutils.widgets.get("display_limit").strip() or "50")
 register_temp_views = dbutils.widgets.get("register_temp_views").strip().lower() == "true"
+ddl_path            = dbutils.widgets.get("ddl_path").strip()
+
+ocsf_schemas = load_ocsf_ddl_schemas(ddl_path) if ddl_path else None
 
 config, fmt, sample_path = load_config(preset_file, sample_data_path)
 
@@ -153,6 +162,6 @@ else:
 # COMMAND ----------
 
 if run_gld:
-    run_gold(config, silver_dfs, display_limit, gold_table_filter)
+    run_gold(config, silver_dfs, display_limit, gold_table_filter, ocsf_schemas)
 else:
     print("Skipped (layers setting).")

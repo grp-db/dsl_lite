@@ -67,6 +67,102 @@ GOLD_REQUIREMENTS = [
 UNIVERSAL_REQUIREMENTS = OUTPUT_FORMAT_REQUIREMENTS + GOLD_REQUIREMENTS
 
 
+# =============================================================================
+# OCSF DDL schema loading + agent constraint builder
+# =============================================================================
+
+def _split_col_defs(col_block: str) -> list:
+    """Split a CREATE TABLE column block on commas at angle-bracket depth 0."""
+    defs, depth, current = [], 0, []
+    for ch in col_block:
+        if ch == '<':
+            depth += 1
+            current.append(ch)
+        elif ch == '>':
+            depth -= 1
+            current.append(ch)
+        elif ch == ',' and depth == 0:
+            s = ''.join(current).strip()
+            if s:
+                defs.append(s)
+            current = []
+        else:
+            current.append(ch)
+    s = ''.join(current).strip()
+    if s:
+        defs.append(s)
+    return defs
+
+
+def _parse_col_name(col_def: str) -> str:
+    """Extract the column name from 'col_name TYPE ...' — strips backticks."""
+    m = re.match(r'^`?(\w+)`?', col_def.strip())
+    return m.group(1) if m else None
+
+
+def load_ocsf_ddl_schemas(ddl_path: str) -> dict:
+    """
+    Parse CREATE TABLE statements from a DDL notebook/Python file.
+    Returns {table_name: [col_name, ...]} for each OCSF table found.
+    """
+    with open(ddl_path, "r") as f:
+        text = f.read()
+
+    schemas = {}
+    for m in re.finditer(
+        r'CREATE\s+OR\s+REPLACE\s+TABLE\s+`[^`]+`\s*\.\s*`[^`]+`\s*\.\s*(\w+)\s*\(',
+        text, re.IGNORECASE
+    ):
+        table_name = m.group(1)
+        start = m.end()
+        depth, i = 1, start
+        while i < len(text) and depth > 0:
+            if text[i] == '(':
+                depth += 1
+            elif text[i] == ')':
+                depth -= 1
+            i += 1
+        col_block = text[start:i - 1]
+        col_names = [_parse_col_name(d) for d in _split_col_defs(col_block)]
+        schemas[table_name] = [c for c in col_names if c]
+
+    print(f"  Loaded OCSF DDL schemas: {len(schemas)} table(s)")
+    return schemas
+
+
+def build_ocsf_schema_constraints(ocsf_classes: list, ocsf_schemas: dict) -> str:
+    """
+    Build a schema constraints block for injection into the agent prompt.
+    Lists valid top-level column names per OCSF gold table so the model cannot
+    invent fields that aren't in the enforced Delta DDL.
+
+    ocsf_classes: list of target OCSF table names (empty → include all tables)
+    ocsf_schemas: dict from load_ocsf_ddl_schemas
+    """
+    if not ocsf_schemas:
+        return ""
+
+    targets = ocsf_classes if ocsf_classes else sorted(ocsf_schemas.keys())
+    lines = [
+        "## OCSF Schema Constraints\n",
+        "Gold `fields:` must ONLY use column names defined below — do NOT add any field "
+        "not in this list. Extra columns cause Delta write failures when the preset "
+        "is deployed as an SDP pipeline.\n",
+    ]
+    found_any = False
+    for tbl in targets:
+        cols = ocsf_schemas.get(tbl)
+        if cols is None:
+            continue
+        found_any = True
+        lines.append(f"\n### {tbl}\n")
+        lines.append(", ".join(cols) + "\n")
+
+    if not found_any:
+        return ""
+    return "".join(lines)
+
+
 # Valid target_layers values. `auto` defers to the input_layer default.
 _VALID_TARGET_LAYERS = {"auto", "full", "bronze_silver", "gold"}
 
@@ -312,7 +408,8 @@ def load_existing_preset(existing_preset_path: str) -> tuple:
 # =============================================================================
 
 def compute_sample_budget(skill_context: str, schema_text: str,
-                          existing_bronze_silver, source_docs: str = "") -> int:
+                          existing_bronze_silver, source_docs: str = "",
+                          schema_constraints: str = "") -> int:
     """Chars left for sample content after fixed parts of the prompt."""
     bs_len = len(existing_bronze_silver) if existing_bronze_silver else 0
     return max(
@@ -322,6 +419,7 @@ def compute_sample_budget(skill_context: str, schema_text: str,
         - len(schema_text)
         - bs_len
         - len(source_docs)
+        - len(schema_constraints)
         - RESERVED_OUTPUT_CHARS
         - RESERVED_OVERHEAD_CHARS,
     )

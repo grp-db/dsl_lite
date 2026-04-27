@@ -502,15 +502,112 @@ def run_silver(config: dict, bronze_df: DataFrame, display_limit: int = 50,
 
 
 # =============================================================================
+# OCSF DDL schema loading + validation
+# =============================================================================
+
+def _split_col_defs(col_block: str) -> list:
+    """Split a CREATE TABLE column block on commas at angle-bracket depth 0."""
+    defs, depth, current = [], 0, []
+    for ch in col_block:
+        if ch == '<':
+            depth += 1
+            current.append(ch)
+        elif ch == '>':
+            depth -= 1
+            current.append(ch)
+        elif ch == ',' and depth == 0:
+            s = ''.join(current).strip()
+            if s:
+                defs.append(s)
+            current = []
+        else:
+            current.append(ch)
+    s = ''.join(current).strip()
+    if s:
+        defs.append(s)
+    return defs
+
+
+def _parse_col_name(col_def: str) -> str:
+    """Extract the column name from 'col_name TYPE ...' — strips backticks."""
+    m = re.match(r'^`?(\w+)`?', col_def.strip())
+    return m.group(1) if m else None
+
+
+def load_ocsf_ddl_schemas(ddl_path: str) -> dict:
+    """
+    Parse CREATE TABLE statements from a DDL notebook/Python file.
+    Returns {table_name: [col_name, ...]} for each OCSF table found.
+    """
+    with open(ddl_path, "r") as f:
+        text = f.read()
+
+    schemas = {}
+    for m in re.finditer(
+        r'CREATE\s+OR\s+REPLACE\s+TABLE\s+`[^`]+`\s*\.\s*`[^`]+`\s*\.\s*(\w+)\s*\(',
+        text, re.IGNORECASE
+    ):
+        table_name = m.group(1)
+        start = m.end()
+        depth, i = 1, start
+        while i < len(text) and depth > 0:
+            if text[i] == '(':
+                depth += 1
+            elif text[i] == ')':
+                depth -= 1
+            i += 1
+        col_block = text[start:i - 1]
+        col_names = [_parse_col_name(d) for d in _split_col_defs(col_block)]
+        schemas[table_name] = [c for c in col_names if c]
+
+    print(f"  Loaded OCSF DDL schemas: {len(schemas)} table(s) — {sorted(schemas.keys())}")
+    return schemas
+
+
+_OCSF_REQUIRED_GOLD_FIELDS = {
+    "time", "category_uid", "category_name", "class_uid", "class_name",
+    "type_uid", "activity_id", "severity_id", "metadata",
+}
+
+
+def validate_ocsf_schema(gold_df, table_name: str, ocsf_schemas: dict) -> None:
+    """
+    Compare gold DataFrame columns against the expected DDL for `table_name`.
+    Prints warnings for extra columns (not in DDL) and missing required fields.
+    """
+    schema = ocsf_schemas.get(table_name)
+    if schema is None:
+        print(f"  ⚠️  OCSF schema for '{table_name}' not found in DDL — skipping validation")
+        print(f"      Known tables: {sorted(ocsf_schemas.keys())}")
+        return
+
+    actual   = set(gold_df.columns)
+    allowed  = set(schema)
+    extra    = actual - allowed
+    missing_required = (_OCSF_REQUIRED_GOLD_FIELDS & allowed) - actual
+
+    if not extra and not missing_required:
+        print(f"  ✓ OCSF schema: all {len(actual)} column(s) match DDL")
+        return
+
+    if extra:
+        print(f"  ❌ OCSF schema: {len(extra)} column(s) NOT in DDL (will fail on Delta write): {sorted(extra)}")
+    if missing_required:
+        print(f"  ⚠️  OCSF schema: {len(missing_required)} required field(s) missing: {sorted(missing_required)}")
+
+
+# =============================================================================
 # Gold
 # =============================================================================
 
 def run_gold(config: dict, silver_dfs: dict, display_limit: int = 50,
-             table_filter: list = None):
+             table_filter: list = None, ocsf_schemas: dict = None):
     """
     Apply gold table mappings from the preset config and display each.
 
     table_filter: if non-empty, only run the listed gold tables (by name).
+    ocsf_schemas: if provided (from load_ocsf_ddl_schemas), validate each gold
+                  DataFrame against its DDL column list after display.
     """
     tf = set(table_filter or [])
 
@@ -579,6 +676,8 @@ def run_gold(config: dict, silver_dfs: dict, display_limit: int = 50,
                     print(f"  ⚠️  All-null fields (check gold mappings): {null_fields}")
             print(f"  Columns : {len(df.columns)}")
             display(df.limit(display_limit))
+            if ocsf_schemas:
+                validate_ocsf_schema(df, gold_name, ocsf_schemas)
 
         except Exception as e:
             print(f"  ❌ Error processing gold table '{gold_name}': {e}")
