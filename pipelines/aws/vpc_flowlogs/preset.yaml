@@ -390,11 +390,11 @@ gold:
       - name: metadata.log_format
         literal: CSV
       - name: metadata.log_version
-        expr: CAST(version AS STRING)
-      - name: metadata.logged_time
-        from: time
+        literal: "aws@vpc_flowlogs:version@2.0"
       - name: metadata.processed_time
         expr: CURRENT_TIMESTAMP()
+      - name: metadata.logged_time
+        from: time
       - name: metadata.uid
         from: connection_info.uid
       # -------- Observables --------
@@ -410,7 +410,7 @@ gold:
           ), x -> x.value IS NOT NULL)
       # -------- Raw data --------
       - name: raw_data
-        from: data
+        expr: CAST(to_json(named_struct('payload', data, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
       # -------- Unmapped --------
       - name: unmapped
         expr: |
