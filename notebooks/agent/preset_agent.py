@@ -135,7 +135,11 @@ output_path          = dbutils.widgets.get("output_path").strip()
 if source_docs.startswith("http"):
     try:
         import urllib.request, re as _re
-        with urllib.request.urlopen(source_docs, timeout=10) as _r:
+        _req = urllib.request.Request(
+            source_docs,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; DSLLiteAgent/1.0)"},
+        )
+        with urllib.request.urlopen(_req, timeout=10) as _r:
             _raw = _re.sub(r"<[^>]+>", " ", _r.read().decode("utf-8", errors="replace"))
             source_docs = _re.sub(r"[ \t]{2,}", " ", _re.sub(r"\n{3,}", "\n\n", _raw)).strip()
         print(f"  source_docs: fetched {len(source_docs):,} chars from {source_docs[:80]}")
