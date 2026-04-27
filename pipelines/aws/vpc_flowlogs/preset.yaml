@@ -1,23 +1,21 @@
 # AWS VPC Flow Logs → OCSF Network Activity
-# Covers: VPC traffic ACCEPT/REJECT events with src/dst IP, ports, protocol, packets, bytes,
-#         and log_status (OK/NODATA/SKIPDATA)
-# Raw logs assumed at volume path; bronze parses space-delimited text format; silver/gold align with OCSF network_activity schema.
+# Covers: VPC traffic ACCEPT/REJECT flows with src/dst IP, ports, protocol, bytes, packets,
+#         log_status (OK/NODATA/SKIPDATA), and v3+/v4/v5 optional fields when present
+# Format: space-delimited text with header row (skipped in silver)
+# v3+ fields (vpc_id through traffic_path) assume the standard AWS default column layout.
+# For custom column layouts, update positional indices in silver to match your configured order.
 name: aws_vpc_flowlogs
-description: "AWS VPC Flowlogs"
 title: "AWS VPC Flowlogs"
+description: "AWS VPC Flowlogs (v2+) — space-delimited text format with header"
 author: "grp"
+
 autoloader:
   inputs:
-  - /Volumes/logs/logs/logs/dsl_grp/aws/vpc_flowlogs/ # CHANGE ME! /Volumes/logs/<SOURCE>/<SOURCE_TYPE>/
+    - /Volumes/logs/logs/logs/dsl_grp/aws/vpc_flowlogs/
   format: text
-  # format: csv
-  # options:
-  #   header: "false" # skip header (contains special chars)
-  #   skipRows: 1 # skip row with header
-  # schema: "value string" # pack txt log into value field
   cloudFiles:
     schemaHints: "value string"
-#ingest/amend
+
 bronze:
   name: aws_vpc_flowlogs_bronze
   clusterBy: [time]
@@ -25,121 +23,138 @@ bronze:
     -
       - CAST('aws' AS STRING) AS source
       - CAST('vpc_flowlogs' AS STRING) AS sourcetype
-      - TO_TIMESTAMP(CAST(SPLIT(value, ' ')[10] AS BIGINT)) as time
+      - COALESCE(TRY_TO_TIMESTAMP(TRY_CAST(SPLIT(value, ' ')[10] AS BIGINT)), CURRENT_TIMESTAMP()) AS time
       - "value"
-#parse/flatten
+
 silver:
   transform:
     - name: aws_vpc_flowlogs_silver
       clusterBy: [time]
+      filter: TRY_CAST(SPLIT(value, ' ')[0] AS INT) IS NOT NULL
       fields:
+        # -------- v2 fields (positions 0–13) --------
         - name: version
-          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[0], '-') AS INT)
+          expr: TRY_CAST(SPLIT(value, ' ')[0] AS INT)
         - name: account_id
-          expr: CAST(NULLIF(SPLIT(value, ' ')[1], '-') AS STRING)
+          expr: NULLIF(SPLIT(value, ' ')[1], '-')
         - name: interface_id
-          expr: CAST(NULLIF(SPLIT(value, ' ')[2], '-') AS STRING)
-        - name: srcaddr
-          expr: CAST(NULLIF(SPLIT(value, ' ')[3], '-') AS STRING)
-        - name: dstaddr
-          expr: CAST(NULLIF(SPLIT(value, ' ')[4], '-') AS STRING)
-        - name: srcport
+          expr: NULLIF(SPLIT(value, ' ')[2], '-')
+        - name: src_addr
+          expr: NULLIF(SPLIT(value, ' ')[3], '-')
+        - name: dst_addr
+          expr: NULLIF(SPLIT(value, ' ')[4], '-')
+        - name: src_port
           expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[5], '-') AS INT)
-        - name: dstport
+        - name: dst_port
           expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[6], '-') AS INT)
         - name: protocol
           expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[7], '-') AS INT)
         - name: packets
           expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[8], '-') AS BIGINT)
         - name: bytes
-          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[9], '-') AS INT)
-        - name: start
+          expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[9], '-') AS BIGINT)
+        - name: start_epoch
           expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[10], '-') AS BIGINT)
-        - name: end
+        - name: end_epoch
           expr: TRY_CAST(NULLIF(SPLIT(value, ' ')[11], '-') AS BIGINT)
         - name: action
-          expr: CAST(NULLIF(SPLIT(value, ' ')[12], '-') AS STRING)
+          expr: NULLIF(SPLIT(value, ' ')[12], '-')
         - name: log_status
-          expr: CAST(NULLIF(SPLIT(value, ' ')[13], '-') AS STRING)
+          expr: NULLIF(SPLIT(value, ' ')[13], '-')
+        # -------- v3+ optional fields (positions 14–28, standard AWS default layout) --------
+        # Returns NULL for v2-only logs (< 15 fields); present when user enables
+        # additional columns in the default AWS order. Custom column orders require
+        # updating these indices to match the configured layout.
+        - name: vpc_id
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 14 THEN NULLIF(SPLIT(value, ' ')[14], '-') ELSE NULL END
+        - name: subnet_id
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 15 THEN NULLIF(SPLIT(value, ' ')[15], '-') ELSE NULL END
+        - name: instance_id
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 16 THEN NULLIF(SPLIT(value, ' ')[16], '-') ELSE NULL END
+        - name: tcp_flags
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 17 THEN TRY_CAST(NULLIF(SPLIT(value, ' ')[17], '-') AS INT) ELSE NULL END
+        - name: flow_type
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 18 THEN NULLIF(SPLIT(value, ' ')[18], '-') ELSE NULL END
+        - name: pkt_src_addr
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 19 THEN NULLIF(SPLIT(value, ' ')[19], '-') ELSE NULL END
+        - name: pkt_dst_addr
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 20 THEN NULLIF(SPLIT(value, ' ')[20], '-') ELSE NULL END
+        - name: region
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 21 THEN NULLIF(SPLIT(value, ' ')[21], '-') ELSE NULL END
+        - name: az_id
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 22 THEN NULLIF(SPLIT(value, ' ')[22], '-') ELSE NULL END
+        - name: sublocation_type
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 23 THEN NULLIF(SPLIT(value, ' ')[23], '-') ELSE NULL END
+        - name: sublocation_id
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 24 THEN NULLIF(SPLIT(value, ' ')[24], '-') ELSE NULL END
+        - name: pkt_src_aws_service
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 25 THEN NULLIF(SPLIT(value, ' ')[25], '-') ELSE NULL END
+        - name: pkt_dst_aws_service
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 26 THEN NULLIF(SPLIT(value, ' ')[26], '-') ELSE NULL END
+        - name: flow_direction
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 27 THEN NULLIF(SPLIT(value, ' ')[27], '-') ELSE NULL END
+        - name: traffic_path
+          expr: CASE WHEN size(SPLIT(value, ' ')) > 28 THEN TRY_CAST(NULLIF(SPLIT(value, ' ')[28], '-') AS INT) ELSE NULL END
       utils:
         unreferencedColumns:
-          preserve: true # carry over brz fields
-#normalize/map
+          preserve: true
+
 gold:
-  # Note: clusterBy is supported in SSS (Spark Structured Streaming) mode but not in SDP mode (sinks don't support it atm)
-  # For SDP mode, run ALTER TABLE after pipeline creation:
-  #   ALTER TABLE <catalog>.<database>.<table_name> CLUSTER BY (time, <other_fields>)
   - name: network_activity
     input: aws_vpc_flowlogs_silver
-    # catalog: my_catalog  # Optional: Unity Catalog catalog name
-    # database: my_database  # Optional: database name (required if catalog is specified)
-    # clusterBy: ["time", "src_endpoint.ip"]  # Only works in SSS mode (src/sss_gold.py)
     fields:
+      # -------- Time (must be first for Delta liquid clustering) --------
       - name: time
         from: time
-      # action fields
-      - name: action_id
-        expr: |
-          CAST(CASE
-            WHEN action = 'ACCEPT' THEN 1
-            WHEN action = 'REJECT' THEN 2
-            ELSE 99
-          END AS INT)
-      - name: action
-        expr: |
-          CASE
-            WHEN action = 'ACCEPT' THEN 'Allowed'
-            WHEN action = 'REJECT' THEN 'Denied'
-            ELSE 'Other'
-          END
-      # activity fields
+      # -------- Activity --------
+      # VPC flow logs capture traffic flows, not connection open/close events.
+      # activity_id=6 (Traffic) is correct for all flow records.
       - name: activity_id
-        expr: |
-          CAST(CASE
-            WHEN action = 'ACCEPT' THEN 2
-            WHEN action = 'REJECT' THEN 3
-            ELSE 99
-          END AS INT)
+        expr: CAST(6 AS INT)
       - name: activity_name
-        expr: |
-          CASE
-              WHEN action = 'ACCEPT' THEN 'Close'
-              WHEN action = 'REJECT' THEN 'Refuse'
-              ELSE 'Other'
-          END
+        literal: Traffic
       - name: activity
-        expr: |
-          CASE
-              WHEN action = 'ACCEPT' THEN 'Close'
-              WHEN action = 'REJECT' THEN 'Refuse'
-              ELSE 'Other'
-          END
-      # category fields
+        literal: Traffic
+      # -------- Category & Class --------
       - name: category_uid
-        expr: CAST('4' AS INT)
+        expr: CAST(4 AS INT)
       - name: category_name
         literal: Network Activity
-      # class fields
       - name: class_uid
-        expr: CAST('4001' AS INT)
+        expr: CAST(4001 AS INT)
       - name: class_name
         literal: Network Activity
       - name: type_uid
-        expr: CAST(4001 * 100 + activity_id AS BIGINT)
+        expr: CAST(class_uid * 100 + activity_id AS BIGINT)
       - name: type_name
-        expr: "CONCAT('Network Activity: ', activity_name)"
-      # status fields
+        expr: "concat(class_name, ': ', activity_name)"
+      # -------- Severity --------
+      - name: severity_id
+        expr: |
+          CAST(CASE
+            WHEN action = 'REJECT' THEN 3
+            ELSE 1
+          END AS INT)
+      - name: severity
+        expr: |
+          CASE
+            WHEN severity_id = 3 THEN 'Medium'
+            ELSE 'Informational'
+          END
+      # -------- Status --------
       - name: status_id
         expr: |
           CAST(CASE
             WHEN log_status = 'OK' THEN 1
-            ELSE 2
+            WHEN log_status IN ('NODATA', 'SKIPDATA') THEN 99
+            ELSE 0
           END AS INT)
       - name: status
         expr: |
           CASE
-            WHEN log_status = 'OK' THEN 'Success'
-            ELSE 'Failure'
+            WHEN status_id = 1 THEN 'Success'
+            WHEN status_id = 99 THEN 'Other'
+            ELSE 'Unknown'
           END
       - name: status_code
         from: log_status
@@ -147,215 +162,209 @@ gold:
         expr: |
           CASE
             WHEN log_status = 'OK' THEN 'Flow log recorded'
-            WHEN log_status = 'NODATA' THEN 'No data'
-            WHEN log_status = 'SKIPDATA' THEN 'Data skipped'
+            WHEN log_status = 'NODATA' THEN 'No data during aggregation interval'
+            WHEN log_status = 'SKIPDATA' THEN 'Data skipped during aggregation interval'
             ELSE COALESCE(log_status, 'Unknown')
           END
-      # disposition fields
-      - name: disposition_id
+      # -------- Action / Disposition --------
+      - name: action_id
         expr: |
           CAST(CASE
             WHEN action = 'ACCEPT' THEN 1
             WHEN action = 'REJECT' THEN 2
             ELSE 0
           END AS INT)
+      - name: action
+        expr: |
+          CASE
+            WHEN action_id = 1 THEN 'Allowed'
+            WHEN action_id = 2 THEN 'Denied'
+            ELSE 'Unknown'
+          END
+      - name: disposition_id
+        expr: |
+          CAST(CASE
+            WHEN action_id = 1 THEN 1
+            WHEN action_id = 2 THEN 2
+            ELSE 0
+          END AS INT)
       - name: disposition
         expr: |
           CASE
-            WHEN action = 'ACCEPT' THEN 'Allowed'
-            WHEN action = 'REJECT' THEN 'Blocked'
+            WHEN disposition_id = 1 THEN 'Allowed'
+            WHEN disposition_id = 2 THEN 'Blocked'
             ELSE 'Unknown'
           END
-      # src fields
+      # -------- Source endpoint --------
+      # Use packet-level IPs (v3+) when available, fall back to flow-level IPs
       - name: src_endpoint.ip
-        from: srcaddr
+        expr: COALESCE(pkt_src_addr, src_addr)
       - name: src_endpoint.port
-        from: srcport
-      # dst fields
+        from: src_port
+      - name: src_endpoint.interface_uid
+        from: interface_id
+      - name: src_endpoint.instance_uid
+        from: instance_id
+      - name: src_endpoint.vpc_uid
+        from: vpc_id
+      - name: src_endpoint.zone
+        from: az_id
+      - name: src_endpoint.svc_name
+        from: pkt_src_aws_service
+      # -------- Destination endpoint --------
       - name: dst_endpoint.ip
-        from: dstaddr
+        expr: COALESCE(pkt_dst_addr, dst_addr)
       - name: dst_endpoint.port
-        from: dstport
-      # connection_info fields
-      - name: connection_info.direction_id
-        expr: |
-          CAST(CASE
-            WHEN
-              (
-                srcaddr RLIKE '^10\\.'
-                OR srcaddr RLIKE '^192\\.168\\.'
-                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-              AND
-              (
-                dstaddr RLIKE '^10\\.'
-                OR dstaddr RLIKE '^192\\.168\\.'
-                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-            THEN 3
-            WHEN
-              (
-                srcaddr RLIKE '^10\\.'
-                OR srcaddr RLIKE '^192\\.168\\.'
-                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-              AND NOT
-              (
-                dstaddr RLIKE '^10\\.'
-                OR dstaddr RLIKE '^192\\.168\\.'
-                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-            THEN 2
-            WHEN
-              NOT
-              (
-                srcaddr RLIKE '^10\\.'
-                OR srcaddr RLIKE '^192\\.168\\.'
-                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-              AND
-              (
-                dstaddr RLIKE '^10\\.'
-                OR dstaddr RLIKE '^192\\.168\\.'
-                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-            THEN 1
-            ELSE 0
-          END AS INT)
-      - name: connection_info.direction
-        expr: |
-          CASE
-            WHEN
-              (
-                srcaddr RLIKE '^10\\.'
-                OR srcaddr RLIKE '^192\\.168\\.'
-                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-              AND
-              (
-                dstaddr RLIKE '^10\\.'
-                OR dstaddr RLIKE '^192\\.168\\.'
-                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-            THEN 'Lateral'
-            WHEN
-              (
-                srcaddr RLIKE '^10\\.'
-                OR srcaddr RLIKE '^192\\.168\\.'
-                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-              AND NOT
-              (
-                dstaddr RLIKE '^10\\.'
-                OR dstaddr RLIKE '^192\\.168\\.'
-                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-            THEN 'Outbound'
-            WHEN
-              NOT
-              (
-                srcaddr RLIKE '^10\\.'
-                OR srcaddr RLIKE '^192\\.168\\.'
-                OR srcaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-              AND
-              (
-                dstaddr RLIKE '^10\\.'
-                OR dstaddr RLIKE '^192\\.168\\.'
-                OR dstaddr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.'
-              )
-            THEN 'Inbound'
-            ELSE 'Unknown'
-          END
+        from: dst_port
+      - name: dst_endpoint.svc_name
+        from: pkt_dst_aws_service
+      # -------- Connection info --------
       - name: connection_info.protocol_num
         from: protocol
       - name: connection_info.protocol_name
         expr: |
           CASE
-            WHEN protocol = 1 THEN 'icmp'
-            WHEN protocol = 6 THEN 'tcp'
+            WHEN protocol = 1  THEN 'icmp'
+            WHEN protocol = 6  THEN 'tcp'
             WHEN protocol = 17 THEN 'udp'
+            WHEN protocol = 47 THEN 'gre'
             WHEN protocol = 58 THEN 'icmpv6'
-            ELSE CAST(protocol AS STRING)
+            ELSE NULL
           END
-      # Deterministic flow UID: SHA256 of interface + 4-tuple + protocol + start time (no placeholders in output)
+      - name: connection_info.direction_id
+        expr: |
+          CAST(CASE
+            WHEN flow_direction = 'ingress' THEN 1
+            WHEN flow_direction = 'egress'  THEN 2
+            WHEN (src_addr RLIKE '^10\\.' OR src_addr RLIKE '^192\\.168\\.'
+                  OR src_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+              AND NOT (dst_addr RLIKE '^10\\.' OR dst_addr RLIKE '^192\\.168\\.'
+                       OR dst_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+            THEN 2
+            WHEN NOT (src_addr RLIKE '^10\\.' OR src_addr RLIKE '^192\\.168\\.'
+                      OR src_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+              AND (dst_addr RLIKE '^10\\.' OR dst_addr RLIKE '^192\\.168\\.'
+                   OR dst_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+            THEN 1
+            WHEN (src_addr RLIKE '^10\\.' OR src_addr RLIKE '^192\\.168\\.'
+                  OR src_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+              AND (dst_addr RLIKE '^10\\.' OR dst_addr RLIKE '^192\\.168\\.'
+                   OR dst_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+            THEN 3
+            ELSE 0
+          END AS INT)
+      - name: connection_info.direction
+        expr: |
+          CASE
+            WHEN flow_direction = 'ingress' THEN 'Inbound'
+            WHEN flow_direction = 'egress'  THEN 'Outbound'
+            WHEN (src_addr RLIKE '^10\\.' OR src_addr RLIKE '^192\\.168\\.'
+                  OR src_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+              AND NOT (dst_addr RLIKE '^10\\.' OR dst_addr RLIKE '^192\\.168\\.'
+                       OR dst_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+            THEN 'Outbound'
+            WHEN NOT (src_addr RLIKE '^10\\.' OR src_addr RLIKE '^192\\.168\\.'
+                      OR src_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+              AND (dst_addr RLIKE '^10\\.' OR dst_addr RLIKE '^192\\.168\\.'
+                   OR dst_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+            THEN 'Inbound'
+            WHEN (src_addr RLIKE '^10\\.' OR src_addr RLIKE '^192\\.168\\.'
+                  OR src_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+              AND (dst_addr RLIKE '^10\\.' OR dst_addr RLIKE '^192\\.168\\.'
+                   OR dst_addr RLIKE '^172\\.(1[6-9]|2[0-9]|3[0-1])\\.')
+            THEN 'Lateral'
+            ELSE 'Unknown'
+          END
       - name: connection_info.uid
         expr: |
           SHA2(
             CONCAT_WS('|',
-              COALESCE(interface_id, '0'),
-              CASE WHEN TRIM(COALESCE(srcaddr, '')) IN ('', '-') THEN '0' ELSE TRIM(srcaddr) END,
-              COALESCE(CAST(srcport AS STRING), '0'),
-              CASE WHEN TRIM(COALESCE(dstaddr, '')) IN ('', '-') THEN '0' ELSE TRIM(dstaddr) END,
-              COALESCE(CAST(dstport AS STRING), '0'),
-              COALESCE(CAST(protocol AS STRING), '0'),
-              COALESCE(CAST(start AS STRING), '0')
-            ),
-            256
-          )
-      # time fields
-      - name: start_time
-        expr: TO_TIMESTAMP(start)
-      - name: end_time
-        expr: TO_TIMESTAMP(end)
-      # traffic fields
+              COALESCE(interface_id, ''),
+              COALESCE(src_addr, ''),
+              COALESCE(CAST(src_port AS STRING), ''),
+              COALESCE(dst_addr, ''),
+              COALESCE(CAST(dst_port AS STRING), ''),
+              COALESCE(CAST(protocol AS STRING), ''),
+              COALESCE(CAST(start_epoch AS STRING), '')
+            ), 256)
+      # -------- Traffic --------
       - name: traffic.bytes
         from: bytes
       - name: traffic.packets
         from: packets
-      # message fields
-      - name: message
-        expr: |
-          CONCAT(
-            'VPC FlowLog ', COALESCE(action, ''), ' ',
-            COALESCE(srcaddr, ''), ':', COALESCE(CAST(srcport AS STRING), ''),
-            ' --> ',
-            COALESCE(dstaddr, ''), ':', COALESCE(CAST(dstport AS STRING), '')
-          )
-      # metadata fields
-      - name: metadata.version
-        literal: "1.7.0" # OCSF SCHEMA VERSION
-      - name: metadata.product.name
-        literal: AWS VPC FlowLogs (v2)
-      - name: metadata.product.vendor_name
-        literal: AWS
-      - name: metadata.log_provider
-        literal: aws # SOURCE
-      - name: metadata.log_name
-        literal: vpc_flowlogs # SOURCE_TYPE
-      - name: metadata.log_format
-        literal: TEXT # FORMAT
-      - name: metadata.processed_time
-        expr: CURRENT_TIMESTAMP()
-      - name: metadata.logged_time
-        from: time
-      - name: metadata.uid
-        from: connection_info.uid
-      - name: metadata.log_version
-        literal: "aws@vpc_flowlogs:version@1.0"
-      # cloud context
+      # -------- Timing --------
+      - name: start_time
+        expr: TO_TIMESTAMP(start_epoch)
+      - name: end_time
+        expr: TO_TIMESTAMP(end_epoch)
+      - name: timezone_offset
+        expr: CAST(NULL AS INT)
+      # -------- Cloud context --------
       - name: cloud.provider
         literal: AWS
       - name: cloud.account.uid
         from: account_id
-      # observables
+      - name: cloud.region
+        from: region
+      # -------- Message --------
+      - name: message
+        expr: |
+          CASE
+            WHEN src_addr IS NULL AND dst_addr IS NULL THEN
+              concat(COALESCE(log_status, 'NODATA'), ' on eni=', COALESCE(interface_id, ''))
+            ELSE
+              concat(
+                COALESCE(action, ''), ' ',
+                COALESCE(src_addr, ''), ':', COALESCE(CAST(src_port AS STRING), ''),
+                ' -> ',
+                COALESCE(dst_addr, ''), ':', COALESCE(CAST(dst_port AS STRING), ''),
+                ' eni=', COALESCE(interface_id, ''))
+          END
+      # -------- Metadata --------
+      - name: metadata.version
+        literal: "1.7.0"
+      - name: metadata.product.name
+        literal: VPC Flow Logs
+      - name: metadata.product.vendor_name
+        literal: AWS
+      - name: metadata.log_provider
+        literal: aws
+      - name: metadata.log_name
+        literal: vpc_flowlogs
+      - name: metadata.log_format
+        literal: TEXT
+      - name: metadata.log_version
+        literal: "aws@vpc_flowlogs:version@2.0"
+      - name: metadata.logged_time
+        from: time
+      - name: metadata.processed_time
+        expr: CURRENT_TIMESTAMP()
+      - name: metadata.uid
+        from: connection_info.uid
+      # -------- Observables --------
       - name: observables
         expr: |
-          filter(
-            array(
-              named_struct('name', 'src_endpoint.ip', 'type', 'IP Address', 'value', srcaddr),
-              named_struct('name', 'dst_endpoint.ip', 'type', 'IP Address', 'value', dstaddr),
-              CASE WHEN account_id IS NOT NULL THEN named_struct('name', 'cloud.account.uid', 'type', 'Account UID', 'value', account_id) ELSE NULL END
-            ),
-            x -> x IS NOT NULL
-          )
-      # raw fields
+          filter(array(
+            named_struct('name', 'src_endpoint.ip',    'type', 'IP Address',   'value', COALESCE(pkt_src_addr, src_addr)),
+            named_struct('name', 'dst_endpoint.ip',    'type', 'IP Address',   'value', COALESCE(pkt_dst_addr, dst_addr)),
+            named_struct('name', 'src_endpoint.port',  'type', 'Port',         'value', CAST(src_port AS STRING)),
+            named_struct('name', 'dst_endpoint.port',  'type', 'Port',         'value', CAST(dst_port AS STRING)),
+            named_struct('name', 'cloud.account.uid',  'type', 'Account Object: uid', 'value', account_id),
+            named_struct('name', 'src_endpoint.interface_uid', 'type', 'Resource UID', 'value', interface_id)
+          ), x -> x.value IS NOT NULL)
+      # -------- Raw data --------
       - name: raw_data
-        expr: CAST(to_json(named_struct('payload', value, 'source', source, 'sourcetype', sourcetype)) AS VARIANT)
-      # unmapped fields
+        expr: to_variant_object(named_struct('value', value, 'source', source, 'sourcetype', sourcetype))
+      # -------- Unmapped (v3+ fields not directly mapped to OCSF columns) --------
       - name: unmapped
         expr: |
           to_variant_object(named_struct(
-            'account_id', account_id,
-            'interface_id', interface_id
+            'subnet_id',       subnet_id,
+            'tcp_flags',       tcp_flags,
+            'traffic_path',    traffic_path,
+            'flow_type',       flow_type,
+            'sublocation_type', sublocation_type,
+            'sublocation_id',  sublocation_id,
+            'log_status',      log_status,
+            'interface_id',    interface_id
           ))
