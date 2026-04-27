@@ -149,7 +149,7 @@ Silver extracts structured fields from `data` (JSON VARIANT) or `value` (text/sy
   expr: TRY_CAST(try_variant_get(data, '$.SrcPort', 'STRING') AS INT)
 ```
 
-**Text/syslog extraction** — use `REGEXP_EXTRACT` from `value`:
+**Text/syslog extraction** — use `REGEXP_EXTRACT` from `value`. Name fields descriptively in snake_case — there is no source key to preserve, so choose names by semantic meaning (`src_ip`, `facility`, `mnemonic`, etc.):
 ```yaml
 - name: facility
   expr: REGEXP_EXTRACT(value, '^\\d+:\\s+\\w+\\s+\\d+\\s+\\d+\\s+\\d+:\\d+:\\d+:\\s+%(\\w+)', 1)

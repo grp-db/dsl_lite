@@ -65,6 +65,8 @@ Use `try_variant_get` for safe extraction from the `data` VARIANT column.
 
 Extract fields from the `value` STRING column using Spark SQL `REGEXP_EXTRACT`.
 
+**Naming rule: choose descriptive snake_case names that reflect what the regex captures.** There is no source key to preserve — name fields by their semantic meaning (e.g. `src_ip`, `facility`, `mnemonic`, `severity`).
+
 ```yaml
 # Single capture group
 - name: severity
