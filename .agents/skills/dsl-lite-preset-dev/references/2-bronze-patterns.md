@@ -31,11 +31,42 @@ Do not add extra columns (e.g. `host`, `query`, extracted fields) to bronze `pre
 | Format | loadAsSingleVariant | Data column |
 |--------|--------------------|-----------  |
 | JSON / JSONL | `true` | `data VARIANT` — entire record as Variant |
+| CSV with header + variable columns | `true` | `data VARIANT` — row as named-key Variant (keys = header column names) |
 | Text / Syslog | omit | `value STRING` — raw line |
-| CSV with header | omit (use `cloudFiles.header: true`) | named columns |
+| CSV with header (fixed known columns) | omit (use `cloudFiles.header: true`) | named columns |
 | CSV without header | omit | `_c0`, `_c1`, … |
 
 **Never** set `loadAsSingleVariant: true` for text/syslog — the `value` column won't exist.
+
+**Use `loadAsSingleVariant: true` with CSV when** the log source has a user-configurable column set or optional fields (e.g. AWS VPC Flow Logs). The header is consumed by the reader; `data` becomes a VARIANT keyed by column name, and silver uses `try_variant_get(data, '$.column-name', 'type')` — absent columns return `NULL` without size guards or schema errors.
+
+**AWS VPC Flow Logs** (complete bronze preTransform — CSV with space separator, header row, variable v2–v10 columns):
+```yaml
+autoloader:
+  format: csv
+  cloudFiles:
+    sep: " "
+    header: "true"
+
+bronze:
+  name: aws_vpc_flowlogs_bronze
+  clusterBy: [time]
+  loadAsSingleVariant: true
+  preTransform:
+    -
+      - CAST('aws' AS STRING) AS source
+      - CAST('vpc_flowlogs' AS STRING) AS sourcetype
+      - COALESCE(TRY_TO_TIMESTAMP(try_variant_get(data, '$.start', 'long')), TRY_TO_TIMESTAMP(try_variant_get(data, '$.end', 'long')), CURRENT_TIMESTAMP()) AS time
+      - "data"
+```
+
+Silver then extracts by header name regardless of column order or which optional fields the customer enabled:
+```yaml
+- name: account_id
+  expr: NULLIF(try_variant_get(data, '$.account-id', 'string'), '-')
+- name: vpc_id
+  expr: NULLIF(try_variant_get(data, '$.vpc-id', 'string'), '-')   # NULL on v2-only logs
+```
 
 ---
 

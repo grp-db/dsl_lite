@@ -1,13 +1,9 @@
-version account-id interface-id srcaddr dstaddr srcport dstport protocol packets bytes start end action log-status
-2 123456789012 eni-0011223344556677 10.0.1.10 54.239.28.85 51514 443 6 12 8400 1709251000 1709251060 ACCEPT OK
-2 123456789012 eni-0011223344556677 - 54.239.28.85 - 443 6 3 1800 1709251100 1709251160 ACCEPT OK
-2 123456789012 eni-00aa11bb22cc33dd 10.0.2.15 - 49822 - 17 2 196 1709251200 1709251260 ACCEPT OK
-2 123456789012 eni-00aa11bb22cc33dd - - - - - - - 1709251300 1709251360 REJECT NODATA
-2 123456789012 eni-00ff11ee22dd33cc 10.0.3.25 8.8.8.8 60123 53 17 1 98 1709251400 1709251460 ACCEPT OK
-2 123456789012 eni-00ff11ee22dd33cc 10.0.3.25 8.8.4.4 - 53 17 1 102 1709251500 1709251560 ACCEPT OK
-2 123456789012 eni-0a0b0c0d0e0f1111 - 1.1.1.1 44321 443 6 5 3400 1709251600 1709251660 ACCEPT OK
-2 123456789012 eni-0a0b0c0d0e0f1111 10.0.4.50 203.0.113.10 34567 22 6 2 120 1709251700 1709251760 REJECT OK
-2 123456789012 eni-0abcabcabcabcabc 10.0.5.60 - 62000 25 6 1 60 1709251800 1709251860 REJECT OK
-2 123456789012 eni-0abcabcabcabcabc - - 62001 - 6 4 3200 1709251900 1709251960 ACCEPT OK
-2 123456789012 eni-0feedfeedfeed123 10.0.6.70 198.51.100.20 55000 80 6 15 12500 1709252000 1709252060 ACCEPT OK
-2 123456789012 eni-0feedfeedfeed123 - - - - - - - 1709252100 1709252160 ACCEPT NODATA
+version account-id interface-id srcaddr dstaddr srcport dstport protocol packets bytes start end action log-status vpc-id subnet-id instance-id tcp-flags type pkt-srcaddr pkt-dstaddr region az-id sublocation-type sublocation-id pkt-src-aws-service pkt-dst-aws-service flow-direction traffic-path
+5 123456789012 eni-0011223344556677 10.0.1.10 52.94.229.105 51514 443 6 12 8400 1709251000 1709251060 ACCEPT OK vpc-0a1b2c3d subnet-0b1c2d3e i-0a1b2c3d 2 IPv4 10.0.1.10 52.94.229.105 us-east-1 use1-az1 - - - AMAZON egress 1
+5 123456789012 eni-0011223344556677 52.94.229.105 10.0.1.10 443 51514 6 15 12000 1709251060 1709251120 ACCEPT OK vpc-0a1b2c3d subnet-0b1c2d3e i-0a1b2c3d 18 IPv4 52.94.229.105 10.0.1.10 us-east-1 use1-az1 - - AMAZON - ingress -
+5 123456789012 eni-00aa11bb22cc33dd 10.0.2.15 10.0.3.25 49822 8080 6 5 4200 1709251200 1709251260 ACCEPT OK vpc-0a1b2c3d subnet-0d3e4f5a i-0b2c3d4e 2 IPv4 10.0.2.15 10.0.3.25 us-east-1 use1-az2 - - - - - -
+5 123456789012 eni-00ff11ee22dd33cc 10.0.3.25 8.8.8.8 60123 53 17 1 98 1709251400 1709251460 ACCEPT OK vpc-0a1b2c3d subnet-0e4f5a6b i-0c3d4e5f - IPv4 10.0.3.25 8.8.8.8 us-east-1 use1-az1 - - - - egress 1
+5 123456789012 eni-0a0b0c0d0e0f1111 10.0.4.50 203.0.113.10 34567 22 6 2 120 1709251700 1709251760 REJECT OK vpc-0a1b2c3d subnet-0c2d3e4f - 2 IPv4 10.0.4.50 203.0.113.10 us-east-1 use1-az1 - - - - egress 1
+5 123456789012 eni-0abcabcabcabcabc 10.0.1.10 10.0.2.20 - - 1 3 252 1709251800 1709251860 ACCEPT OK vpc-0a1b2c3d subnet-0b1c2d3e i-0a1b2c3d - IPv4 10.0.1.10 10.0.2.20 us-east-1 use1-az1 - - - - - -
+5 123456789012 eni-0feedfeedfeed123 - - - - - - - 1709252100 1709252160 - NODATA vpc-0a1b2c3d subnet-0f5a6b7c - - - - - us-east-1 use1-az1 - - - - - -
+5 123456789012 eni-0skipskipskip000 - - - - - - - 1709252200 1709252260 - SKIPDATA vpc-0a1b2c3d subnet-0f5a6b7c - - - - - us-east-1 use1-az1 - - - - - -

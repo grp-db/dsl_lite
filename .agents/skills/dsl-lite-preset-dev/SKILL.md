@@ -58,13 +58,13 @@ autoloader:
 
 bronze:
   name: <source>_<source_type>_bronze
-  # loadAsSingleVariant: true           # JSON only
+  # loadAsSingleVariant: true           # JSON or CSV-with-header only
   preTransform:
     -
       - CAST('<source>' AS STRING) AS source
       - CAST('<source_type>' AS STRING) AS sourcetype
       - <timestamp_expr> as time
-      - "value"                         # or "data" for JSON (loadAsSingleVariant: true)
+      - "value"                         # or "data" for JSON/CSV-with-header (loadAsSingleVariant: true)
       # Engine auto-injects: _metadata, record_id, date, processed_time, dsl_id
       # dsl_id is auto-injected by the engine (10th column)
   lookups: []                           # optional enrichment joins
@@ -237,7 +237,7 @@ See [references/5-lookup-joins.md](references/5-lookup-joins.md) for the full co
 ## Critical Rules
 
 - **Identity block is required on every preset** — `name`, `title`, `description`, and `author` must all appear at the top of `preset.yaml`. Attribution (`author`) is not optional.
-- **`loadAsSingleVariant: true`** — JSON sources only. Raw JSON stored as VARIANT in `data`. Text/syslog data is always in `value` STRING column.
+- **`loadAsSingleVariant: true`** — JSON or CSV-with-header sources. Stores the entire record as VARIANT in `data`; silver uses `try_variant_get`. For CSV: keys are the header column names — useful when the column set is user-configurable (e.g. AWS VPC Flow Logs v2–v10). Never use for text/syslog — the `value` column won't exist.
 - **`"on"` must be quoted** in YAML — unquoted `on` is parsed as boolean `True`
 - **Double backslashes in regex** — YAML unquoted strings and `|` block scalars: `\\d`, `\\S`, `\\w`. Avoid double-quoted YAML strings for regex (requires `\\\\d`)
 - **`TRY_CAST` for string→type conversions** — returns NULL on failure; use plain `CAST` only for safe conversions (literals, int→string)

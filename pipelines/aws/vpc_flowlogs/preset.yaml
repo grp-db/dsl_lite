@@ -92,6 +92,34 @@ silver:
           expr: NULLIF(try_variant_get(data, '$.flow-direction', 'string'), '-')
         - name: traffic_path
           expr: try_variant_get(data, '$.traffic-path', 'int')
+        # -------- v7 ECS fields --------
+        - name: ecs_cluster_arn
+          expr: NULLIF(try_variant_get(data, '$.ecs-cluster-arn', 'string'), '-')
+        - name: ecs_cluster_name
+          expr: NULLIF(try_variant_get(data, '$.ecs-cluster-name', 'string'), '-')
+        - name: ecs_container_instance_arn
+          expr: NULLIF(try_variant_get(data, '$.ecs-container-instance-arn', 'string'), '-')
+        - name: ecs_container_instance_id
+          expr: NULLIF(try_variant_get(data, '$.ecs-container-instance-id', 'string'), '-')
+        - name: ecs_container_id
+          expr: NULLIF(try_variant_get(data, '$.ecs-container-id', 'string'), '-')
+        - name: ecs_second_container_id
+          expr: NULLIF(try_variant_get(data, '$.ecs-second-container-id', 'string'), '-')
+        - name: ecs_service_name
+          expr: NULLIF(try_variant_get(data, '$.ecs-service-name', 'string'), '-')
+        - name: ecs_task_definition_arn
+          expr: NULLIF(try_variant_get(data, '$.ecs-task-definition-arn', 'string'), '-')
+        - name: ecs_task_arn
+          expr: NULLIF(try_variant_get(data, '$.ecs-task-arn', 'string'), '-')
+        - name: ecs_task_id
+          expr: NULLIF(try_variant_get(data, '$.ecs-task-id', 'string'), '-')
+        # -------- v8+ fields --------
+        - name: reject_reason
+          expr: NULLIF(try_variant_get(data, '$.reject-reason', 'string'), '-')
+        - name: resource_id
+          expr: NULLIF(try_variant_get(data, '$.resource-id', 'string'), '-')
+        - name: encryption_status
+          expr: try_variant_get(data, '$.encryption-status', 'int')
         # -------- v5/v6 Transit Gateway fields --------
         - name: tgw_id
           expr: NULLIF(try_variant_get(data, '$.tgw-id', 'string'), '-')
@@ -187,6 +215,8 @@ gold:
       - name: status_detail
         expr: |
           CASE
+            WHEN log_status = 'OK' AND reject_reason IS NOT NULL
+              THEN concat('Flow rejected: ', reject_reason)
             WHEN log_status = 'OK' THEN 'Flow log recorded'
             WHEN log_status = 'NODATA' THEN 'No data during aggregation interval'
             WHEN log_status = 'SKIPDATA' THEN 'Data skipped during aggregation interval'
@@ -393,6 +423,9 @@ gold:
             'sublocation_type', sublocation_type,
             'sublocation_id',  sublocation_id,
             'log_status',      log_status,
+            'reject_reason',   reject_reason,
+            'resource_id',     resource_id,
+            'encryption_status', encryption_status,
             'tgw_id',          tgw_id,
             'tgw_attachment_id', tgw_attachment_id,
             'tgw_pair_attachment_id', tgw_pair_attachment_id,
@@ -400,5 +433,12 @@ gold:
             'packets_lost_no_route',    packets_lost_no_route,
             'packets_lost_blackhole',   packets_lost_blackhole,
             'packets_lost_mtu_exceeded', packets_lost_mtu_exceeded,
-            'packets_lost_ttl_expired', packets_lost_ttl_expired
+            'packets_lost_ttl_expired', packets_lost_ttl_expired,
+            'ecs_cluster_arn', ecs_cluster_arn,
+            'ecs_cluster_name', ecs_cluster_name,
+            'ecs_container_instance_id', ecs_container_instance_id,
+            'ecs_container_id', ecs_container_id,
+            'ecs_service_name', ecs_service_name,
+            'ecs_task_id',     ecs_task_id,
+            'ecs_task_arn',    ecs_task_arn
           ))
